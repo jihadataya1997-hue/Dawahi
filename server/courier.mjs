@@ -14,8 +14,8 @@ const NEXT = {
   on_the_way: ['delivered'],
 }
 const STATUS_AR = {
-  buying: 'الشب عم يشتري أغراضك',
-  on_the_way: 'طلبك بالطريق لعندك',
+  buying: 'عامل التوصيل يشتري أغراضك الآن',
+  on_the_way: 'طلبك في الطريق إليك',
   delivered: 'تم توصيل طلبك',
 }
 
@@ -137,8 +137,8 @@ export async function courierRoute(req, res, url) {
 
   if (m === 'POST' && pathname === '/api/courier/push/test') {
     const n = notify('courier', me.id, {
-      title: 'ضواحي — تجربة التنبيهات ✅',
-      body: 'التنبيهات شغالة. رح يوصلك تنبيه متل هاد مع كل طلب جديد.',
+      title: 'ضواحي: تجربة الإشعارات ✅',
+      body: 'الإشعارات تعمل. سيصلك إشعار مثل هذا مع كل طلب جديد.',
       url: '/driver',
       tag: 'test',
     })
@@ -177,7 +177,7 @@ export async function courierRoute(req, res, url) {
     }
     log('info', 'order status changed by courier', { orderId: id, courierId: me.id, from: row.status, to })
     notify('customer', row.customer_id, {
-      title: `ضواحي — طلب D-${1000 + id}`,
+      title: `ضواحي: الطلب D-${1000 + id}`,
       body: STATUS_AR[to],
       url: '/',
       tag: `order-${id}`,

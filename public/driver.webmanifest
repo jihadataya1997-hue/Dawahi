@@ -1,8 +1,8 @@
 {
   "id": "/driver",
-  "name": "ضواحي - الشباب",
-  "short_name": "شباب ضواحي",
-  "description": "تطبيق شباب التوصيل في ضواحي",
+  "name": "ضواحي للتوصيل - عمال التوصيل",
+  "short_name": "ضواحي للتوصيل",
+  "description": "تطبيق عمال التوصيل في ضواحي",
   "start_url": "/driver",
   "scope": "/driver",
   "display": "standalone",

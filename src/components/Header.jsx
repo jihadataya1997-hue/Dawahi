@@ -1,9 +1,11 @@
 import { Bell, ChevronDown, MapPin } from 'lucide-react'
 import Logo from './Logo'
 import { useLang } from '../i18n/LanguageProvider'
+import { useAppConfig } from '../config/AppConfigProvider'
 
-export default function Header() {
+export default function Header({ unread = 0, onBell }) {
   const { t, lang, toggleLang } = useLang()
+  const { areaName } = useAppConfig()
 
   return (
     <header className="pt-safe relative overflow-hidden rounded-b-[2rem] bg-navy px-4 pb-12 pt-4">
@@ -25,11 +27,16 @@ export default function Header() {
           </button>
           {/* الإشعارات */}
           <button
-            aria-label="Notifications"
+            onClick={onBell}
+            aria-label={t('inbox.title')}
             className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition active:scale-95"
           >
             <Bell size={20} />
-            <span className="absolute end-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-navy bg-brand" />
+            {unread > 0 && (
+              <span className="absolute -end-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-navy bg-brand px-1 text-[10px] font-bold">
+                {unread}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -42,7 +49,7 @@ export default function Header() {
         <span>
           <span className="block text-[11px] text-white/60">{t('deliverTo')}</span>
           <span className="flex items-center gap-1 text-sm font-bold text-white">
-            {t('location')} <ChevronDown size={16} className="text-brand" />
+            {areaName} <ChevronDown size={16} className="text-brand" />
           </span>
         </span>
       </button>

@@ -1,22 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
 import { useAuth } from '../auth/AuthProvider'
+import { useAppConfig } from '../config/AppConfigProvider'
 
 // الطلبات والأسعار من السيرفر، مع تحديث تلقائي كل 20 ثانية
 const OrdersContext = createContext(null)
 export const OPEN_STATUSES = ['new', 'assigned', 'buying', 'on_the_way']
 
-const DEFAULT_PRICING = { deliveryFee: 15000, gasPrice: 150000, emptyCylinder: 350000, stairsPerFloor: 2000 }
-
 export function OrdersProvider({ children }) {
   const { user } = useAuth()
   const [orders, setOrders] = useState([])
   const [loaded, setLoaded] = useState(false)
-  const [pricing, setPricing] = useState(DEFAULT_PRICING)
-
-  useEffect(() => {
-    api('/config').then((d) => setPricing(d.pricing)).catch(() => {})
-  }, [])
+  const { pricing } = useAppConfig()
 
   const refresh = useCallback(async () => {
     if (!user) return

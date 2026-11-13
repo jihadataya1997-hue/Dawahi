@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  Bike,
+  ClipboardList,
+  Image,
+  LayoutDashboard,
+  Megaphone,
+  PanelsTopLeft,
   BellOff,
   BellRing,
   Check,
@@ -24,18 +30,20 @@ import {
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import { disablePush, enablePush, pushState, registerSW } from '../push'
+import { currency, money } from './shared'
+import { AppContent, Announcements, Banners, Customers } from './sections'
 import { adminApi, adminErrorText, adminPhotoUrl, downloadBackup, getAdminToken, setAdminToken, setLoggedOutHandler } from './adminApi'
 
 const STATUS = {
-  new: { label: 'جديد — بانتظار شب', cls: 'bg-amber-100 text-amber-800' },
-  assigned: { label: 'مع الشب', cls: 'bg-sky-100 text-sky-800' },
-  buying: { label: 'عم يشتري', cls: 'bg-violet-100 text-violet-800' },
-  on_the_way: { label: 'بالطريق', cls: 'bg-orange-100 text-orange-800' },
+  new: { label: 'جديد، بانتظار عامل توصيل', cls: 'bg-amber-100 text-amber-800' },
+  assigned: { label: 'مع عامل التوصيل', cls: 'bg-sky-100 text-sky-800' },
+  buying: { label: 'قيد الشراء', cls: 'bg-violet-100 text-violet-800' },
+  on_the_way: { label: 'في الطريق', cls: 'bg-orange-100 text-orange-800' },
   delivered: { label: 'تم التوصيل', cls: 'bg-emerald-100 text-emerald-800' },
   cancelled: { label: 'ملغي', cls: 'bg-slate-100 text-slate-500' },
 }
 const CATEGORY = {
-  any: 'أي شي',
+  any: 'أي محل',
   restaurants: 'مطعم',
   supermarket: 'سوبرماركت',
   pharmacy: 'صيدلية',
@@ -44,7 +52,6 @@ const CATEGORY = {
   other: 'غير ذلك',
   gas: 'غاز',
 }
-const money = (n) => `${new Intl.NumberFormat('ar-SY').format(n)} ل.س`
 const mapsUrl = (l) => `https://maps.google.com/?q=${l.lat.toFixed(6)},${l.lng.toFixed(6)}`
 const waUrl = (phone, text = '') => `https://wa.me/963${phone.slice(1)}${text ? `?text=${encodeURIComponent(text)}` : ''}`
 const timeAgo = (iso) => {
@@ -56,7 +63,7 @@ const timeAgo = (iso) => {
   return new Date(iso).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' })
 }
 
-// الشباب المحفوظين على هذا الجهاز (للاختيار السريع)
+// عمال التوصيل الخارجيون المحفوظون على هذا الجهاز (للاختيار السريع)
 const COURIERS_KEY = 'dawahi.couriers'
 const loadCouriers = () => {
   try {
@@ -160,134 +167,289 @@ function beep() {
   } catch {}
 }
 
+const NAV = [
+  { id: 'overview', label: 'الرئيسية', Icon: LayoutDashboard },
+  { id: 'orders', label: 'الطلبات', Icon: ClipboardList },
+  { id: 'couriers', label: 'عمال التوصيل', Icon: Bike },
+  { id: 'customers', label: 'الزبائن', Icon: Users },
+  { id: 'banners', label: 'الإعلانات', Icon: Image },
+  { id: 'announce', label: 'الإشعارات العامة', Icon: Megaphone },
+  { id: 'content', label: 'محتوى التطبيق', Icon: PanelsTopLeft },
+  { id: 'prices', label: 'الأسعار والتوزيع', Icon: Tag },
+  { id: 'backups', label: 'النسخ الاحتياطي', Icon: Database },
+]
+const TITLES = Object.fromEntries(NAV.map((n) => [n.id, n.label]))
+
 function Dashboard({ onLogout }) {
-  const [tab, setTab] = useState('open')
-  const [orders, setOrders] = useState([])
+  const [section, setSection] = useState(() => (NAV.some((n) => `#${n.id}` === location.hash) ? location.hash.slice(1) : 'overview'))
   const [stats, setStats] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [selected, setSelected] = useState(null)
-  const lastMaxId = useRef(0)
+  const lastWaiting = useRef(null)
 
-  const load = useCallback(async () => {
-    if (tab === 'prices' || tab === 'backups' || tab === 'couriers') return
-    try {
-      const [o, s] = await Promise.all([adminApi(`/orders?group=${tab}`), adminApi('/stats')])
-      setOrders(o.orders)
-      setStats(s)
-      setError('')
-      // تنبيه إذا وصل طلب جديد
-      const maxId = Math.max(0, ...o.orders.filter((x) => x.status === 'new').map((x) => x.id))
-      if (lastMaxId.current && maxId > lastMaxId.current) beep()
-      if (maxId > lastMaxId.current) lastMaxId.current = maxId
-      document.title = s.waiting ? `(${s.waiting}) طلب جديد — ضواحي` : 'لوحة تحكم ضواحي'
-    } catch (err) {
-      setError(adminErrorText(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [tab])
-
+  // العملة الحالية من إعدادات التطبيق
   useEffect(() => {
-    setLoading(true)
-    load()
-    const id = setInterval(load, 10000)
-    return () => clearInterval(id)
-  }, [load])
+    fetch('/api/app')
+      .then((r) => r.json())
+      .then((d) => d.currency && (currency.label = d.currency))
+      .catch(() => {})
+  }, [])
 
+  // الإحصائيات + تنبيه صوتي عند وصول طلب جديد (كل 10 ثوانٍ)
+  const loadStats = useCallback(async () => {
+    try {
+      const s = await adminApi('/stats')
+      if (lastWaiting.current !== null && s.waiting > lastWaiting.current) beep()
+      lastWaiting.current = s.waiting
+      setStats(s)
+      document.title = s.waiting ? `(${s.waiting}) طلب جديد | ضواحي` : 'لوحة إدارة ضواحي'
+    } catch {}
+  }, [])
+  useEffect(() => {
+    loadStats()
+    const id = setInterval(loadStats, 10000)
+    return () => clearInterval(id)
+  }, [loadStats])
+
+  const go = (id) => {
+    setSection(id)
+    history.replaceState(null, '', `#${id}`)
+    window.scrollTo({ top: 0 })
+  }
   const logout = async () => {
     await adminApi('/logout', { method: 'POST' }).catch(() => {})
     setAdminToken(null)
     onLogout()
   }
 
-  const onUpdated = (o) => {
-    setSelected(o)
-    load()
-  }
-
   return (
-    <div className="mx-auto min-h-full max-w-3xl pb-10" onClick={unlockSound}>
-      <header className="pt-safe sticky top-0 z-20 bg-navy px-4 pb-4 pt-4 text-white shadow-lg">
-        <div className="flex items-center gap-3">
+    <div className="min-h-full bg-[#F3F5F9] lg:flex" onClick={unlockSound}>
+      {/* القائمة الجانبية (كمبيوتر) */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-navy p-4 text-white lg:flex">
+        <div className="flex items-center gap-3 px-2 py-2">
           <LogoMark className="h-10 w-10" />
-          <div className="flex-1">
-            <h1 className="font-extrabold">لوحة تحكم ضواحي</h1>
-            <p className="text-[11px] text-white/50">تتحدث تلقائياً كل 10 ثوانٍ</p>
+          <div>
+            <p className="font-extrabold leading-tight">ضواحي</p>
+            <p className="text-[11px] text-white/50">لوحة الإدارة</p>
           </div>
-          <AdminBell />
-          <button onClick={load} aria-label="تحديث" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
-            <RefreshCw size={18} />
-          </button>
-          <button onClick={logout} aria-label="خروج" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
-            <LogOut size={18} className="-scale-x-100" />
-          </button>
         </div>
-        {stats && (
-          <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-            <Stat label="بانتظار شب" value={stats.waiting} highlight={stats.waiting > 0} />
-            <Stat label="مفتوحة" value={stats.open} />
-            <Stat label="طلبات اليوم" value={stats.today.total} />
-            <Stat label="وصلت اليوم" value={stats.today.delivered} />
-          </div>
-        )}
-        <nav className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide">
-          {[
-            ['open', 'المفتوحة'],
-            ['done', 'تم التوصيل'],
-            ['cancelled', 'الملغاة'],
-            ['couriers', 'الشباب'],
-            ['prices', 'الأسعار والتوزيع'],
-            ['backups', 'النسخ الاحتياطي'],
-          ].map(([id, label]) => (
+        <nav className="mt-6 flex-1 space-y-1 overflow-y-auto">
+          {NAV.map(({ id, label, Icon }) => (
             <button
               key={id}
-              onClick={() => setTab(id)}
-              className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold ${tab === id ? 'bg-brand text-white' : 'bg-white/10 text-white/70'}`}
+              onClick={() => go(id)}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-bold transition ${
+                section === id ? 'bg-brand text-white' : 'text-white/70 hover:bg-white/10'
+              }`}
             >
-              {label}
+              <Icon size={18} />
+              <span className="flex-1">{label}</span>
+              {id === 'orders' && stats?.waiting > 0 && (
+                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-brand">{stats.waiting}</span>
+              )}
             </button>
           ))}
         </nav>
-      </header>
+        <button onClick={logout} className="mt-4 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-white/60 hover:bg-white/10">
+          <LogOut size={18} className="-scale-x-100" /> تسجيل الخروج
+        </button>
+      </aside>
 
-      <main className="p-4">
-        {error && <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-sm font-bold text-rose-600">{error}</p>}
-        {tab === 'prices' ? (
-          <>
-            <DispatchSettings />
-            <div className="h-4" />
-            <Prices />
-          </>
-        ) : tab === 'couriers' ? (
-          <Couriers />
-        ) : tab === 'backups' ? (
-          <Backups />
-        ) : loading ? (
-          <div className="flex justify-center pt-16 text-brand">
-            <LoaderCircle size={32} className="animate-spin" />
+      <div className="min-w-0 flex-1">
+        {/* الشريط العلوي */}
+        <header className="pt-safe sticky top-0 z-20 bg-navy text-white lg:bg-white lg:text-navy lg:shadow-sm">
+          <div className="flex items-center gap-3 px-4 py-3 lg:px-8">
+            <LogoMark className="h-9 w-9 lg:hidden" />
+            <h1 className="flex-1 text-lg font-extrabold">{TITLES[section]}</h1>
+            <AdminBell />
+            <button onClick={logout} aria-label="تسجيل الخروج" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 lg:hidden">
+              <LogOut size={18} className="-scale-x-100" />
+            </button>
           </div>
-        ) : orders.length === 0 ? (
-          <p className="pt-16 text-center text-sm text-navy/40">لا يوجد طلبات هنا</p>
-        ) : (
-          <ul className="space-y-3">
-            {orders.map((o) => (
-              <OrderRow key={o.id} order={o} onOpen={() => setSelected(o)} />
+          {/* القائمة (موبايل) */}
+          <nav className="scrollbar-hide flex gap-2 overflow-x-auto px-4 pb-3 lg:hidden">
+            {NAV.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => go(id)}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold ${section === id ? 'bg-brand text-white' : 'bg-white/10 text-white/70'}`}
+              >
+                {label}
+                {id === 'orders' && stats?.waiting > 0 ? ` (${stats.waiting})` : ''}
+              </button>
             ))}
-          </ul>
-        )}
-      </main>
+          </nav>
+        </header>
 
-      {selected && <OrderDetail orderId={selected.id} onClose={() => setSelected(null)} onUpdated={onUpdated} />}
+        <main className="mx-auto max-w-5xl p-4 pb-16 lg:p-8">
+          {section === 'overview' && <Overview stats={stats} onGo={go} onOpenOrder={setSelected} />}
+          {section === 'orders' && <OrdersBoard onOpen={setSelected} />}
+          {section === 'couriers' && <Couriers />}
+          {section === 'customers' && <Customers />}
+          {section === 'banners' && <Banners />}
+          {section === 'announce' && <Announcements />}
+          {section === 'content' && <AppContent />}
+          {section === 'prices' && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <DispatchSettings />
+              <Prices />
+            </div>
+          )}
+          {section === 'backups' && <Backups />}
+        </main>
+      </div>
+
+      {selected && (
+        <OrderDetail
+          orderId={selected.id}
+          onClose={() => setSelected(null)}
+          onUpdated={(o) => {
+            setSelected(o)
+            loadStats()
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function Stat({ label, value, highlight }) {
+/* ───────── الرئيسية: نظرة سريعة ───────── */
+
+function Overview({ stats, onGo, onOpenOrder }) {
+  const [open, setOpen] = useState(null)
+  const [couriers, setCouriers] = useState(null)
+  useEffect(() => {
+    const load = () => {
+      adminApi('/orders?group=open').then((d) => setOpen(d.orders)).catch(() => {})
+      adminApi('/couriers').then((d) => setCouriers(d.couriers.filter((c) => c.active))).catch(() => {})
+    }
+    load()
+    const id = setInterval(load, 10000)
+    return () => clearInterval(id)
+  }, [])
+  const online = couriers?.filter((c) => c.online).length ?? '…'
   return (
-    <div className={`rounded-2xl px-1 py-2 ${highlight ? 'bg-brand animate-pulse' : 'bg-white/10'}`}>
-      <div className="text-xl font-extrabold leading-none">{value}</div>
-      <div className="mt-1 text-[10px] text-white/70">{label}</div>
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <BigStat label="بانتظار عامل توصيل" value={stats?.waiting ?? '…'} tone={stats?.waiting > 0 ? 'alert' : 'plain'} onClick={() => onGo('orders')} />
+        <BigStat label="طلبات مفتوحة" value={stats?.open ?? '…'} onClick={() => onGo('orders')} />
+        <BigStat label="طلبات اليوم" value={stats?.today.total ?? '…'} sub={stats ? `${stats.today.delivered} تم توصيلها` : ''} />
+        <BigStat label="عمال متاحون الآن" value={online} sub={couriers ? `من أصل ${couriers.length}` : ''} onClick={() => onGo('couriers')} />
+      </div>
+
+      <section className="rounded-3xl bg-white p-5 shadow-soft">
+        <div className="flex items-center justify-between">
+          <h2 className="font-extrabold">الطلبات المفتوحة</h2>
+          <button onClick={() => onGo('orders')} className="text-xs font-bold text-brand">
+            كل الطلبات
+          </button>
+        </div>
+        {!open ? (
+          <div className="flex justify-center py-8 text-brand">
+            <LoaderCircle className="animate-spin" />
+          </div>
+        ) : open.length === 0 ? (
+          <p className="py-8 text-center text-sm text-navy/40">لا توجد طلبات مفتوحة الآن</p>
+        ) : (
+          <ul className="mt-3 grid gap-3 lg:grid-cols-2">
+            {open.slice(0, 6).map((o) => (
+              <OrderRow key={o.id} order={o} onOpen={() => onOpenOrder(o)} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Shortcut Icon={Image} title="الإعلانات" sub="السلايدر أعلى التطبيق" onClick={() => onGo('banners')} />
+        <Shortcut Icon={Megaphone} title="إرسال إشعار" sub="لكل الزبائن" onClick={() => onGo('announce')} />
+        <Shortcut Icon={Tag} title="الأسعار" sub="التوصيل والغاز" onClick={() => onGo('prices')} />
+      </div>
+      {stats && <p className="text-center text-xs text-navy/40">عدد الزبائن المسجلين: {stats.customers}</p>}
+    </div>
+  )
+}
+
+function BigStat({ label, value, sub, tone = 'plain', onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      className={`rounded-3xl p-4 text-start shadow-soft transition ${tone === 'alert' ? 'bg-brand text-white' : 'bg-white'} ${onClick ? 'active:scale-[0.98]' : ''}`}
+    >
+      <p className={`text-xs font-bold ${tone === 'alert' ? 'text-white/85' : 'text-navy/50'}`}>{label}</p>
+      <p className="mt-1 font-en text-3xl font-extrabold">{value}</p>
+      {sub && <p className={`text-[11px] ${tone === 'alert' ? 'text-white/80' : 'text-navy/40'}`}>{sub}</p>}
+    </button>
+  )
+}
+
+function Shortcut({ Icon, title, sub, onClick }) {
+  return (
+    <button onClick={onClick} className="flex items-center gap-3 rounded-3xl bg-white p-4 text-start shadow-soft active:scale-[0.98]">
+      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-50 text-brand">
+        <Icon size={20} />
+      </span>
+      <span>
+        <span className="block text-sm font-extrabold">{title}</span>
+        <span className="block text-xs text-navy/50">{sub}</span>
+      </span>
+    </button>
+  )
+}
+
+/* ───────── الطلبات ───────── */
+
+function OrdersBoard({ onOpen }) {
+  const [tab, setTab] = useState('open')
+  const [orders, setOrders] = useState(null)
+  const [error, setError] = useState('')
+  const load = useCallback(async () => {
+    try {
+      setOrders((await adminApi(`/orders?group=${tab}`)).orders)
+      setError('')
+    } catch (err) {
+      setError(adminErrorText(err))
+    }
+  }, [tab])
+  useEffect(() => {
+    setOrders(null)
+    load()
+    const id = setInterval(load, 10000)
+    return () => clearInterval(id)
+  }, [load])
+  return (
+    <div>
+      <div className="flex gap-2">
+        {[
+          ['open', 'المفتوحة'],
+          ['done', 'تم توصيلها'],
+          ['cancelled', 'الملغاة'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`rounded-full px-4 py-2 text-sm font-bold ${tab === id ? 'bg-navy text-white' : 'bg-white text-navy/60 shadow-soft'}`}
+          >
+            {label}
+          </button>
+        ))}
+        <button onClick={load} aria-label="تحديث" className="ms-auto flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-soft">
+          <RefreshCw size={16} />
+        </button>
+      </div>
+      {error && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-sm font-bold text-rose-600">{error}</p>}
+      {!orders ? (
+        <div className="flex justify-center pt-16 text-brand">
+          <LoaderCircle size={32} className="animate-spin" />
+        </div>
+      ) : orders.length === 0 ? (
+        <p className="pt-16 text-center text-sm text-navy/40">لا توجد طلبات هنا</p>
+      ) : (
+        <ul className="mt-4 grid gap-3 lg:grid-cols-2">
+          {orders.map((o) => (
+            <OrderRow key={o.id} order={o} onOpen={() => onOpen(o)} />
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -295,10 +457,10 @@ function Stat({ label, value, highlight }) {
 function summaryOf(o) {
   if (o.kind === 'gas') {
     return `${o.details.qty} جرة — ${o.details.gasType === 'buy' ? 'شراء جرة جديدة' : 'تبديل'}${
-      !o.details.elevator && o.floor ? ` — طابق ${o.floor} بدون مصعد` : ''
+      !o.details.elevator && o.floor ? ` ، الطابق ${o.floor} بدون مصعد` : ''
     }`
   }
-  return o.details.items || (o.hasPhoto ? '📷 الطلب بالصورة' : '')
+  return o.details.items || (o.hasPhoto ? 'طلب مرفق بصورة' : '')
 }
 
 function OrderRow({ order: o, onOpen }) {
@@ -330,7 +492,7 @@ function OrderRow({ order: o, onOpen }) {
         {o.courierName && <p className="mt-2 text-xs font-bold text-sky-700">🛵 {o.courierName}</p>}
         {o.offer && (
           <p className="mt-2 flex items-center gap-1 text-xs font-bold text-amber-700">
-            <Zap size={13} /> معروض على {o.offer.courierName} — بانتظار قبوله
+            <Zap size={13} /> معروض على {o.offer.courierName}، بانتظار قبوله
           </p>
         )}
       </button>
@@ -518,7 +680,7 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
                 rel="noreferrer"
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-sm font-extrabold text-white"
               >
-                <Send size={16} className="-scale-x-100" /> إرسال الطلب لـ {courier || 'الشب'} على واتساب
+                <Send size={16} className="-scale-x-100" /> إرسال الطلب إلى {courier || 'عامل التوصيل'} عبر واتساب
               </a>
             )}
             <button
@@ -526,7 +688,7 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-navy/15 py-3 text-sm font-bold"
             >
               {copied ? <Check size={16} className="text-emerald-600" /> : <ClipboardCopy size={16} />}
-              {copied ? 'تم النسخ — الصقه للشب على واتساب' : 'نسخ تفاصيل الطلب لإرسالها للشب'}
+              {copied ? 'تم النسخ، الصقه في محادثة واتساب' : 'نسخ تفاصيل الطلب'}
             </button>
 
             {/* تغيير الحالة */}
@@ -535,12 +697,12 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
                 <p className="text-xs text-white/60">تغيير حالة الطلب</p>
                 {o.status === 'new' && o.offer && (
                   <p className="mt-2 rounded-xl bg-amber-500/20 px-3 py-2 text-xs">
-                    ⚡ التوزيع التلقائي عارضه هلق على <b>{o.offer.courierName}</b>. إذا سلّمته يدوياً، العرض بينلغى.
+                    التوزيع التلقائي يعرض الطلب الآن على <b>{o.offer.courierName}</b>. إذا سلّمته يدوياً يُلغى العرض.
                   </p>
                 )}
                 {o.status === 'new' && registered.length > 0 && (
                   <div className="mt-3">
-                    <p className="mb-2 text-[11px] text-white/50">شباب التطبيق (بيوصلهم تنبيه):</p>
+                    <p className="mb-2 text-[11px] text-white/50">عمال التوصيل في التطبيق (يصلهم إشعار):</p>
                     <div className="flex flex-wrap gap-2">
                       {registered.map((c) => (
                         <button
@@ -563,7 +725,7 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
                 )}
                 {o.status === 'new' && !courierId && (
                   <>
-                    <p className="mt-3 text-[11px] text-white/50">أو شب من برّا التطبيق (واتساب):</p>
+                    <p className="mt-3 text-[11px] text-white/50">أو عامل توصيل من خارج التطبيق (عبر واتساب):</p>
                     {saved.length > 0 && (
                       <div className="scrollbar-hide mt-3 flex gap-2 overflow-x-auto">
                         {saved.map((c) => (
@@ -586,7 +748,7 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
                       <input
                         value={courier}
                         onChange={(e) => setCourier(e.target.value)}
-                        placeholder="اسم الشب"
+                        placeholder="اسم عامل التوصيل"
                         className="min-w-0 rounded-2xl bg-white/10 px-4 py-3 text-sm outline-none placeholder:text-white/40 focus:bg-white/20"
                       />
                       <input
@@ -607,19 +769,19 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
                   </p>
                 )}
                 <div className="mt-3 grid gap-2">
-                  {o.status === 'new' && <Action onClick={() => move('assigned')} busy={busy === 'assigned'} label="تسليم الطلب للشب" />}
+                  {o.status === 'new' && <Action onClick={() => move('assigned')} busy={busy === 'assigned'} label="تسليم الطلب لعامل التوصيل" />}
                   {o.status === 'assigned' && o.kind === 'custom' && (
-                    <Action onClick={() => move('buying')} busy={busy === 'buying'} label="الشب عم يشتري الأغراض" />
+                    <Action onClick={() => move('buying')} busy={busy === 'buying'} label="بدأ شراء الأغراض" />
                   )}
                   {(o.status === 'assigned' || o.status === 'buying') && (
-                    <Action onClick={() => move('on_the_way')} busy={busy === 'on_the_way'} label="الشب بالطريق للزبون" />
+                    <Action onClick={() => move('on_the_way')} busy={busy === 'on_the_way'} label="في الطريق إلى الزبون" />
                   )}
                   {o.status === 'on_the_way' && (
                     <Action onClick={() => move('delivered')} busy={busy === 'delivered'} label="تم التوصيل ✓" green />
                   )}
                   {o.status === 'assigned' && (
                     <button onClick={() => move('new')} className="py-2 text-xs font-bold text-white/60">
-                      إرجاع الطلب لـ "بانتظار شب"
+                      إعادة الطلب إلى قائمة الانتظار
                     </button>
                   )}
                   {confirmCancel ? (
@@ -743,7 +905,7 @@ function Prices() {
                 onChange={(e) => setValues({ ...values, [key]: e.target.value.replace(/\D/g, '') })}
                 className="min-w-0 flex-1 bg-transparent px-4 py-3 text-end font-en text-base font-bold outline-none"
               />
-              <span className="pe-4 text-xs text-navy/50">ل.س</span>
+              <span className="pe-4 text-xs text-navy/50">{currency.label}</span>
             </div>
           </label>
         ))}
@@ -792,7 +954,7 @@ function Backups() {
     try {
       await downloadBackup(name)
     } catch {
-      setError('ما قدرنا ننزّل النسخة، جرّب مرة ثانية')
+      setError('تعذّر تنزيل النسخة، حاول مرة أخرى')
     } finally {
       setBusy('')
     }
@@ -804,8 +966,8 @@ function Backups() {
         <Database size={18} className="text-brand" /> النسخ الاحتياطي
       </h2>
       <p className="mt-1 text-xs leading-relaxed text-navy/50">
-        نسخة تلقائية كل يوم من الطلبات والزبائن والأسعار، تُحفظ على السيرفر لمدة 14 يوماً. نزّل نسخة على جهازك من وقت
-        لآخر لتكون عندك نسخة خارج السيرفر.
+        نسخة تلقائية يومية من الطلبات والزبائن والأسعار، تُحفظ على السيرفر لمدة 14 يوماً. نزّل نسخة إلى جهازك بين حين وآخر
+        لتحتفظ بنسخة خارج السيرفر.
       </p>
       <button
         onClick={backupNow}
@@ -820,7 +982,7 @@ function Backups() {
           <LoaderCircle size={24} className="animate-spin" />
         </div>
       ) : list.length === 0 ? (
-        <p className="py-8 text-center text-sm text-navy/40">لا يوجد نسخ بعد — أول نسخة تُؤخذ تلقائياً خلال ساعة</p>
+        <p className="py-8 text-center text-sm text-navy/40">لا توجد نسخ بعد، وستُؤخذ أول نسخة تلقائياً خلال ساعة</p>
       ) : (
         <ul className="mt-4 divide-y divide-navy/5">
           {list.map((b) => (
@@ -866,11 +1028,11 @@ function AdminBell() {
         setState('enabled')
         await adminApi('/push/test', { method: 'POST' }).catch(() => {})
       } else if (state === 'denied') {
-        alertBox('التنبيهات مرفوضة من المتصفح. افتح إعدادات الموقع واسمح بالإشعارات.')
+        alertBox('الإشعارات مرفوضة في المتصفح. افتح إعدادات الموقع واسمح بالإشعارات.')
       } else if (state === 'ios-install') {
-        alertBox('على الآيفون: أضف اللوحة للشاشة الرئيسية (زر المشاركة ← إضافة إلى الشاشة الرئيسية) وافتحها من هناك.')
+        alertBox('على الآيفون: أضف اللوحة إلى الشاشة الرئيسية (زر المشاركة ثم إضافة إلى الشاشة الرئيسية) وافتحها من هناك.')
       } else {
-        alertBox('هالمتصفح ما بيدعم التنبيهات. استعمل Chrome.')
+        alertBox('هذا المتصفح لا يدعم الإشعارات. استخدم Chrome.')
       }
     } catch (err) {
       if (err.message === 'denied') setState('denied')
@@ -884,11 +1046,11 @@ function AdminBell() {
     <button
       onClick={toggle}
       aria-label="التنبيهات"
-      title={on ? 'التنبيهات شغالة' : 'فعّل تنبيهات الطلبات الجديدة'}
+      title={on ? 'الإشعارات مفعّلة' : 'فعّل إشعارات الطلبات الجديدة'}
       className={`flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${on ? 'bg-emerald-500' : 'bg-brand animate-pulse'}`}
     >
       {busy ? <LoaderCircle size={16} className="animate-spin" /> : on ? <BellRing size={16} /> : <BellOff size={16} />}
-      <span className="hidden sm:inline">{on ? 'التنبيهات شغالة' : 'فعّل التنبيهات'}</span>
+      <span className="hidden sm:inline">{on ? 'الإشعارات مفعّلة' : 'فعّل الإشعارات'}</span>
     </button>
   )
 }
@@ -902,7 +1064,7 @@ function alertBox(text) {
   setTimeout(() => el.remove(), 6000)
 }
 
-/* ───────── إدارة الشباب ───────── */
+/* ───────── عمال التوصيل ───────── */
 
 function Couriers() {
   const [list, setList] = useState(null)
@@ -933,7 +1095,7 @@ function Couriers() {
       load()
     } catch (err) {
       setError(
-        { PHONE_TAKEN: 'هالرقم مسجّل لشب تاني', INVALID_PIN: 'الرمز لازم يكون 4 لـ 6 أرقام', INVALID_PHONE: 'الرقم لازم يبلش بـ 09 ويكون 10 أرقام' }[err.code] ||
+        { PHONE_TAKEN: 'هذا الرقم مسجّل لعامل توصيل آخر', INVALID_PIN: 'الرمز من 4 إلى 6 أرقام', INVALID_PHONE: 'الرقم يبدأ بـ 09 ويتكوّن من 10 أرقام' }[err.code] ||
           adminErrorText(err)
       )
     } finally {
@@ -960,14 +1122,14 @@ function Couriers() {
 
   const share = (c) =>
     `https://wa.me/963${c.phone.slice(1)}?text=${encodeURIComponent(
-      `أهلين ${c.name} 👋\nهاد حسابك بتطبيق شباب ضواحي:\nالرابط: https://dawahi.prodev.cloud/driver\nالرقم: ${c.phone}\nالرمز: ${c.pin}\n\nافتح الرابط من Chrome، ثبّت التطبيق، وفعّل التنبيهات.`
+      `أهلاً ${c.name}،\nهذه بيانات حسابك في تطبيق عمال التوصيل لدى ضواحي:\nالرابط: https://dawahi.prodev.cloud/driver\nالرقم: ${c.phone}\nالرمز: ${c.pin}\n\nافتح الرابط في Chrome، وثبّت التطبيق، ثم فعّل الإشعارات.`
     )}`
 
   return (
     <div className="space-y-4">
       <form onSubmit={add} className="rounded-3xl bg-white p-5 shadow-soft">
         <h2 className="flex items-center gap-2 font-extrabold">
-          <UserPlus size={18} className="text-brand" /> إضافة شب توصيل
+          <UserPlus size={18} className="text-brand" /> إضافة عامل توصيل
         </h2>
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           <input
@@ -1005,7 +1167,7 @@ function Couriers() {
       {created && (
         <div className="rounded-3xl bg-emerald-50 p-4 text-sm">
           <p className="font-bold text-emerald-800">
-            ✅ حساب {created.name} جاهز — الرمز: <span className="font-en">{created.pin}</span>
+            حساب {created.name} جاهز، والرمز: <span className="font-en">{created.pin}</span>
           </p>
           <a
             href={share(created)}
@@ -1013,21 +1175,21 @@ function Couriers() {
             rel="noreferrer"
             className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3 font-bold text-white"
           >
-            <Send size={16} className="-scale-x-100" /> ابعتله الرابط والرمز على واتساب
+            <Send size={16} className="-scale-x-100" /> أرسل له الرابط والرمز عبر واتساب
           </a>
         </div>
       )}
 
       <div className="rounded-3xl bg-white p-5 shadow-soft">
         <h2 className="flex items-center gap-2 font-extrabold">
-          <Users size={18} className="text-brand" /> الشباب
+          <Users size={18} className="text-brand" /> عمال التوصيل
         </h2>
         {!list ? (
           <div className="flex justify-center py-8 text-brand">
             <LoaderCircle size={24} className="animate-spin" />
           </div>
         ) : list.length === 0 ? (
-          <p className="py-6 text-center text-sm text-navy/40">ما في شباب مسجلين بعد</p>
+          <p className="py-6 text-center text-sm text-navy/40">لا يوجد عمال توصيل مسجلون بعد</p>
         ) : (
           <ul className="mt-3 divide-y divide-navy/5">
             {list.map((c) => (
@@ -1036,18 +1198,18 @@ function Couriers() {
                   <span className={`h-3 w-3 shrink-0 rounded-full ${c.online && c.active ? 'bg-emerald-500' : 'bg-navy/20'}`} />
                   <div className="min-w-0 flex-1">
                     <p className="font-bold">
-                      {c.name} <span className="text-xs font-normal text-navy/50">— {c.openOrders} طلب مفتوح</span>
+                      {c.name} <span className="text-xs font-normal text-navy/50">({c.openOrders} طلبات مفتوحة)</span>
                     </p>
                     <p className="text-[11px] text-navy/50">
                       <span dir="ltr" className="font-en">{c.phone}</span> • {c.online ? 'متاح' : 'غير متاح'} •{' '}
-                      {c.push ? '🔔 التنبيهات شغالة' : '🔕 ما فعّل التنبيهات'}
+                      {c.push ? 'الإشعارات مفعّلة' : 'الإشعارات غير مفعّلة'}
                     </p>
                   </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2 ps-6">
                   {c.active && (
                     <button onClick={() => patch(c, { online: !c.online })} className="rounded-xl bg-navy-50 px-3 py-1.5 text-xs font-bold">
-                      {c.online ? 'خلّيه غير متاح' : 'خلّيه متاح'}
+                      {c.online ? 'جعله غير متاح' : 'جعله متاحاً'}
                     </button>
                   )}
                   <button onClick={() => resetPin(c)} className="rounded-xl bg-navy-50 px-3 py-1.5 text-xs font-bold">
@@ -1109,9 +1271,9 @@ function DispatchSettings() {
         className={`mt-4 flex w-full items-center gap-3 rounded-2xl p-4 text-start ${on ? 'bg-emerald-500 text-white' : 'bg-navy-50'}`}
       >
         <span className="flex-1">
-          <span className="block font-bold">{on ? 'شغّال' : 'متوقف — كل الطلبات بتتوزع يدوياً'}</span>
+          <span className="block font-bold">{on ? 'مفعّل' : 'متوقف، وتُوزَّع الطلبات يدوياً'}</span>
           <span className={`block text-xs ${on ? 'text-white/85' : 'text-navy/50'}`}>
-            الطلب بيروح لأول شب فاضي، وإذا ما قبل للي بعده. إذا الكل مشغول، بياخدو الأقرب لطريقه.
+            يُعرض كل طلب على أول عامل توصيل متفرغ، وإن لم يقبله ينتقل إلى التالي. وإذا كان الجميع مشغولين، يُعرض على الأقرب إلى طريقه.
           </span>
         </span>
         <span className={`relative h-7 w-12 shrink-0 rounded-full ${on ? 'bg-white/30' : 'bg-navy/15'}`}>
@@ -1130,7 +1292,7 @@ function DispatchSettings() {
           />
         </label>
         <label className="block">
-          <span className="text-xs font-bold">أقصى طلبات مع الشب</span>
+          <span className="text-xs font-bold">الحد الأقصى للطلبات مع العامل</span>
           <input
             inputMode="numeric"
             dir="ltr"

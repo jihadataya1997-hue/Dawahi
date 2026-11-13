@@ -1,5 +1,6 @@
 import { BookOpen, Flame, Fuel, Pill, ShoppingCart, UtensilsCrossed } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
+import { useAppConfig } from '../config/AppConfigProvider'
 
 export const SERVICES = [
   { id: 'restaurants', Icon: UtensilsCrossed, color: 'bg-rose-50 text-rose-500' },
@@ -11,12 +12,18 @@ export const SERVICES = [
 ]
 
 export default function ServicesGrid({ onSelect }) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
+  const { services } = useAppConfig()
+  // الترتيب والتفعيل والأسماء من لوحة الإدارة
+  const list = services
+    .map((s) => ({ ...SERVICES.find((x) => x.id === s.id), ...s }))
+    .filter((s) => s.Icon && s.enabled !== false)
+  if (!list.length) return null
   return (
     <section>
       <h2 className="mb-3 text-base font-extrabold">{t('services')}</h2>
       <div className="grid grid-cols-3 gap-3">
-        {SERVICES.map(({ id, Icon, color, featured }) => (
+        {list.map(({ id, Icon, color, featured, label, sub }) => (
           <button
             key={id}
             onClick={() => onSelect(id)}
@@ -32,8 +39,8 @@ export default function ServicesGrid({ onSelect }) {
             <span className={`flex h-14 w-14 items-center justify-center rounded-2xl ${color}`}>
               <Icon size={26} strokeWidth={2} />
             </span>
-            <span className="mt-2 text-sm font-bold">{t(`svc.${id}`)}</span>
-            <span className="text-[10px] text-navy/50">{t(`svcSub.${id}`)}</span>
+            <span className="mt-2 text-sm font-bold">{lang === 'ar' && label ? label : t(`svc.${id}`)}</span>
+            <span className="text-[10px] text-navy/50">{lang === 'ar' && label ? sub : t(`svcSub.${id}`)}</span>
           </button>
         ))}
       </div>

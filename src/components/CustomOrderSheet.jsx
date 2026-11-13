@@ -23,6 +23,7 @@ import { useLang } from '../i18n/LanguageProvider'
 import { Field, RowChoice, Stepper, Stepper2 } from './ui'
 import { useAuth } from '../auth/AuthProvider'
 import { useOrders } from '../orders/OrdersProvider'
+import { useAppConfig } from '../config/AppConfigProvider'
 import { compressImage, newClientKey } from '../api'
 import { errorText } from '../i18n/errorText'
 import LocationPicker, { LocationField, loadLastLocation, mapsLink } from './LocationPicker'
@@ -52,12 +53,13 @@ const blank = (category = 'any', items = '', phone = '') => ({
 
 /**
  * "اطلب أي شي" — الزبون يكتب طلبه بحرية، يحدد المحل إذا بدو،
- * وشب التوصيل بيشتري الأغراض وبيوصلها. لا يحتاج محلات متعاقدة.
+ * وعامل التوصيل يشتري الأغراض ويوصلها. لا يحتاج محلات متعاقدة.
  */
 export default function CustomOrderSheet({ open, initialCategory, initialText, onClose, onConfirmed }) {
   const { t, formatNumber } = useLang()
   const { user } = useAuth()
-  const { pricing, createOrder } = useOrders()
+  const { createOrder } = useOrders()
+  const { pricing, money } = useAppConfig()
   const [clientKey, setClientKey] = useState('')
   const [created, setCreated] = useState(null)
   const c = (k) => t(`custom.${k}`)
@@ -131,7 +133,6 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
     }
   }
 
-  const money = (n) => `${formatNumber(n)} ${t('gas.currency')}`
 
   return (
     <div className="fixed inset-0 z-50 mx-auto flex max-w-md flex-col justify-end">

@@ -10,6 +10,7 @@ import { adminRoute } from './admin.mjs'
 import { toOrder } from './lib.mjs'
 import { scheduleBackups } from './backup.mjs'
 import { courierRoute } from './courier.mjs'
+import { listAnnouncements, publicApp, serveMedia } from './content.mjs'
 import { cancelOffers, dispatchOrder, startDispatcher } from './dispatch.mjs'
 import { VAPID_PUBLIC_KEY, notify, removeSubscription, saveSubscription } from './push.mjs'
 
@@ -31,11 +32,12 @@ function authenticate(req) {
   if (!token || token.length > 200) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
   const row = db
     .prepare(
-      `SELECT c.id, c.name, c.phone, s.token_hash FROM sessions s
+      `SELECT c.id, c.name, c.phone, c.blocked, s.token_hash FROM sessions s
        JOIN customers c ON c.id = s.customer_id WHERE s.token_hash = ?`
     )
     .get(sha256(token))
   if (!row) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
+  if (row.blocked) throw new HttpError(403, 'BLOCKED', 'This account is suspended')
   db.prepare('UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?').run(now(), row.token_hash)
   return { id: row.id, name: row.name, phone: row.phone, tokenHash: row.token_hash }
 }
@@ -145,7 +147,7 @@ async function createOrder(req, res, user) {
   log('info', 'order created', { orderId: row.id, customerId: user.id, kind: row.kind })
   notify('admin', 0, {
     title: `🔔 طلب جديد D-${1000 + row.id}`,
-    body: `${user.name} — ${o.kind === 'gas' ? `غاز (${o.details.qty} جرة)` : (o.details.items || 'طلب بالصورة').slice(0, 80)}`,
+    body: `${user.name}: ${o.kind === 'gas' ? `غاز (${o.details.qty} جرة)` : (o.details.items || 'طلب مرفق بصورة').slice(0, 80)}`,
     url: '/admin',
     tag: `order-${row.id}`,
   })
@@ -239,6 +241,8 @@ async function route(req, res, url) {
     const name = str(body.name, 60, 'name', { required: true })
     const phone = String(body.phone || '').replace(/\s/g, '')
     if (!isPhone(phone)) throw bad('INVALID_PHONE', 'Phone must start with 09 and be 10 digits', 'phone')
+    if (db.prepare('SELECT blocked FROM customers WHERE phone = ?').get(phone)?.blocked)
+      throw new HttpError(403, 'BLOCKED', 'This account is suspended')
     // ⚠️ مؤقتاً بدون رمز تحقق — الخطوة القادمة: رمز عبر واتساب/SMS قبل إصدار الجلسة
     const ts = now()
     db.prepare(
@@ -254,6 +258,11 @@ async function route(req, res, url) {
 
   if (m === 'GET' && pathname === '/api/push/key') return send(res, 200, { key: VAPID_PUBLIC_KEY })
 
+  // إعدادات التطبيق العامة: النصوص، الخدمات، الإعلانات، الأسعار، العملة
+  if (m === 'GET' && pathname === '/api/app') return send(res, 200, publicApp())
+  const media = /^\/api\/media\/([^/]+)$/.exec(pathname)
+  if (media && m === 'GET') return serveMedia(res, media[1])
+
   // تطبيق شب التوصيل — له تسجيل دخول خاص
   if (pathname.startsWith('/api/courier/')) return courierRoute(req, res, url)
 
@@ -264,6 +273,9 @@ async function route(req, res, url) {
   const user = authenticate(req)
 
   if (m === 'GET' && pathname === '/api/me') return send(res, 200, { user: publicUser(user) })
+
+  // صندوق الإشعارات العامة داخل التطبيق
+  if (m === 'GET' && pathname === '/api/announcements') return send(res, 200, { announcements: listAnnouncements() })
 
   if (m === 'PATCH' && pathname === '/api/me') {
     const body = await readJson(req)

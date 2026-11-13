@@ -7,6 +7,7 @@ import { HttpError, bad, sha256, now, str, isPhone, isPin, hashPin, clientIp, ra
 import { hasSubscription, notify, removeSubscription, saveSubscription } from './push.mjs'
 import { BACKUP_DIR, isBackupName, listBackups, runBackup } from './backup.mjs'
 import { cancelOffers, courierLoad, nudge } from './dispatch.mjs'
+import { contentAdminRoute } from './content.mjs'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
 const SESSION_DAYS = 30
@@ -206,18 +207,18 @@ export async function adminRoute(req, res, url) {
     const num = `D-${1000 + id}`
     if (to === 'assigned' && courierId) {
       notify('courier', courierId, {
-        title: `🛵 طلب جديد إلك: ${num}`,
-        body: row.kind === 'gas' ? 'طلب غاز' : JSON.parse(row.details).items?.slice(0, 90) || 'طلب بالصورة',
+        title: `🛵 طلب جديد لك: ${num}`,
+        body: row.kind === 'gas' ? 'طلب غاز' : JSON.parse(row.details).items?.slice(0, 90) || 'طلب مرفق بصورة',
         url: '/driver',
         tag: `order-${id}`,
       })
     }
     // إذا انسحب الطلب من شب أو انلغى، نخبّره
     if ((to === 'new' || to === 'cancelled') && row.courier_id) {
-      notify('courier', row.courier_id, { title: `❌ ${num}`, body: to === 'cancelled' ? 'تم إلغاء الطلب' : 'تم سحب الطلب منك', url: '/driver', tag: `order-${id}` })
+      notify('courier', row.courier_id, { title: `❌ ${num}`, body: to === 'cancelled' ? 'تم إلغاء الطلب' : 'أُعيد الطلب إلى الإدارة', url: '/driver', tag: `order-${id}` })
     }
-    const customerMsg = { assigned: 'شب التوصيل استلم طلبك', buying: 'الشب عم يشتري أغراضك', on_the_way: 'طلبك بالطريق لعندك', delivered: 'تم توصيل طلبك', cancelled: 'تم إلغاء طلبك' }[to]
-    if (customerMsg) notify('customer', row.customer_id, { title: `ضواحي — طلب ${num}`, body: customerMsg, url: '/', tag: `order-${id}` })
+    const customerMsg = { assigned: 'عامل التوصيل استلم طلبك', buying: 'عامل التوصيل يشتري أغراضك الآن', on_the_way: 'طلبك في الطريق إليك', delivered: 'تم توصيل طلبك، شكراً لك', cancelled: 'تم إلغاء طلبك' }[to]
+    if (customerMsg) notify('customer', row.customer_id, { title: `ضواحي: الطلب ${num}`, body: customerMsg, url: '/', tag: `order-${id}` })
     const updated = db.prepare(`${ORDER_WITH_CUSTOMER} WHERE o.id = ?`).get(id)
     return send(res, 200, { order: withCustomer(updated) })
   }
@@ -294,7 +295,7 @@ export async function adminRoute(req, res, url) {
   }
   if (m === 'GET' && pathname === '/api/admin/push') return send(res, 200, { enabled: hasSubscription('admin', 0) })
   if (m === 'POST' && pathname === '/api/admin/push/test') {
-    const n = notify('admin', 0, { title: 'ضواحي — تجربة التنبيهات ✅', body: 'رح يوصلك تنبيه متل هاد مع كل طلب جديد.', url: '/admin', tag: 'test' })
+    const n = notify('admin', 0, { title: 'ضواحي: تجربة الإشعارات ✅', body: 'سيصلك إشعار مثل هذا مع كل طلب جديد.', url: '/admin', tag: 'test' })
     return send(res, 200, { devices: n })
   }
 
@@ -372,6 +373,8 @@ export async function adminRoute(req, res, url) {
       })
     }
   }
+
+  if (await contentAdminRoute(req, res, url)) return
 
   throw new HttpError(404, 'NOT_FOUND', 'Not found')
 }

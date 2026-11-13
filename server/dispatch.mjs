@@ -135,7 +135,7 @@ export function dispatchOrder(orderId) {
     log('info', 'offer created', { orderId: o.id, courierId: offer.courier.id, load: offer.courier.load, round: o.dispatch_round })
     notify('courier', offer.courier.id, {
       title: `🔔 طلب جديد ${num(o.id)} — ${CATEGORY_AR[o.category] || ''}`,
-      body: `${o.kind === 'gas' ? `${d.qty} جرة غاز` : (d.items || 'طلب بالصورة').slice(0, 80)}\nعندك ${Math.round(timeoutMs / 1000)} ثانية لتقبله`,
+      body: `${o.kind === 'gas' ? `${d.qty} جرة غاز` : (d.items || 'طلب مرفق بصورة').slice(0, 80)}\nلديك ${Math.round(timeoutMs / 1000)} ثانية لقبوله`,
       url: '/driver',
       tag: `offer-${o.id}`,
     })
@@ -145,8 +145,8 @@ export function dispatchOrder(orderId) {
   const fresh = exhausted && Date.now() - new Date(exhausted.order.created_at).getTime() < 40_000
   if (exhausted && (exhausted.tried > 0 || fresh)) {
     notify('admin', 0, {
-      title: `⚠️ ${num(exhausted.order.id)} بدون شب`,
-      body: exhausted.tried > 0 ? 'كل الشباب المتاحين رفضوا أو ما ردّوا. رح نعيد المحاولة بعد دقيقتين — أو سلّمه يدوياً.' : 'ما في ولا شب متاح هلق. الطلب بالانتظار.',
+      title: `⚠️ الطلب ${num(exhausted.order.id)} بدون عامل توصيل`,
+      body: exhausted.tried > 0 ? 'لم يقبله أي عامل متاح. سنعيد المحاولة بعد دقيقتين، أو يمكنك تسليمه يدوياً.' : 'لا يوجد عامل توصيل متاح الآن. الطلب بالانتظار.',
       url: '/admin',
       tag: `nocourier-${exhausted.order.id}`,
     })
@@ -185,7 +185,7 @@ export function acceptOffer(offerId, courier) {
   if (result.error) return result
   const o = db.prepare('SELECT customer_id FROM orders WHERE id = ?').get(result.orderId)
   log('info', 'offer accepted', { orderId: result.orderId, courierId: courier.id })
-  notify('customer', o.customer_id, { title: `ضواحي — طلب ${num(result.orderId)}`, body: `${courier.name} استلم طلبك`, url: '/', tag: `order-${result.orderId}` })
+  notify('customer', o.customer_id, { title: `ضواحي: الطلب ${num(result.orderId)}`, body: `${courier.name} استلم طلبك وسيتواصل معك قريباً`, url: '/', tag: `order-${result.orderId}` })
   return result
 }
 
@@ -210,7 +210,7 @@ export function cancelOffers(orderId) {
   if (!pending.length) return
   db.prepare(`UPDATE order_offers SET status = 'cancelled', responded_at = ? WHERE order_id = ? AND status = 'pending'`).run(now(), orderId)
   for (const p of pending)
-    notify('courier', p.courier_id, { title: `❌ ${num(orderId)}`, body: 'العرض ما عاد متاح', url: '/driver', tag: `offer-${orderId}` })
+    notify('courier', p.courier_id, { title: `❌ ${num(orderId)}`, body: 'لم يعد هذا الطلب متاحاً', url: '/driver', tag: `offer-${orderId}` })
 }
 
 /** دورة كل 5 ثوانٍ: ننهي العروض المنتهية، ونوزّع الطلبات المنتظرة بالترتيب (الأقدم أولاً) */
@@ -237,8 +237,8 @@ export function tick() {
       if (changed === 'offline') {
         log('info', 'courier set offline after missed offers', { courierId: e.courier_id })
         notify('courier', e.courier_id, {
-          title: 'وقّفنا استقبال الطلبات عندك',
-          body: `ما رديت على ${MAX_MISSED} طلبات ورا بعض. افتح التطبيق وفعّل "متاح" لما تكون جاهز.`,
+          title: 'تم إيقاف استقبال الطلبات مؤقتاً',
+          body: `لم ترد على ${MAX_MISSED} طلبات متتالية. افتح التطبيق وفعّل "متاح" عندما تكون جاهزاً.`,
           url: '/driver',
           tag: 'offline',
         })

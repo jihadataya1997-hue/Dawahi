@@ -16,7 +16,7 @@ export function loadLastLocation() {
   }
 }
 
-// رابط يفتح الموقع مباشرة في خرائط Google عند شب التوصيل
+// رابط يفتح الموقع مباشرة في خرائط Google عند عامل التوصيل
 export const mapsLink = ({ lat, lng }) => `https://maps.google.com/?q=${lat.toFixed(6)},${lng.toFixed(6)}`
 
 /**

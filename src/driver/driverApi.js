@@ -51,11 +51,11 @@ export async function photoUrl(name) {
 }
 
 const ERR = {
-  NETWORK: 'ما في نت، جرّب مرة ثانية',
-  WRONG_LOGIN: 'الرقم أو الرمز غلط',
-  RATE_LIMITED: 'محاولات كتيرة، استنى ربع ساعة',
-  BAD_TRANSITION: 'الطلب تغيّر، حدّث الصفحة',
-  CHANGED: 'الطلب تغيّر، حدّث الصفحة',
-  NOT_FOUND: 'هالطلب ما عاد إلك',
+  NETWORK: 'لا يوجد اتصال بالإنترنت، حاول مرة أخرى',
+  WRONG_LOGIN: 'الرقم أو الرمز غير صحيح',
+  RATE_LIMITED: 'محاولات كثيرة، انتظر ربع ساعة',
+  BAD_TRANSITION: 'تغيّرت حالة الطلب، حدّث الصفحة',
+  CHANGED: 'تغيّرت حالة الطلب، حدّث الصفحة',
+  NOT_FOUND: 'هذا الطلب لم يعد مسنداً إليك',
 }
-export const errText = (e) => ERR[e?.code] || 'صار خطأ، جرّب مرة ثانية'
+export const errText = (e) => ERR[e?.code] || 'حدث خطأ، حاول مرة أخرى'

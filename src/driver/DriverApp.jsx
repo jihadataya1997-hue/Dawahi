@@ -21,9 +21,10 @@ import {
 } from 'lucide-react'
 import { api, errText, getToken, photoUrl, setLoggedOutHandler, setToken } from './driverApi'
 import { disablePush, enablePush, isIOS, pushState } from '../push'
+import DriverMap, { colorFor } from './DriverMap'
 
 const CATEGORY = {
-  any: 'أي شي',
+  any: 'أي محل',
   restaurants: 'مطعم',
   supermarket: 'سوبرماركت',
   pharmacy: 'صيدلية',
@@ -33,13 +34,16 @@ const CATEGORY = {
   gas: 'غاز',
 }
 const STATUS = {
-  assigned: { label: 'جديد إلك', cls: 'bg-amber-100 text-amber-800' },
-  buying: { label: 'عم تشتري', cls: 'bg-violet-100 text-violet-800' },
-  on_the_way: { label: 'بالطريق', cls: 'bg-orange-100 text-orange-800' },
-  delivered: { label: 'وصل ✓', cls: 'bg-emerald-100 text-emerald-800' },
-  cancelled: { label: 'ملغي', cls: 'bg-slate-100 text-slate-500' },
+  assigned: { label: 'جديد', cls: 'bg-amber-100 text-amber-800' },
+  buying: { label: 'قيد الشراء', cls: 'bg-violet-100 text-violet-800' },
+  on_the_way: { label: 'في الطريق', cls: 'bg-orange-100 text-orange-800' },
+  delivered: { label: 'تم التسليم', cls: 'bg-emerald-100 text-emerald-800' },
+  cancelled: { label: 'ملغى', cls: 'bg-slate-100 text-slate-500' },
 }
-const money = (n) => `${new Intl.NumberFormat('ar-SY').format(n)} ل.س`
+// العملة من إعدادات التطبيق (الليرة الجديدة)
+const currency = { label: 'ل.س' }
+fetch('/api/app').then((r) => r.json()).then((d) => d.currency && (currency.label = d.currency)).catch(() => {})
+const money = (n) => `${new Intl.NumberFormat('ar-SY').format(n)} ${currency.label}`
 const navUrl = (l) => `https://www.google.com/maps/dir/?api=1&destination=${l.lat.toFixed(6)},${l.lng.toFixed(6)}`
 const waUrl = (p) => `https://wa.me/963${p.slice(1)}`
 
@@ -79,11 +83,11 @@ function Login({ onDone }) {
     <div className="flex min-h-full flex-col bg-navy">
       <div className="pt-safe flex flex-1 flex-col items-center justify-center p-6 text-center text-white">
         <img src="/driver-192.png" alt="" className="h-20 w-20 rounded-3xl shadow-xl" />
-        <h1 className="mt-4 text-2xl font-extrabold">شباب ضواحي</h1>
-        <p className="mt-1 text-sm text-white/60">تطبيق شباب التوصيل</p>
+        <h1 className="mt-4 text-2xl font-extrabold">ضواحي للتوصيل</h1>
+        <p className="mt-1 text-sm text-white/60">تطبيق عمال التوصيل</p>
       </div>
       <form onSubmit={submit} className="pb-safe rounded-t-[2rem] bg-white p-6 pb-10">
-        <label className="block text-sm font-bold">رقم موبايلك</label>
+        <label className="block text-sm font-bold">رقم الموبايل</label>
         <input
           type="tel"
           inputMode="numeric"
@@ -93,7 +97,7 @@ function Login({ onDone }) {
           placeholder="09xxxxxxxx"
           className="mt-2 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3.5 text-end font-en tracking-wider outline-none focus:border-brand focus:bg-white"
         />
-        <label className="mt-4 block text-sm font-bold">الرمز السري (من الإدارة)</label>
+        <label className="mt-4 block text-sm font-bold">الرمز السري (تحصل عليه من الإدارة)</label>
         <input
           type="password"
           inputMode="numeric"
@@ -154,10 +158,10 @@ function Home({ onLogout }) {
 
   const loadOrders = useCallback(async () => {
     try {
-      const d = await api(`/orders?group=${tab}`)
+      const d = await api(`/orders?group=${tab === 'done' ? 'done' : 'active'}`)
       setOrders(d.orders)
       setError('')
-      if (tab === 'active') {
+      if (tab !== 'done') {
         const ids = new Set(d.orders.map((o) => o.id))
         if (seen.current && [...ids].some((id) => !seen.current.has(id))) beep()
         seen.current = ids
@@ -211,7 +215,7 @@ function Home({ onLogout }) {
         <div className="flex items-center gap-3">
           <img src="/driver-192.png" alt="" className="h-11 w-11 rounded-2xl" />
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-white/50">أهلين</p>
+            <p className="text-xs text-white/50">مرحباً</p>
             <p className="truncate font-extrabold">{me?.name || '...'}</p>
           </div>
           <button onClick={loadOrders} aria-label="تحديث" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
@@ -221,9 +225,10 @@ function Home({ onLogout }) {
             <LogOut size={18} className="-scale-x-100" />
           </button>
         </div>
-        <nav className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-white/10 p-1">
+        <nav className="mt-4 grid grid-cols-3 gap-1 rounded-2xl bg-white/10 p-1">
           {[
-            ['active', 'طلباتي الحالية'],
+            ['active', 'طلباتي'],
+            ['map', 'الخريطة'],
             ['done', 'المنتهية'],
           ].map(([id, label]) => (
             <button
@@ -232,16 +237,20 @@ function Home({ onLogout }) {
               className={`rounded-xl py-2.5 text-sm font-bold ${tab === id ? 'bg-brand text-white' : 'text-white/70'}`}
             >
               {label}
-              {id === 'active' && tab === 'active' && orders?.length ? ` (${orders.length})` : ''}
+              {id === 'active' && tab !== 'done' && orders?.length ? ` (${orders.length})` : ''}
             </button>
           ))}
         </nav>
       </header>
 
       <main className="space-y-4 p-4">
-        <NotificationsCard />
-        <InstallCard />
-        {me && <AvailabilityCard me={me} load={load} onChange={refreshMe} />}
+        {tab !== 'map' && (
+          <>
+            <NotificationsCard />
+            <InstallCard />
+            {me && <AvailabilityCard me={me} load={load} onChange={refreshMe} />}
+          </>
+        )}
         {me?.online && (
           <Offers
             onAccepted={() => {
@@ -256,17 +265,20 @@ function Home({ onLogout }) {
           <div className="flex justify-center pt-12 text-brand">
             <LoaderCircle size={30} className="animate-spin" />
           </div>
+        ) : tab === 'map' && orders.length ? (
+          <DriverMap orders={orders} />
         ) : orders.length === 0 ? (
           <div className="pt-10 text-center">
             <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand-50 text-3xl">🛵</span>
-            <p className="mt-4 font-extrabold">{tab === 'active' ? 'ما في طلبات إلك هلق' : 'ما في طلبات منتهية'}</p>
-            {tab === 'active' && <p className="mt-1 text-sm text-navy/50">لما الإدارة تسلّمك طلب، بيوصلك تنبيه</p>}
+            <p className="mt-4 font-extrabold">{tab === 'done' ? 'لا توجد طلبات منتهية' : 'لا توجد طلبات معك الآن'}</p>
+            {tab !== 'done' && <p className="mt-1 text-sm text-navy/50">عند وصول طلب جديد لك سيصلك إشعار</p>}
           </div>
         ) : (
           orders.map((o) => (
             <OrderCard
               key={o.id}
               order={o}
+              color={tab === 'active' && orders.length > 1 ? colorFor(orders, o.id) : null}
               onChanged={() => {
                 loadOrders()
                 refreshMe()
@@ -304,9 +316,9 @@ function AvailabilityCard({ me, load, onChange }) {
         {busy ? <LoaderCircle size={22} className="animate-spin" /> : <Power size={22} />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-extrabold">{me.online ? 'أنت متاح لاستقبال الطلبات' : 'أنت غير متاح'}</span>
+        <span className="block font-extrabold">{me.online ? 'أنت متاح لاستقبال الطلبات' : 'أنت غير متاح حالياً'}</span>
         <span className={`block text-xs ${me.online ? 'text-white/85' : 'text-navy/50'}`}>
-          {me.online ? `معك ${load} من 3 طلبات — اضغط لتوقف` : 'اضغط لتبلش تستقبل طلبات'}
+          {me.online ? `معك ${load} من 3 طلبات، اضغط للتوقف` : 'اضغط لتبدأ استقبال الطلبات'}
         </span>
       </span>
       <span className={`relative h-7 w-12 shrink-0 rounded-full ${me.online ? 'bg-white/30' : 'bg-navy/15'}`}>
@@ -381,7 +393,7 @@ function OfferCard({ offer, secondsLeft, onDone }) {
       await api(`/offers/${offer.offerId}/${action}`, { method: 'POST' })
       onDone(action === 'accept')
     } catch (err) {
-      const msg = { OFFER_GONE: 'الطلب راح لغيرك', OFFER_EXPIRED: 'خلص الوقت', TOO_MANY: 'معك 3 طلبات، خلّص واحد أولاً' }[err.code]
+      const msg = { OFFER_GONE: 'أُسند الطلب لعامل آخر', OFFER_EXPIRED: 'انتهى وقت القبول', TOO_MANY: 'معك الحد الأقصى من الطلبات، أنهِ أحدها أولاً' }[err.code]
       setError(msg || errText(err))
       setTimeout(() => onDone(false), 1500)
     } finally {
@@ -392,7 +404,7 @@ function OfferCard({ offer, secondsLeft, onDone }) {
     <article className="overflow-hidden rounded-3xl bg-navy text-white shadow-float ring-4 ring-brand animate-fade-in">
       <div className="flex items-center gap-3 bg-brand px-4 py-3">
         <span className="text-lg">🔔</span>
-        <span className="flex-1 font-extrabold">طلب جديد إلك — {o.number}</span>
+        <span className="flex-1 font-extrabold">طلب جديد لك: {o.number}</span>
         <span className="flex items-center gap-1 rounded-full bg-navy/30 px-2.5 py-1 font-en text-sm font-bold">
           <Clock size={14} /> {secondsLeft}
         </span>
@@ -400,12 +412,12 @@ function OfferCard({ offer, secondsLeft, onDone }) {
       <div className="p-4">
         <p className="text-xs font-bold text-brand">
           {CATEGORY[o.category]}
-          {o.kind === 'custom' && (o.details.storeMode === 'specific' && o.details.storeName ? ` — من ${o.details.storeName}` : ' — من أي محل')}
+          {o.kind === 'custom' && (o.details.storeMode === 'specific' && o.details.storeName ? `، من ${o.details.storeName}` : '، من أقرب محل')}
         </p>
         <p className="mt-1 line-clamp-4 whitespace-pre-line text-sm">
           {o.kind === 'gas'
-            ? `${o.details.qty} جرة — ${o.details.gasType === 'buy' ? 'شراء جديدة' : 'تبديل'}${o.floor ? ` — طابق ${o.floor}${o.details.elevator ? '' : ' بلا مصعد'}` : ''}`
-            : o.details.items || '📷 الطلب بالصورة'}
+            ? `${o.details.qty} جرة — ${o.details.gasType === 'buy' ? 'شراء جرة جديدة' : 'تبديل'}${o.floor ? `، الطابق ${o.floor}${o.details.elevator ? '' : ' بدون مصعد'}` : ''}`
+            : o.details.items || 'طلب مرفق بصورة'}
         </p>
         {error && <p className="mt-2 rounded-xl bg-rose-500/30 px-3 py-2 text-center text-xs font-bold">{error}</p>}
         <div className="mt-4 grid grid-cols-3 gap-2">
@@ -447,10 +459,10 @@ function NotificationsCard() {
       await enablePush((subscription) => api('/push', { method: 'POST', body: { subscription } }))
       setState('enabled')
       await api('/push/test', { method: 'POST' })
-      setMsg('بعتنالك تنبيه تجربة — لازم يوصلك هلق')
+      setMsg('أرسلنا لك إشعاراً تجريبياً، يُفترض أن يصلك الآن')
     } catch (err) {
       if (err.message === 'denied') setState('denied')
-      else setMsg('ما زبط التفعيل، جرّب مرة ثانية')
+      else setMsg('تعذّر التفعيل، حاول مرة أخرى')
     } finally {
       setBusy(false)
     }
@@ -460,9 +472,9 @@ function NotificationsCard() {
     setBusy(true)
     try {
       await api('/push/test', { method: 'POST' })
-      setMsg('بعتنا تنبيه تجربة. سكّر التطبيق وشوف إذا وصلك')
+      setMsg('أرسلنا إشعاراً تجريبياً. أغلق التطبيق وتأكد من وصوله')
     } catch {
-      setMsg('ما قدرنا نبعت التجربة')
+      setMsg('تعذّر إرسال الإشعار التجريبي')
     } finally {
       setBusy(false)
     }
@@ -475,8 +487,8 @@ function NotificationsCard() {
       <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 p-3">
         <BellRing size={20} className="shrink-0 text-emerald-600" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-emerald-800">التنبيهات شغالة</p>
-          <p className="text-[11px] text-emerald-700/80">{msg || 'بيوصلك تنبيه حتى لو التطبيق مسكّر'}</p>
+          <p className="text-sm font-bold text-emerald-800">الإشعارات مفعّلة</p>
+          <p className="text-[11px] text-emerald-700/80">{msg || 'يصلك إشعار حتى والتطبيق مغلق'}</p>
         </div>
         <button onClick={test} disabled={busy} className="shrink-0 rounded-xl bg-white px-3 py-2 text-xs font-bold text-emerald-700">
           {busy ? <LoaderCircle size={14} className="animate-spin" /> : 'جرّب'}
@@ -491,8 +503,8 @@ function NotificationsCard() {
           <BellOff size={24} />
         </span>
         <div>
-          <p className="font-extrabold">التنبيهات مو شغالة!</p>
-          <p className="text-xs text-white/90">بدونها ما رح تعرف بالطلب إلا إذا فتحت التطبيق</p>
+          <p className="font-extrabold">الإشعارات غير مفعّلة</p>
+          <p className="text-xs text-white/90">بدونها لن تعرف بالطلبات الجديدة إلا عند فتح التطبيق</p>
         </div>
       </div>
 
@@ -502,33 +514,33 @@ function NotificationsCard() {
           disabled={busy}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-navy py-3.5 text-sm font-extrabold"
         >
-          {busy ? <LoaderCircle size={18} className="animate-spin" /> : <><BellRing size={18} /> فعّل التنبيهات</>}
+          {busy ? <LoaderCircle size={18} className="animate-spin" /> : <><BellRing size={18} /> فعّل الإشعارات</>}
         </button>
       )}
 
       {state === 'ios-install' && (
         <ol className="mt-4 space-y-2 rounded-2xl bg-white/15 p-4 text-sm">
-          <li>على الآيفون لازم تضيف التطبيق للشاشة الرئيسية أولاً:</li>
+          <li>على الآيفون يجب إضافة التطبيق إلى الشاشة الرئيسية أولاً:</li>
           <li className="flex items-center gap-2">
             ١. اضغط زر المشاركة <Share size={16} />
           </li>
           <li className="flex items-center gap-2">
-            ٢. اختار "إضافة إلى الشاشة الرئيسية" <SquarePlus size={16} />
+            ٢. اختر "إضافة إلى الشاشة الرئيسية" <SquarePlus size={16} />
           </li>
-          <li>٣. افتح التطبيق من الأيقونة الجديدة وفعّل التنبيهات</li>
+          <li>٣. افتح التطبيق من الأيقونة الجديدة وفعّل الإشعارات</li>
         </ol>
       )}
 
       {state === 'denied' && (
         <p className="mt-4 rounded-2xl bg-white/15 p-4 text-sm leading-relaxed">
-          رفضت التنبيهات من قبل. لتفعيلها: افتح إعدادات المتصفح ← إعدادات المواقع ← الإشعارات، واسمح لـ
-          <b className="font-en"> dawahi.prodev.cloud</b>، وبعدين ارجع للتطبيق.
+          الإشعارات مرفوضة سابقاً. لتفعيلها افتح إعدادات المتصفح، ثم إعدادات المواقع، ثم الإشعارات، واسمح لموقع
+          <b className="font-en"> dawahi.prodev.cloud</b>، ثم عُد إلى التطبيق.
         </p>
       )}
 
       {state === 'unsupported' && (
         <p className="mt-4 rounded-2xl bg-white/15 p-4 text-sm leading-relaxed">
-          هالمتصفح ما بيدعم التنبيهات. افتح التطبيق من <b>Chrome</b> على أندرويد{isIOS() ? ' أو من Safari على الآيفون' : ''}.
+          هذا المتصفح لا يدعم الإشعارات. افتح التطبيق في <b>Chrome</b> على أندرويد{isIOS() ? ' أو في Safari على الآيفون' : ''}.
         </p>
       )}
       {msg && <p className="mt-3 text-center text-xs">{msg}</p>}
@@ -567,7 +579,7 @@ function InstallCard() {
 
 /* ───────── بطاقة الطلب ───────── */
 
-function OrderCard({ order: o, onChanged }) {
+function OrderCard({ order: o, color, onChanged }) {
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [photo, setPhoto] = useState(null)
@@ -597,7 +609,10 @@ function OrderCard({ order: o, onChanged }) {
   return (
     <article className={`rounded-3xl bg-white p-4 shadow-soft ${o.status === 'assigned' ? 'ring-2 ring-amber-400' : ''}`}>
       <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand">
+        <span
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${color ? 'text-white' : 'bg-brand-50 text-brand'}`}
+          style={color ? { background: color } : undefined}
+        >
           {o.kind === 'gas' ? <Flame size={20} /> : <ShoppingBag size={20} />}
         </span>
         <div className="min-w-0 flex-1">
@@ -614,17 +629,17 @@ function OrderCard({ order: o, onChanged }) {
         {o.kind === 'gas' ? (
           <>
             <p className="text-sm font-bold">
-              {o.details.qty} جرة — {o.details.gasType === 'buy' ? 'شراء جرة جديدة' : 'تبديل (عنده جرة فاضية)'}
+              {o.details.qty} جرة — {o.details.gasType === 'buy' ? 'شراء جرة جديدة' : 'تبديل (لدى الزبون جرة فارغة)'}
             </p>
             <p className="mt-1 text-xs text-navy/60">
-              {o.floor ? `طابق ${o.floor} — ${o.details.elevator ? 'في مصعد' : 'بدون مصعد'}` : 'أرضي'}
+              {o.floor ? `الطابق ${o.floor}، ${o.details.elevator ? 'يوجد مصعد' : 'بدون مصعد'}` : 'أرضي'}
             </p>
-            <p className="mt-1 text-xs text-navy/60">التقدير للزبون: {money(o.details.estimate)}</p>
+            <p className="mt-1 text-xs text-navy/60">التكلفة التقديرية للزبون: {money(o.details.estimate)}</p>
           </>
         ) : (
           <>
             <p className="mb-1 text-xs font-bold text-brand">
-              {o.details.storeMode === 'specific' && o.details.storeName ? `من: ${o.details.storeName}` : 'من أي محل قريب'}
+              {o.details.storeMode === 'specific' && o.details.storeName ? `من: ${o.details.storeName}` : 'من أقرب محل مناسب'}
             </p>
             {o.details.items && <p className="whitespace-pre-line text-sm leading-relaxed">{o.details.items}</p>}
             {photo && (
@@ -661,21 +676,21 @@ function OrderCard({ order: o, onChanged }) {
           {/* تغيير الحالة */}
           <div className="mt-3 grid gap-2">
             {o.status === 'assigned' && o.kind === 'custom' && (
-              <Big onClick={() => move('buying')} busy={busy === 'buying'} label="🛒 عم اشتري الأغراض" />
+              <Big onClick={() => move('buying')} busy={busy === 'buying'} label="بدأت شراء الأغراض" />
             )}
             {(o.status === 'assigned' || o.status === 'buying') && (
-              <Big onClick={() => move('on_the_way')} busy={busy === 'on_the_way'} label="🛵 طلعت عالطريق للزبون" />
+              <Big onClick={() => move('on_the_way')} busy={busy === 'on_the_way'} label="أنا في الطريق إلى الزبون" />
             )}
             {o.status === 'on_the_way' &&
               (confirmDone ? (
                 <div className="flex gap-2">
                   <button onClick={() => setConfirmDone(false)} className="flex-1 rounded-2xl bg-navy-50 py-3.5 text-sm font-bold">
-                    لسا
+                    ليس بعد
                   </button>
-                  <Big onClick={() => move('delivered')} busy={busy === 'delivered'} label="أكيد، وصّلته" green className="flex-[2]" />
+                  <Big onClick={() => move('delivered')} busy={busy === 'delivered'} label="نعم، تم التسليم" green className="flex-[2]" />
                 </div>
               ) : (
-                <Big onClick={() => setConfirmDone(true)} label="✓ وصّلت الطلب" green />
+                <Big onClick={() => setConfirmDone(true)} label="تم تسليم الطلب" green />
               ))}
           </div>
           {error && <p className="mt-2 text-center text-xs font-bold text-rose-600">{error}</p>}

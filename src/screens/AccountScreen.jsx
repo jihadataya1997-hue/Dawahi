@@ -2,10 +2,13 @@ import { useState } from 'react'
 import { Check, Globe, LogOut, MapPin, MessageCircle, Pencil, Phone } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
 import { useAuth } from '../auth/AuthProvider'
+import { useAppConfig } from '../config/AppConfigProvider'
 
 export default function AccountScreen() {
   const { t, lang, toggleLang } = useLang()
   const { user, updateName, logout } = useAuth()
+  const { areaName, texts } = useAppConfig()
+  const support = texts.supportPhone
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(user.name)
 
@@ -57,8 +60,15 @@ export default function AccountScreen() {
 
       <ul className="mx-4 -mt-4 divide-y divide-navy/5 overflow-hidden rounded-3xl bg-white shadow-soft">
         <Row Icon={Globe} label={t('account.language')} value={lang === 'ar' ? 'العربية' : 'English'} onClick={toggleLang} />
-        <Row Icon={MapPin} label={t('account.area')} value={t('location')} />
-        <Row Icon={MessageCircle} label={t('account.support')} />
+        <Row Icon={MapPin} label={t('account.area')} value={areaName} />
+        {support && (
+          <Row
+            Icon={MessageCircle}
+            label={t('account.support')}
+            value={support}
+            onClick={() => window.open(`https://wa.me/963${support.slice(1)}`, '_blank')}
+          />
+        )}
       </ul>
 
       <button

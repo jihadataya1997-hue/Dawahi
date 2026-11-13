@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
 import { useOrders } from '../orders/OrdersProvider'
+import { useAppConfig } from '../config/AppConfigProvider'
 import { newClientKey } from '../api'
 import { errorText } from '../i18n/errorText'
 import { Choice, Field, RowChoice, Stepper, Stepper2 } from './ui'
@@ -32,7 +33,8 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('idle') // idle | searching | found
-  const { pricing: PRICING, createOrder } = useOrders()
+  const { createOrder } = useOrders()
+  const { pricing: PRICING, money } = useAppConfig()
   const [clientKey, setClientKey] = useState('')
   const [created, setCreated] = useState(null)
   const set = (patch) => {
@@ -71,7 +73,6 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
     },
   ].filter(Boolean)
   const total = lines.reduce((s, l) => s + l.amount, 0)
-  const money = (n) => `${formatNumber(n)} ${g('currency')}`
 
   const confirm = async () => {
     setStatus('searching')

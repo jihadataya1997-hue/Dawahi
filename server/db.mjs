@@ -5,7 +5,9 @@ import { join } from 'node:path'
 
 export const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data')
 export const UPLOADS_DIR = join(DATA_DIR, 'uploads')
+export const MEDIA_DIR = join(DATA_DIR, 'media') // صور الإعلانات (عامة)
 mkdirSync(UPLOADS_DIR, { recursive: true })
+mkdirSync(MEDIA_DIR, { recursive: true })
 
 export const db = new DatabaseSync(join(DATA_DIR, 'dawahi.db'))
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;')
@@ -156,6 +158,63 @@ const MIGRATIONS = [
     ('offer_timeout_sec', '60'),
     ('max_orders_per_courier', '3');
   `,
+  `
+  -- العملة السورية الجديدة: حذف صفرين (كل 100 ليرة قديمة = 1 ليرة جديدة)
+  UPDATE settings SET value = CAST(ROUND(CAST(value AS REAL) / 100) AS INTEGER)
+    WHERE key IN ('delivery_fee','gas_price','empty_cylinder_price','stairs_fee_per_floor');
+  UPDATE orders SET delivery_fee = CAST(ROUND(delivery_fee / 100.0) AS INTEGER);
+  UPDATE orders SET details = json_set(details,
+      '$.estimate', CAST(ROUND(json_extract(details,'$.estimate') / 100.0) AS INTEGER),
+      '$.prices.gasPrice', CAST(ROUND(json_extract(details,'$.prices.gasPrice') / 100.0) AS INTEGER),
+      '$.prices.emptyCylinderPrice', CAST(ROUND(json_extract(details,'$.prices.emptyCylinderPrice') / 100.0) AS INTEGER),
+      '$.prices.stairsFee', CAST(ROUND(json_extract(details,'$.prices.stairsFee') / 100.0) AS INTEGER))
+    WHERE kind = 'gas';
+
+  -- محتوى التطبيق القابل للتعديل من لوحة الإدارة (نصوص، خدمات، عملة، دعم)
+  CREATE TABLE content (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  INSERT INTO content (key, value) VALUES
+    ('area_name', 'ضاحية قدسيا'),
+    ('currency_label', 'ل.س'),
+    ('hero_title', 'اطلب ما تحتاجه من أي محل'),
+    ('hero_sub', 'اكتب طلبك، وعامل التوصيل يشتريه ويوصله إلى باب بيتك'),
+    ('support_phone', ''),
+    ('services', '[{"id":"restaurants","enabled":true,"label":"مطاعم","sub":"من أي مطعم"},{"id":"supermarket","enabled":true,"label":"سوبرماركت","sub":"حاجيات البيت"},{"id":"gas","enabled":true,"label":"غاز","sub":"تبديل الجرة"},{"id":"diesel","enabled":true,"label":"مازوت","sub":"تعبئة"},{"id":"pharmacy","enabled":true,"label":"صيدلية","sub":"أدوية"},{"id":"library","enabled":true,"label":"مكتبات","sub":"قرطاسية"}]');
+
+  -- الإعلانات (السلايدر أعلى التطبيق)
+  CREATE TABLE banners (
+    id           INTEGER PRIMARY KEY,
+    title        TEXT NOT NULL CHECK (length(trim(title)) BETWEEN 1 AND 80),
+    subtitle     TEXT NOT NULL DEFAULT '',
+    badge        TEXT NOT NULL DEFAULT '',
+    image        TEXT,
+    theme        TEXT NOT NULL DEFAULT 'orange' CHECK (theme IN ('orange','navy','green','sky','rose','purple')),
+    action       TEXT NOT NULL DEFAULT 'none' CHECK (action IN ('none','order','gas','url')),
+    action_value TEXT NOT NULL DEFAULT '',
+    sort         INTEGER NOT NULL DEFAULT 0,
+    active       INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+    starts_at    TEXT,
+    ends_at      TEXT,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  INSERT INTO banners (title, subtitle, badge, theme, action, action_value, sort) VALUES
+    ('اطلب من أي محل في ضاحية قدسيا', 'مطعم، سوبرماركت، صيدلية… ونوصله لك', 'جديد', 'orange', 'order', 'any', 1),
+    ('توصيل الغاز إلى باب بيتك', 'نبدّل الجرة ونطلعها لك حتى بدون مصعد', 'خدمة', 'navy', 'gas', '', 2),
+    ('صيدلية مناوبة؟ نحن نجلب الدواء', 'صوّر الوصفة وأرسلها مع طلبك', 'دائماً', 'green', 'order', 'pharmacy', 3);
+
+  -- الإشعارات العامة لكل الزبائن
+  CREATE TABLE announcements (
+    id          INTEGER PRIMARY KEY,
+    title       TEXT NOT NULL CHECK (length(trim(title)) BETWEEN 1 AND 80),
+    body        TEXT NOT NULL DEFAULT '',
+    sent_count  INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+
+  ALTER TABLE customers ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0 CHECK (blocked IN (0,1));
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')
@@ -177,4 +236,16 @@ for (let v = current; v < MIGRATIONS.length; v++) {
 export function getSettings() {
   const rows = db.prepare('SELECT key, value FROM settings').all()
   return Object.fromEntries(rows.map((r) => [r.key, Number(r.value)]))
+}
+
+// محتوى التطبيق القابل للتعديل
+export function getContent() {
+  const rows = db.prepare('SELECT key, value FROM content').all()
+  const c = Object.fromEntries(rows.map((r) => [r.key, r.value]))
+  try {
+    c.services = JSON.parse(c.services || '[]')
+  } catch {
+    c.services = []
+  }
+  return c
 }

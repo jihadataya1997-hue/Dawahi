@@ -4,16 +4,19 @@ import App from './App'
 import { LanguageProvider } from './i18n/LanguageProvider'
 import { AuthProvider } from './auth/AuthProvider'
 import { OrdersProvider } from './orders/OrdersProvider'
+import { AppConfigProvider } from './config/AppConfigProvider'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <LanguageProvider>
-      <AuthProvider>
-        <OrdersProvider>
-          <App />
-        </OrdersProvider>
-      </AuthProvider>
+      <AppConfigProvider>
+        <AuthProvider>
+          <OrdersProvider>
+            <App />
+          </OrdersProvider>
+        </AuthProvider>
+      </AppConfigProvider>
     </LanguageProvider>
   </React.StrictMode>
 )
