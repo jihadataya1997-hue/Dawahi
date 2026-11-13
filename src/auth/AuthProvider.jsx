@@ -1,37 +1,57 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { api, getToken, setToken, setUnauthorizedHandler } from '../api'
 
-// حساب الزبون — حالياً يُحفظ على جهازه فقط.
-// لاحقاً عند بناء السيرفر: يُرسل الرقم للسيرفر ويصل الزبون رمز تحقق.
+// حساب الزبون: يُسجَّل بالسيرفر، ويُحفظ "مفتاح الجلسة" على جهازه
 const AuthContext = createContext(null)
-const KEY = 'dawahi.user'
+const USER_KEY = 'dawahi.user'
 
-function load() {
+function loadUser() {
   try {
-    return JSON.parse(localStorage.getItem(KEY)) || null
+    return getToken() ? JSON.parse(localStorage.getItem(USER_KEY)) || null : null
   } catch {
     return null
   }
 }
+function saveUser(u) {
+  try {
+    u ? localStorage.setItem(USER_KEY, JSON.stringify(u)) : localStorage.removeItem(USER_KEY)
+  } catch {}
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(load)
+  const [user, setUser] = useState(loadUser)
 
-  const login = useCallback((data) => {
-    const u = { name: data.name.trim(), phone: data.phone.trim() }
-    try {
-      localStorage.setItem(KEY, JSON.stringify(u))
-    } catch {}
-    setUser(u)
-  }, [])
-
-  const logout = useCallback(() => {
-    try {
-      localStorage.removeItem(KEY)
-    } catch {}
+  const clear = useCallback(() => {
+    setToken(null)
+    saveUser(null)
     setUser(null)
   }, [])
 
-  const value = useMemo(() => ({ user, login, logout }), [user, login, logout])
+  useEffect(() => {
+    setUnauthorizedHandler(clear)
+    // تحديث بيانات الزبون من السيرفر عند فتح التطبيق
+    if (getToken()) api('/me').then((d) => (saveUser(d.user), setUser(d.user))).catch(() => {})
+  }, [clear])
+
+  const login = useCallback(async ({ name, phone }) => {
+    const d = await api('/auth/login', { method: 'POST', body: { name: name.trim(), phone: phone.replace(/\s/g, '') } })
+    setToken(d.token)
+    saveUser(d.user)
+    setUser(d.user)
+  }, [])
+
+  const updateName = useCallback(async (name) => {
+    const d = await api('/me', { method: 'PATCH', body: { name } })
+    saveUser(d.user)
+    setUser(d.user)
+  }, [])
+
+  const logout = useCallback(async () => {
+    await api('/auth/logout', { method: 'POST' }).catch(() => {})
+    clear()
+  }, [clear])
+
+  const value = useMemo(() => ({ user, login, logout, updateName }), [user, login, logout, updateName])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

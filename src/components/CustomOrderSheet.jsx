@@ -21,8 +21,10 @@ import {
 } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
 import { Field, RowChoice, Stepper, Stepper2 } from './ui'
-import { PRICING } from './GasOrderSheet'
 import { useAuth } from '../auth/AuthProvider'
+import { useOrders } from '../orders/OrdersProvider'
+import { compressImage, newClientKey } from '../api'
+import { errorText } from '../i18n/errorText'
 import LocationPicker, { LocationField, loadLastLocation, mapsLink } from './LocationPicker'
 
 const CATEGORIES = [
@@ -55,6 +57,9 @@ const blank = (category = 'any', items = '', phone = '') => ({
 export default function CustomOrderSheet({ open, initialCategory, initialText, onClose, onConfirmed }) {
   const { t, formatNumber } = useLang()
   const { user } = useAuth()
+  const { pricing, createOrder } = useOrders()
+  const [clientKey, setClientKey] = useState('')
+  const [created, setCreated] = useState(null)
   const c = (k) => t(`custom.${k}`)
   const [step, setStep] = useState(0)
   const [order, setOrder] = useState(blank())
@@ -73,16 +78,24 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
       setOrder(blank(initialCategory || 'any', initialText || '', user?.phone || ''))
       setStatus('idle')
       setError('')
+      setCreated(null)
+      setClientKey(newClientKey()) // مفتاح ثابت لهذا الطلب يمنع تكراره عند إعادة المحاولة
     }
     document.body.style.overflow = open ? 'hidden' : ''
   }, [open, initialCategory, initialText, user])
 
   if (!open) return null
 
-  const onPhoto = (e) => {
+  const onPhoto = async (e) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
-    set({ photo: { name: file.name, url: URL.createObjectURL(file) } })
+    try {
+      const dataUrl = await compressImage(file)
+      set({ photo: { url: dataUrl, dataUrl } })
+    } catch {
+      setError(t('errors.default'))
+    }
   }
 
   const next = () => {
@@ -90,9 +103,32 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
     if (step === 1 && !order.location) return setError(t('map.required'))
     if (step === 1 && order.phone.replace(/\s/g, '').length < 10) return setError(c('addressRequired'))
     if (step < 2) return setStep(step + 1)
+    submit()
+  }
+
+  const submit = async () => {
     setStatus('searching')
-    // هنا يُرسل الطلب للسيرفر — حالياً محاكاة
-    setTimeout(() => setStatus('found'), 2200)
+    try {
+      const o = await createOrder({
+        kind: 'custom',
+        clientKey,
+        category: order.category,
+        items: order.items,
+        photo: order.photo?.dataUrl,
+        storeMode: order.storeMode,
+        storeName: order.storeName,
+        location: order.location,
+        address: order.address,
+        floor: order.floor,
+        contactPhone: order.phone,
+        notes: order.notes,
+      })
+      setCreated(o)
+      setStatus('found')
+    } catch (err) {
+      setStatus('idle')
+      setError(errorText(t, err))
+    }
   }
 
   const money = (n) => `${formatNumber(n)} ${t('gas.currency')}`
@@ -319,7 +355,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
                   <div className="rounded-3xl border border-navy/10 p-4 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="text-navy/70">{c('deliveryFee')}</span>
-                      <span className="font-bold">{money(PRICING.deliveryFee)}</span>
+                      <span className="font-bold">{money(pricing.deliveryFee)}</span>
                     </div>
                     <div className="mt-3 flex items-center justify-between">
                       <span className="text-navy/70">{c('itemsCost')}</span>
@@ -369,7 +405,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
                     <LoaderCircle size={36} className="animate-spin" />
                   </span>
                 </div>
-                <p className="mt-6 font-bold">{c('searching')}</p>
+                <p className="mt-6 font-bold">{t('ordersExtra.sending')}</p>
               </>
             ) : (
               <>
@@ -377,6 +413,11 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
                   <Check size={40} strokeWidth={3} />
                 </span>
                 <p className="mt-5 text-lg font-extrabold">{c('found')}</p>
+                {created && (
+                  <p className="mt-2 rounded-full bg-navy-50 px-4 py-1.5 font-en text-sm font-bold">
+                    {t('ordersExtra.orderNo')} {created.number}
+                  </p>
+                )}
                 <p className="mt-1 text-sm text-navy/60">{c('foundSub')}</p>
                 <button
                   onClick={() => {

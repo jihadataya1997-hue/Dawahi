@@ -1,18 +1,22 @@
 import { useState } from 'react'
 import { Check, Globe, LogOut, MapPin, MessageCircle, Pencil, Phone } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
-import { isValidSyrianMobile, useAuth } from '../auth/AuthProvider'
+import { useAuth } from '../auth/AuthProvider'
 
 export default function AccountScreen() {
   const { t, lang, toggleLang } = useLang()
-  const { user, login, logout } = useAuth()
+  const { user, updateName, logout } = useAuth()
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState(user)
+  const [name, setName] = useState(user.name)
 
-  const save = () => {
-    if (!form.name.trim() || !isValidSyrianMobile(form.phone)) return
-    login(form)
-    setEditing(false)
+  const save = async () => {
+    if (!name.trim()) return
+    try {
+      await updateName(name.trim())
+      setEditing(false)
+    } catch {
+      /* يبقى بوضع التعديل ليحاول مرة ثانية */
+    }
   }
 
   return (
@@ -24,19 +28,14 @@ export default function AccountScreen() {
             {user.name.charAt(0)}
           </span>
           {editing ? (
-            <div className="min-w-0 flex-1 space-y-2">
+            <div className="min-w-0 flex-1">
               <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="w-full rounded-xl bg-white/10 px-3 py-2 text-sm outline-none focus:bg-white/20"
               />
-              <input
-                dir="ltr"
-                inputMode="numeric"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '') })}
-                className="w-full rounded-xl bg-white/10 px-3 py-2 font-en text-sm outline-none focus:bg-white/20 rtl:text-end"
-              />
+              <p dir="ltr" className="mt-1 font-en text-xs text-white/50 rtl:text-end">{user.phone}</p>
             </div>
           ) : (
             <div className="min-w-0 flex-1">

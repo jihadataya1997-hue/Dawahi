@@ -12,12 +12,13 @@ import LoginScreen from './screens/LoginScreen'
 import OrdersScreen from './screens/OrdersScreen'
 import AccountScreen from './screens/AccountScreen'
 import { useAuth } from './auth/AuthProvider'
+import { useOrders } from './orders/OrdersProvider'
 
 export default function App() {
   const { user } = useAuth()
+  const { activeOrder } = useOrders()
   const [gasOpen, setGasOpen] = useState(false)
   const [custom, setCustom] = useState(null) // { category, text } أو null
-  const [activeOrder, setActiveOrder] = useState(false)
   const [tab, setTab] = useState('home')
 
   // الزبون لازم يسجّل دخول أولاً
@@ -52,16 +53,15 @@ export default function App() {
         {tab === 'account' && <AccountScreen />}
       </main>
 
-      {activeOrder && <ActiveOrderWidget onClose={() => setActiveOrder(false)} />}
+      {activeOrder && tab !== 'orders' && <ActiveOrderWidget order={activeOrder} onOpen={() => setTab('orders')} />}
       <BottomNav active={tab} onChange={setTab} />
 
-      <GasOrderSheet open={gasOpen} onClose={() => setGasOpen(false)} onConfirmed={() => setActiveOrder(true)} />
+      <GasOrderSheet open={gasOpen} onClose={() => setGasOpen(false)} />
       <CustomOrderSheet
         open={!!custom}
         initialCategory={custom?.category}
         initialText={custom?.text}
         onClose={() => setCustom(null)}
-        onConfirmed={() => setActiveOrder(true)}
       />
     </div>
   )

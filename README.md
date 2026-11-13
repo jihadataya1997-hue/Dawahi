@@ -13,3 +13,9 @@ npm run build    # نسخة النشر داخل مجلد dist
 - `src/i18n/translations.js` — كل نصوص العربي والإنجليزي.
 - `src/components/GasOrderSheet.jsx` — طلب الغاز بثلاث خطوات (الأسعار في `PRICING` أعلى الملف).
 - `public/manifest.webmanifest` + `public/sw.js` — ما يجعل التطبيق قابلاً للتثبيت على الموبايل.
+
+## السيرفر (server/)
+- `server/server.mjs` — واجهة API (تسجيل الدخول، الطلبات، الأسعار).
+- `server/db.mjs` — قاعدة بيانات SQLite وجداولها.
+- تشغيل محلي: `node server/server.mjs` ثم `npm run dev` (طلبات /api تُحوَّل تلقائياً).
+- على السيرفر: مشروع Docker اسمه `dawahi-api` (الملف `server/docker-compose.yml`)، والبيانات في volume اسمه `dawahi-data`.

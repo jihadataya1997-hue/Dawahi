@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { ChevronLeft, Phone, UserRound } from 'lucide-react'
+import { ChevronLeft, LoaderCircle, Phone, UserRound } from 'lucide-react'
+import { errorText } from '../i18n/errorText'
 import { LogoMark } from '../components/Logo'
 import { useLang } from '../i18n/LanguageProvider'
 import { isValidSyrianMobile, useAuth } from '../auth/AuthProvider'
@@ -10,12 +11,20 @@ export default function LoginScreen() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
+    if (busy) return
     if (!name.trim()) return setError(t('auth.nameErr'))
     if (!isValidSyrianMobile(phone)) return setError(t('auth.phoneErr'))
-    login({ name, phone: phone.replace(/\s/g, '') })
+    setBusy(true)
+    try {
+      await login({ name, phone })
+    } catch (err) {
+      setError(errorText(t, err))
+      setBusy(false)
+    }
   }
 
   return (
@@ -82,10 +91,11 @@ export default function LoginScreen() {
 
         <button
           type="submit"
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_#FF8A00] active:scale-[0.98]"
+          disabled={busy}
+          className="mt-6 disabled:opacity-70 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_#FF8A00] active:scale-[0.98]"
         >
-          {t('auth.login')}
-          <ChevronLeft size={18} className="ltr:rotate-180" />
+          {busy ? <LoaderCircle size={18} className="animate-spin" /> : t('auth.login')}
+          {!busy && <ChevronLeft size={18} className="ltr:rotate-180" />}
         </button>
         <p className="mt-4 text-center text-[11px] text-navy/40">{t('auth.note')}</p>
       </form>

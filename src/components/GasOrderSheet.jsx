@@ -14,16 +14,13 @@ import {
   X,
 } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
+import { useOrders } from '../orders/OrdersProvider'
+import { newClientKey } from '../api'
+import { errorText } from '../i18n/errorText'
 import { Choice, Field, RowChoice, Stepper, Stepper2 } from './ui'
 import LocationPicker, { LocationField, loadLastLocation } from './LocationPicker'
 
-// ⚙️ الأسعار — لاحقاً تأتي من لوحة التحكم / قاعدة البيانات بدل كتابتها هنا
-export const PRICING = {
-  deliveryFee: 15000, // أجرة توصيل ثابتة
-  gasPrice: 150000, // سعر تعبئة الجرة (متغيّر حسب السوق)
-  emptyCylinder: 350000, // ثمن جرة فارغة جديدة
-  stairsPerFloor: 2000, // رسم الدرج لكل طابق لكل جرة (بدون مصعد)
-}
+// ⚙️ الأسعار تأتي من السيرفر (جدول settings) — تتغير من لوحة التحكم لاحقاً
 
 const initial = () => ({ qty: 1, type: 'swap', location: loadLastLocation(), floor: 0, elevator: true, notes: '' })
 
@@ -35,6 +32,9 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('idle') // idle | searching | found
+  const { pricing: PRICING, createOrder } = useOrders()
+  const [clientKey, setClientKey] = useState('')
+  const [created, setCreated] = useState(null)
   const set = (patch) => {
     setError('')
     setOrder((o) => ({ ...o, ...patch }))
@@ -46,6 +46,8 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
       setStep(0)
       setOrder(initial())
       setError('')
+      setCreated(null)
+      setClientKey(newClientKey())
       setStatus('idle')
     }
     document.body.style.overflow = open ? 'hidden' : ''
@@ -71,10 +73,25 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   const total = lines.reduce((s, l) => s + l.amount, 0)
   const money = (n) => `${formatNumber(n)} ${g('currency')}`
 
-  const confirm = () => {
+  const confirm = async () => {
     setStatus('searching')
-    // هنا يُرسل الطلب للسيرفر — حالياً محاكاة
-    setTimeout(() => setStatus('found'), 2200)
+    try {
+      const o = await createOrder({
+        kind: 'gas',
+        clientKey,
+        qty: order.qty,
+        gasType: order.type,
+        elevator: order.elevator,
+        floor: order.floor,
+        location: order.location,
+        notes: order.notes,
+      })
+      setCreated(o)
+      setStatus('found')
+    } catch (err) {
+      setStatus('idle')
+      setError(errorText(t, err))
+    }
   }
 
   return (
@@ -264,7 +281,7 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
                     <LoaderCircle size={36} className="animate-spin" />
                   </span>
                 </div>
-                <p className="mt-6 font-bold">{g('searching')}</p>
+                <p className="mt-6 font-bold">{t('ordersExtra.sending')}</p>
               </>
             ) : (
               <>
@@ -272,6 +289,11 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
                   <Check size={40} strokeWidth={3} />
                 </span>
                 <p className="mt-5 text-lg font-extrabold">{g('found')}</p>
+                {created && (
+                  <p className="mt-2 rounded-full bg-navy-50 px-4 py-1.5 font-en text-sm font-bold">
+                    {t('ordersExtra.orderNo')} {created.number}
+                  </p>
+                )}
                 <p className="mt-1 text-sm text-navy/60">{g('foundSub')}</p>
                 <button
                   onClick={() => {
