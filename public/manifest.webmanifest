@@ -1,0 +1,16 @@
+{
+  "name": "ضواحي - Dawahi",
+  "short_name": "ضواحي",
+  "description": "خدمات ضاحية قدسيا في تطبيق واحد",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F7FA",
+  "theme_color": "#1E2E4A",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full bg-[#F5F7FA] text-navy antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+  /* إحساس التطبيق الأصلي: لا تحديد نصوص ولا قائمة ضغط مطوّل */
+  body {
+    @apply select-none;
+    -webkit-touch-callout: none;
+  }
+  input,
+  textarea {
+    @apply select-text;
+  }
+  html.lang-ar body {
+    @apply font-ar;
+  }
+  html.lang-en body {
+    @apply font-en;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  /* الأيقونات الاتجاهية (أسهم) تنقلب تلقائياً بالعربي */
+  [dir='rtl'] .flip-rtl {
+    transform: scaleX(-1);
+  }
+}
+
+/* إخفاء شريط التمرير على مستوى التطبيق */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
