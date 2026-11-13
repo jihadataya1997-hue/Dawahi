@@ -1,0 +1,15 @@
+# ضواحي — يُبنى مباشرة من GitHub ويعمل خلف بروكسي Caddy (شبكة edge)
+name: dawahi
+services:
+  web:
+    build:
+      context: https://github.com/jihadataya1997-hue/dawahi.git#main
+    image: dawahi-web:latest
+    container_name: dawahi-web
+    restart: unless-stopped
+    networks: [edge]
+    mem_limit: 128m
+networks:
+  edge:
+    external: true
+    name: edge
