@@ -215,6 +215,36 @@ const MIGRATIONS = [
 
   ALTER TABLE customers ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0 CHECK (blocked IN (0,1));
   `,
+  `
+  -- فريق العمل والصلاحيات (أدوار قابلة للتعديل)
+  CREATE TABLE roles (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT NOT NULL UNIQUE CHECK (length(trim(name)) BETWEEN 1 AND 40),
+    permissions TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(permissions)),
+    is_system   INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  INSERT INTO roles (name, permissions, is_system) VALUES
+    ('مدير', '["orders.view","orders.manage","couriers.manage","customers.view","customers.manage","content.manage","pricing.manage","backups.manage"]', 1),
+    ('مشرف', '["orders.view","orders.manage","couriers.manage","customers.view"]', 1),
+    ('خدمة عملاء', '["orders.view","customers.view","customers.manage"]', 1),
+    ('مسؤول محتوى', '["content.manage"]', 1);
+
+  CREATE TABLE staff (
+    id            INTEGER PRIMARY KEY,
+    name          TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 60),
+    phone         TEXT NOT NULL UNIQUE CHECK (phone GLOB '09[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'),
+    password_hash TEXT NOT NULL,
+    role_id       INTEGER NOT NULL REFERENCES roles(id),
+    active        INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+    last_login_at TEXT,
+    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE INDEX staff_role ON staff(role_id);
+
+  -- الجلسة إما للمالك (staff_id فارغ) أو لعضو بالفريق
+  ALTER TABLE admin_sessions ADD COLUMN staff_id INTEGER REFERENCES staff(id) ON DELETE CASCADE;
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

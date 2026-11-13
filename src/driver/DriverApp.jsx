@@ -130,6 +130,13 @@ const unlockSound = () => {
     audioCtx.resume()
   } catch {}
 }
+// محاولة تشغيل الصوت بدون لمسة (تنجح إذا المستخدم لمس التطبيق من قبل)
+const unlockSoundSilently = () => {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)()
+    audioCtx.resume().catch(() => {})
+  } catch {}
+}
 const beep = () => {
   try {
     if (!audioCtx || Date.now() - lastTap < 3000) return // ما منزمّر إذا هو للتو ضاغط (مثلاً قبل الطلب)
@@ -147,11 +154,52 @@ const beep = () => {
   } catch {}
 }
 
+// رنين متواصل (مثل المكالمة) طالما في طلب معروض ولم يُرد عليه
+function ringOnce() {
+  try {
+    if (!audioCtx) return
+    const t0 = audioCtx.currentTime
+    ;[0, 0.18, 0.36, 0.9, 1.08, 1.26].forEach((t, i) => {
+      const o = audioCtx.createOscillator()
+      const g = audioCtx.createGain()
+      o.type = 'square'
+      o.frequency.value = i % 2 ? 1320 : 990
+      g.gain.setValueAtTime(0.0001, t0 + t)
+      g.gain.exponentialRampToValueAtTime(0.35, t0 + t + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + t + 0.16)
+      o.connect(g).connect(audioCtx.destination)
+      o.start(t0 + t)
+      o.stop(t0 + t + 0.17)
+    })
+    navigator.vibrate?.([400, 150, 400, 150, 400])
+  } catch {}
+}
+
+// إبقاء الشاشة مضاءة طالما العامل "متاح" والتطبيق مفتوح
+function useWakeLock(enabled) {
+  useEffect(() => {
+    if (!enabled || !('wakeLock' in navigator)) return
+    let lock = null
+    const acquire = async () => {
+      try {
+        if (document.visibilityState === 'visible') lock = await navigator.wakeLock.request('screen')
+      } catch {}
+    }
+    acquire()
+    document.addEventListener('visibilitychange', acquire)
+    return () => {
+      document.removeEventListener('visibilitychange', acquire)
+      lock?.release().catch(() => {})
+    }
+  }, [enabled])
+}
+
 /* ───────── الرئيسية ───────── */
 
 function Home({ onLogout }) {
   const [me, setMe] = useState(null)
   const [tab, setTab] = useState('active')
+  const [focusId, setFocusId] = useState(null)
   const [orders, setOrders] = useState(null)
   const [error, setError] = useState('')
   const seen = useRef(null)
@@ -172,11 +220,13 @@ function Home({ onLogout }) {
   }, [tab])
 
   const [load, setLoad] = useState(0)
+  const [max, setMax] = useState(3)
   const refreshMe = useCallback(() => {
     api('/me')
       .then((d) => {
         setMe(d.courier)
         setLoad(d.load)
+        setMax(d.max || 3)
       })
       .catch(() => {})
   }, [])
@@ -201,6 +251,7 @@ function Home({ onLogout }) {
     }
   }, [loadOrders])
 
+  useWakeLock(!!me?.online)
   const load_ = loadOrders
   const logout = async () => {
     await disablePush((endpoint) => api('/push', { method: 'DELETE', body: { endpoint } })).catch(() => {})
@@ -233,7 +284,10 @@ function Home({ onLogout }) {
           ].map(([id, label]) => (
             <button
               key={id}
-              onClick={() => setTab(id)}
+              onClick={() => {
+                setFocusId(null)
+                setTab(id)
+              }}
               className={`rounded-xl py-2.5 text-sm font-bold ${tab === id ? 'bg-brand text-white' : 'text-white/70'}`}
             >
               {label}
@@ -248,7 +302,7 @@ function Home({ onLogout }) {
           <>
             <NotificationsCard />
             <InstallCard />
-            {me && <AvailabilityCard me={me} load={load} onChange={refreshMe} />}
+            {me && <AvailabilityCard me={me} load={load} max={max} onChange={refreshMe} />}
           </>
         )}
         {me?.online && (
@@ -266,7 +320,7 @@ function Home({ onLogout }) {
             <LoaderCircle size={30} className="animate-spin" />
           </div>
         ) : tab === 'map' && orders.length ? (
-          <DriverMap orders={orders} />
+          <DriverMap orders={orders} focusId={focusId} />
         ) : orders.length === 0 ? (
           <div className="pt-10 text-center">
             <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand-50 text-3xl">🛵</span>
@@ -279,6 +333,10 @@ function Home({ onLogout }) {
               key={o.id}
               order={o}
               color={tab === 'active' && orders.length > 1 ? colorFor(orders, o.id) : null}
+              onShowMap={() => {
+                setFocusId(o.id)
+                setTab('map')
+              }}
               onChanged={() => {
                 loadOrders()
                 refreshMe()
@@ -293,7 +351,7 @@ function Home({ onLogout }) {
 
 /* ───────── متاح / غير متاح ───────── */
 
-function AvailabilityCard({ me, load, onChange }) {
+function AvailabilityCard({ me, load, max, onChange }) {
   const [busy, setBusy] = useState(false)
   const toggle = async () => {
     setBusy(true)
@@ -318,7 +376,7 @@ function AvailabilityCard({ me, load, onChange }) {
       <span className="min-w-0 flex-1">
         <span className="block font-extrabold">{me.online ? 'أنت متاح لاستقبال الطلبات' : 'أنت غير متاح حالياً'}</span>
         <span className={`block text-xs ${me.online ? 'text-white/85' : 'text-navy/50'}`}>
-          {me.online ? `معك ${load} من 3 طلبات، اضغط للتوقف` : 'اضغط لتبدأ استقبال الطلبات'}
+          {me.online ? `معك ${load} من ${max} طلبات، اضغط للتوقف` : 'اضغط لتبدأ استقبال الطلبات'}
         </span>
       </span>
       <span className={`relative h-7 w-12 shrink-0 rounded-full ${me.online ? 'bg-white/30' : 'bg-navy/15'}`}>
@@ -363,9 +421,31 @@ function Offers({ onAccepted }) {
   }, [loadOffers])
 
   const live = offers.filter((o) => new Date(o.expiresAt).getTime() - (Date.now() + skew) > 0)
+  const ringing = live.length > 0
+  const [soundBlocked, setSoundBlocked] = useState(false)
+  useEffect(() => {
+    if (!ringing) return
+    unlockSoundSilently()
+    setSoundBlocked(!audioCtx || audioCtx.state !== 'running')
+    ringOnce()
+    const id = setInterval(ringOnce, 2200)
+    return () => clearInterval(id)
+  }, [ringing])
   if (!live.length) return null
   return (
     <div className="space-y-3">
+      {soundBlocked && (
+        <button
+          onClick={() => {
+            unlockSound()
+            setSoundBlocked(false)
+            ringOnce()
+          }}
+          className="w-full rounded-2xl bg-amber-50 p-3 text-sm font-bold text-amber-800"
+        >
+          اضغط هنا لتفعيل صوت الرنين
+        </button>
+      )}
       {live.map((o) => (
         <OfferCard
           key={o.offerId}
@@ -416,7 +496,7 @@ function OfferCard({ offer, secondsLeft, onDone }) {
         </p>
         <p className="mt-1 line-clamp-4 whitespace-pre-line text-sm">
           {o.kind === 'gas'
-            ? `${o.details.qty} جرة — ${o.details.gasType === 'buy' ? 'شراء جرة جديدة' : 'تبديل'}${o.floor ? `، الطابق ${o.floor}${o.details.elevator ? '' : ' بدون مصعد'}` : ''}`
+            ? `${o.details.qty} جرة، ${o.details.gasType === 'buy' ? 'شراء جرة جديدة' : 'تبديل'}${o.floor ? `، الطابق ${o.floor}${o.details.elevator ? '' : ' بدون مصعد'}` : ''}`
             : o.details.items || 'طلب مرفق بصورة'}
         </p>
         {error && <p className="mt-2 rounded-xl bg-rose-500/30 px-3 py-2 text-center text-xs font-bold">{error}</p>}
@@ -579,7 +659,7 @@ function InstallCard() {
 
 /* ───────── بطاقة الطلب ───────── */
 
-function OrderCard({ order: o, color, onChanged }) {
+function OrderCard({ order: o, color, onChanged, onShowMap }) {
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [photo, setPhoto] = useState(null)
@@ -668,9 +748,9 @@ function OrderCard({ order: o, color, onChanged }) {
             <a href={waUrl(o.contactPhone)} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-1 rounded-2xl bg-navy-50 py-3 text-xs font-bold">
               <MessageCircle size={18} className="text-emerald-600" /> واتساب
             </a>
-            <a href={navUrl(o.location)} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-1 rounded-2xl bg-brand py-3 text-xs font-bold text-white">
-              <Navigation size={18} /> الطريق
-            </a>
+            <button onClick={onShowMap} className="flex flex-col items-center gap-1 rounded-2xl bg-brand py-3 text-xs font-bold text-white">
+              <MapPin size={18} /> على الخريطة
+            </button>
           </div>
 
           {/* تغيير الحالة */}

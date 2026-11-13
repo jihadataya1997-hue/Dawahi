@@ -70,7 +70,12 @@ export async function downloadBackup(name) {
 
 const ERR = {
   NETWORK: 'لا يوجد اتصال بالإنترنت',
-  WRONG_PASSWORD: 'كلمة السر غلط',
+  WRONG_PASSWORD: 'رقم الموبايل أو كلمة السر غير صحيحة',
+  FORBIDDEN: 'لا تملك صلاحية لهذا الإجراء',
+  WEAK_PASSWORD: 'كلمة السر 8 أحرف على الأقل',
+  PHONE_TAKEN: 'هذا الرقم مستخدم لحساب آخر',
+  NAME_TAKEN: 'يوجد دور بهذا الاسم',
+  ROLE_IN_USE: 'لا يمكن حذف دور مرتبط بحسابات',
   RATE_LIMITED: 'محاولات كثيرة، انتظر ربع ساعة',
   NOT_CONFIGURED: 'كلمة سر الإدارة غير مضبوطة على السيرفر',
   COURIER_REQUIRED: 'اكتب اسم شب التوصيل',

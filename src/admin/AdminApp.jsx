@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import {
   Bike,
   ClipboardList,
@@ -22,6 +22,7 @@ import {
   Phone,
   RefreshCw,
   ShoppingBag,
+  ShieldCheck,
   Tag,
   UserPlus,
   Users,
@@ -31,7 +32,14 @@ import {
 import { LogoMark } from '../components/Logo'
 import { disablePush, enablePush, pushState, registerSW } from '../push'
 import { currency, money } from './shared'
-import { AppContent, Announcements, Banners, Customers } from './sections'
+import { AppContent, Announcements, Banners, Customers, Team } from './sections'
+
+// المستخدم الحالي وصلاحياته
+export const MeContext = createContext({ perms: [] })
+const useCan = () => {
+  const me = useContext(MeContext)
+  return (p) => me.perms.includes(p)
+}
 import { adminApi, adminErrorText, adminPhotoUrl, downloadBackup, getAdminToken, setAdminToken, setLoggedOutHandler } from './adminApi'
 
 const STATUS = {
@@ -94,6 +102,7 @@ export default function AdminApp() {
 }
 
 function Login({ onDone }) {
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -102,7 +111,7 @@ function Login({ onDone }) {
     setBusy(true)
     setError('')
     try {
-      const d = await adminApi('/login', { method: 'POST', body: { password } })
+      const d = await adminApi('/login', { method: 'POST', body: { phone, password } })
       setAdminToken(d.token)
       unlockSound()
       onDone()
@@ -122,10 +131,20 @@ function Login({ onDone }) {
             <p className="text-xs text-navy/50">للإدارة فقط</p>
           </div>
         </div>
-        <label className="mt-6 block text-sm font-bold">كلمة السر</label>
+        <label className="mt-6 block text-sm font-bold">رقم الموبايل</label>
+        <input
+          type="tel"
+          inputMode="numeric"
+          dir="ltr"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+          placeholder="09xxxxxxxx"
+          className="mt-2 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3.5 text-end font-en text-sm outline-none focus:border-brand focus:bg-white"
+        />
+        <p className="mt-1 text-[11px] text-navy/40">المالك يترك هذا الحقل فارغاً ويدخل بكلمة السر الرئيسية</p>
+        <label className="mt-4 block text-sm font-bold">كلمة السر</label>
         <input
           type="password"
-          autoFocus
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="mt-2 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3.5 text-sm outline-none focus:border-brand focus:bg-white"
@@ -167,21 +186,43 @@ function beep() {
   } catch {}
 }
 
-const NAV = [
-  { id: 'overview', label: 'الرئيسية', Icon: LayoutDashboard },
-  { id: 'orders', label: 'الطلبات', Icon: ClipboardList },
-  { id: 'couriers', label: 'عمال التوصيل', Icon: Bike },
-  { id: 'customers', label: 'الزبائن', Icon: Users },
-  { id: 'banners', label: 'الإعلانات', Icon: Image },
-  { id: 'announce', label: 'الإشعارات العامة', Icon: Megaphone },
-  { id: 'content', label: 'محتوى التطبيق', Icon: PanelsTopLeft },
-  { id: 'prices', label: 'الأسعار والتوزيع', Icon: Tag },
-  { id: 'backups', label: 'النسخ الاحتياطي', Icon: Database },
+const ALL_NAV = [
+  { id: 'overview', label: 'الرئيسية', Icon: LayoutDashboard, perm: 'orders.view' },
+  { id: 'orders', label: 'الطلبات', Icon: ClipboardList, perm: 'orders.view' },
+  { id: 'couriers', label: 'عمال التوصيل', Icon: Bike, perm: 'couriers.manage' },
+  { id: 'customers', label: 'الزبائن', Icon: Users, perm: 'customers.view' },
+  { id: 'banners', label: 'الإعلانات', Icon: Image, perm: 'content.manage' },
+  { id: 'announce', label: 'الإشعارات العامة', Icon: Megaphone, perm: 'content.manage' },
+  { id: 'content', label: 'محتوى التطبيق', Icon: PanelsTopLeft, perm: 'content.manage' },
+  { id: 'prices', label: 'الأسعار والتوزيع', Icon: Tag, perm: 'pricing.manage' },
+  { id: 'team', label: 'الفريق والصلاحيات', Icon: ShieldCheck, perm: 'staff.manage' },
+  { id: 'backups', label: 'النسخ الاحتياطي', Icon: Database, perm: 'backups.manage' },
 ]
-const TITLES = Object.fromEntries(NAV.map((n) => [n.id, n.label]))
+const TITLES = Object.fromEntries(ALL_NAV.map((n) => [n.id, n.label]))
 
 function Dashboard({ onLogout }) {
-  const [section, setSection] = useState(() => (NAV.some((n) => `#${n.id}` === location.hash) ? location.hash.slice(1) : 'overview'))
+  const [me, setMe] = useState(null)
+  useEffect(() => {
+    adminApi('/me')
+      .then((d) => setMe(d.me))
+      .catch(() => {})
+  }, [])
+  if (!me)
+    return (
+      <div className="flex min-h-full items-center justify-center text-brand">
+        <LoaderCircle size={32} className="animate-spin" />
+      </div>
+    )
+  return (
+    <MeContext.Provider value={me}>
+      <Shell me={me} onLogout={onLogout} />
+    </MeContext.Provider>
+  )
+}
+
+function Shell({ me, onLogout }) {
+  const NAV = ALL_NAV.filter((n) => me.perms.includes(n.perm))
+  const [section, setSection] = useState(() => (NAV.some((n) => `#${n.id}` === location.hash) ? location.hash.slice(1) : NAV[0]?.id || 'overview'))
   const [stats, setStats] = useState(null)
   const [selected, setSelected] = useState(null)
   const lastWaiting = useRef(null)
@@ -196,6 +237,7 @@ function Dashboard({ onLogout }) {
 
   // الإحصائيات + تنبيه صوتي عند وصول طلب جديد (كل 10 ثوانٍ)
   const loadStats = useCallback(async () => {
+    if (!me.perms.includes('orders.view')) return
     try {
       const s = await adminApi('/stats')
       if (lastWaiting.current !== null && s.waiting > lastWaiting.current) beep()
@@ -203,7 +245,7 @@ function Dashboard({ onLogout }) {
       setStats(s)
       document.title = s.waiting ? `(${s.waiting}) طلب جديد | ضواحي` : 'لوحة إدارة ضواحي'
     } catch {}
-  }, [])
+  }, [me])
   useEffect(() => {
     loadStats()
     const id = setInterval(loadStats, 10000)
@@ -227,9 +269,9 @@ function Dashboard({ onLogout }) {
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-navy p-4 text-white lg:flex">
         <div className="flex items-center gap-3 px-2 py-2">
           <LogoMark className="h-10 w-10" />
-          <div>
-            <p className="font-extrabold leading-tight">ضواحي</p>
-            <p className="text-[11px] text-white/50">لوحة الإدارة</p>
+          <div className="min-w-0">
+            <p className="truncate font-extrabold leading-tight">{me.name}</p>
+            <p className="text-[11px] text-white/50">{me.role}</p>
           </div>
         </div>
         <nav className="mt-6 flex-1 space-y-1 overflow-y-auto">
@@ -295,6 +337,8 @@ function Dashboard({ onLogout }) {
             </div>
           )}
           {section === 'backups' && <Backups />}
+          {section === 'team' && <Team />}
+          {!NAV.length && <p className="pt-16 text-center text-sm text-navy/50">لا توجد صلاحيات لحسابك بعد. تواصل مع المالك.</p>}
         </main>
       </div>
 
@@ -320,7 +364,7 @@ function Overview({ stats, onGo, onOpenOrder }) {
   useEffect(() => {
     const load = () => {
       adminApi('/orders?group=open').then((d) => setOpen(d.orders)).catch(() => {})
-      adminApi('/couriers').then((d) => setCouriers(d.couriers.filter((c) => c.active))).catch(() => {})
+      adminApi('/couriers').then((d) => setCouriers(d.couriers.filter((c) => c.active))).catch(() => setCouriers([]))
     }
     load()
     const id = setInterval(load, 10000)
@@ -520,6 +564,7 @@ function orderText(o) {
 }
 
 function OrderDetail({ orderId, onClose, onUpdated }) {
+  const can = useCan()
   const [o, setO] = useState(null)
   const [photo, setPhoto] = useState(null)
   const [courier, setCourier] = useState('')
@@ -528,9 +573,11 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
   const [registered, setRegistered] = useState([])
   const [courierId, setCourierId] = useState(null)
   useEffect(() => {
+    if (!can('orders.manage')) return
     adminApi('/couriers')
       .then((d) => setRegistered(d.couriers.filter((c) => c.active)))
       .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
@@ -692,7 +739,7 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
             </button>
 
             {/* تغيير الحالة */}
-            {!['delivered', 'cancelled'].includes(o.status) && (
+            {!['delivered', 'cancelled'].includes(o.status) && can('orders.manage') && (
               <section className="mt-5 rounded-3xl bg-navy p-4 text-white">
                 <p className="text-xs text-white/60">تغيير حالة الطلب</p>
                 {o.status === 'new' && o.offer && (
@@ -813,7 +860,7 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
                       <b>{STATUS[e.status]?.label}</b>{' '}
                       <span className="text-navy/50">
                         — {new Date(e.at).toLocaleTimeString('ar-SY', { hour: 'numeric', minute: '2-digit' })}
-                        {e.actor === 'admin' ? ' (الإدارة)' : ' (الزبون)'}
+                        {e.actor === 'admin' || e.actor.startsWith('staff') ? ' (الإدارة)' : e.actor.startsWith('courier') ? ' (عامل التوصيل)' : ' (الزبون)'}
                       </span>
                     </li>
                   ))}
@@ -1135,7 +1182,7 @@ function Couriers() {
           <input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="الاسم"
+            placeholder="الاسم الكامل"
             className="rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-sm outline-none focus:border-brand focus:bg-white"
           />
           <input

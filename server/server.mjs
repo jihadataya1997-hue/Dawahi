@@ -5,7 +5,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, getSettings, UPLOADS_DIR } from './db.mjs'
-import { HttpError, bad, sha256, now, isPhone, str, distanceKm, clientIp, rateLimit, readJson, send, log } from './lib.mjs'
+import { HttpError, bad, sha256, now, isPhone, isFullName, str, distanceKm, clientIp, rateLimit, readJson, send, log } from './lib.mjs'
 import { adminRoute } from './admin.mjs'
 import { toOrder } from './lib.mjs'
 import { scheduleBackups } from './backup.mjs'
@@ -238,7 +238,8 @@ async function route(req, res, url) {
   if (m === 'POST' && pathname === '/api/auth/login') {
     rateLimit(`login:${clientIp(req)}`, 10, 10 * 60 * 1000)
     const body = await readJson(req)
-    const name = str(body.name, 60, 'name', { required: true })
+    const name = str(body.name, 60, 'name', { required: true }).replace(/\s+/g, ' ')
+    if (!isFullName(name)) throw bad('FULL_NAME', 'Please enter your full name (first and last name)', 'name')
     const phone = String(body.phone || '').replace(/\s/g, '')
     if (!isPhone(phone)) throw bad('INVALID_PHONE', 'Phone must start with 09 and be 10 digits', 'phone')
     if (db.prepare('SELECT blocked FROM customers WHERE phone = ?').get(phone)?.blocked)
@@ -279,7 +280,8 @@ async function route(req, res, url) {
 
   if (m === 'PATCH' && pathname === '/api/me') {
     const body = await readJson(req)
-    const name = str(body.name, 60, 'name', { required: true })
+    const name = str(body.name, 60, 'name', { required: true }).replace(/\s+/g, ' ')
+    if (!isFullName(name)) throw bad('FULL_NAME', 'Please enter your full name (first and last name)', 'name')
     db.prepare('UPDATE customers SET name = ?, updated_at = ? WHERE id = ?').run(name, now(), user.id)
     return send(res, 200, { user: { ...publicUser(user), name } })
   }

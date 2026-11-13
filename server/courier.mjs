@@ -2,7 +2,7 @@
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { db, UPLOADS_DIR } from './db.mjs'
+import { db, getSettings, UPLOADS_DIR } from './db.mjs'
 import { HttpError, sha256, now, clientIp, rateLimit, readJson, send, log, toOrder, verifyPin } from './lib.mjs'
 import { hasSubscription, notify, removeSubscription, saveSubscription } from './push.mjs'
 import { acceptOffer, courierLoad, declineOffer, nudge } from './dispatch.mjs'
@@ -42,6 +42,30 @@ const forCourier = (r) => ({
 
 const Q = `SELECT o.*, c.name AS customer_name FROM orders o JOIN customers c ON c.id = o.customer_id`
 
+// محرك الطرقات (OSRM على نفس السيرفر) — المسار الفعلي على الطرق
+const OSRM_URL = process.env.OSRM_URL || 'http://dawahi-osrm:5000'
+async function roadLeg(a, b) {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 4000)
+  try {
+    const r = await fetch(
+      `${OSRM_URL}/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson&steps=false`,
+      { signal: ctrl.signal }
+    )
+    const d = await r.json()
+    const route = d.routes?.[0]
+    if (d.code !== 'Ok' || !route) throw new Error(d.code || 'no route')
+    // GeoJSON بيرجع [lng, lat] — منقلبها لـ [lat, lng] للخريطة
+    return { road: true, distanceKm: route.distance / 1000, minutes: route.duration / 60, path: route.geometry.coordinates.map(([x, y]) => [y, x]) }
+  } catch {
+    // إذا محرك الطرقات ما ردّ: خط مستقيم كبديل
+    return { road: false, path: [[a.lat, a.lng], [b.lat, b.lng]] }
+  } finally {
+    clearTimeout(t)
+  }
+}
+const validPoint = (p) => p && Number.isFinite(+p.lat) && Number.isFinite(+p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180
+
 export async function courierRoute(req, res, url) {
   const { pathname } = url
   const m = req.method
@@ -69,6 +93,7 @@ export async function courierRoute(req, res, url) {
       courier: { id: me.id, name: me.name, phone: me.phone, online: !!me.online },
       push: hasSubscription('courier', me.id),
       load: courierLoad(me.id),
+      max: getSettings().max_orders_per_courier,
     })
   }
 
@@ -143,6 +168,17 @@ export async function courierRoute(req, res, url) {
       tag: 'test',
     })
     return send(res, 200, { devices: n })
+  }
+
+  // المسار على الطرقات بين نقاط متتالية (موقع العامل ثم محطات التوصيل)
+  if (m === 'POST' && pathname === '/api/courier/route') {
+    rateLimit(`route:${me.id}`, 60, 60 * 1000)
+    const { points } = await readJson(req)
+    if (!Array.isArray(points) || points.length < 2 || points.length > 8 || !points.every(validPoint))
+      throw new HttpError(422, 'INVALID', 'points must be 2-8 locations')
+    const pts = points.map((p) => ({ lat: +p.lat, lng: +p.lng }))
+    const legs = await Promise.all(pts.slice(1).map((p, i) => roadLeg(pts[i], p)))
+    return send(res, 200, { legs })
   }
 
   if (m === 'GET' && pathname === '/api/courier/orders') {

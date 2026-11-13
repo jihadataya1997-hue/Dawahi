@@ -1,12 +1,7 @@
 import { useState } from 'react'
-import Header from './components/Header'
-import SearchBar from './components/SearchBar'
-import HeroOrderCard from './components/HeroOrderCard'
-import BannerCarousel from './components/BannerCarousel'
 import InboxSheet, { useInbox } from './components/InboxSheet'
-import ServicesGrid from './components/ServicesGrid'
 import BottomNav from './components/BottomNav'
-import ActiveOrderWidget from './components/ActiveOrderWidget'
+import HomeScreen from './screens/HomeScreen'
 import GasOrderSheet from './components/GasOrderSheet'
 import CustomOrderSheet from './components/CustomOrderSheet'
 import LoginScreen from './screens/LoginScreen'
@@ -50,23 +45,22 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col overflow-hidden bg-[#F5F7FA] sm:shadow-2xl">
-      <main className="scrollbar-hide flex-1 overflow-y-auto pb-44">
+      <main className="scrollbar-hide flex-1 overflow-y-auto pb-28">
         {tab === 'home' && (
-          <>
-            <Header unread={inbox.unread} onBell={() => setInboxOpen(true)} />
-            <div className="relative z-10 -mt-6 space-y-6 px-4">
-              <SearchBar onSubmit={(text) => setCustom({ category: 'any', text })} />
-              <BannerCarousel onAction={onBanner} />
-              <HeroOrderCard onClick={startOrder} />
-              <ServicesGrid onSelect={openService} />
-            </div>
-          </>
+          <HomeScreen
+            activeOrder={activeOrder}
+            unread={inbox.unread}
+            onBell={() => setInboxOpen(true)}
+            onOrder={startOrder}
+            onService={openService}
+            onBanner={onBanner}
+            onOpenOrders={() => setTab('orders')}
+          />
         )}
         {tab === 'orders' && <OrdersScreen onStart={startOrder} />}
         {tab === 'account' && <AccountScreen />}
       </main>
 
-      {activeOrder && tab !== 'orders' && <ActiveOrderWidget order={activeOrder} onOpen={() => setTab('orders')} />}
       <BottomNav active={tab} onChange={setTab} />
 
       <GasOrderSheet open={gasOpen} onClose={() => setGasOpen(false)} />

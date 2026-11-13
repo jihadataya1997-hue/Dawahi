@@ -54,3 +54,14 @@
 *::-webkit-scrollbar {
   display: none;
 }
+
+/* اسم الزبون فوق دبوس الخريطة (تطبيق العامل) */
+.leaflet-tooltip.dawahi-label {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+.leaflet-tooltip.dawahi-label::before {
+  display: none;
+}

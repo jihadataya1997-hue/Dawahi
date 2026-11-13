@@ -127,3 +127,18 @@ export function verifyPin(pin, stored) {
   const [salt, hash] = stored.split(':')
   return _tse(Buffer.from(hash, 'hex'), scryptSync(pin, salt, 32))
 }
+
+// كلمات سر فريق الإدارة (8 أحرف على الأقل) — تُخزّن مشفّرة فقط
+export const isPassword = (p) => typeof p === 'string' && p.length >= 8 && p.length <= 100
+export function hashSecret(secret) {
+  const salt = _rb(16).toString('hex')
+  return `${salt}:${scryptSync(secret, salt, 32).toString('hex')}`
+}
+export function verifySecret(secret, stored) {
+  if (typeof secret !== 'string' || !secret || typeof stored !== 'string' || !stored.includes(':')) return false
+  const [salt, hash] = stored.split(':')
+  return _tse(Buffer.from(hash, 'hex'), scryptSync(secret, salt, 32))
+}
+
+// الاسم الكامل: الاسم والكنية على الأقل (كلمتان، كل كلمة حرفان أو أكثر)
+export const isFullName = (n) => typeof n === 'string' && n.trim().split(/\s+/).filter((w) => w.length >= 2).length >= 2

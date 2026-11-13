@@ -13,7 +13,7 @@ export default function AccountScreen() {
   const [name, setName] = useState(user.name)
 
   const save = async () => {
-    if (!name.trim()) return
+    if (name.trim().split(/\s+/).filter((w) => w.length >= 2).length < 2) return
     try {
       await updateName(name.trim())
       setEditing(false)

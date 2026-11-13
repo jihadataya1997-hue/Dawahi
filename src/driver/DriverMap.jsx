@@ -3,6 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Flame, LocateFixed, Navigation, Phone, ShoppingBag } from 'lucide-react'
 import { STOP_COLORS, bestOrder, fmtKm, km, multiStopUrl } from './route'
+import { api } from './driverApi'
 
 const STATUS = { assigned: 'جديد', buying: 'قيد الشراء', on_the_way: 'في الطريق' }
 const navUrl = (l) => `https://www.google.com/maps/dir/?api=1&destination=${l.lat.toFixed(6)},${l.lng.toFixed(6)}`
@@ -12,6 +13,10 @@ export const colorFor = (orders, id) => {
   const ids = [...orders].map((o) => o.id).sort((a, b) => a - b)
   return STOP_COLORS[ids.indexOf(id) % STOP_COLORS.length]
 }
+
+// اسم الزبون فوق الدبوس
+const label = (name, color) =>
+  `<div style="background:#fff;border:2px solid ${color};color:#1E2E4A;font:700 12px Cairo,sans-serif;padding:2px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(30,46,74,.25)">${name.replace(/[<>&"]/g, '')}</div>`
 
 const pin = (n, color, active) =>
   L.divIcon({
@@ -31,14 +36,15 @@ const meIcon = L.divIcon({
 })
 
 /** خريطة كل طلبات العامل: محطات مرقّمة بالترتيب الأفضل + موقعه + قائمة مترابطة مع الخريطة */
-export default function DriverMap({ orders }) {
+export default function DriverMap({ orders, focusId }) {
   const box = useRef(null)
   const map = useRef(null)
   const layer = useRef(null)
   const meMarker = useRef(null)
   const [me, setMe] = useState(null)
   const [geoErr, setGeoErr] = useState(false)
-  const [active, setActive] = useState(null)
+  const [active, setActive] = useState(focusId || null)
+  const [legs, setLegs] = useState(null) // المسار الفعلي على الطرقات
 
   const stops = useMemo(() => bestOrder(orders, me), [orders, me])
 
@@ -60,6 +66,21 @@ export default function DriverMap({ orders }) {
     return () => navigator.geolocation.clearWatch(id)
   }, [])
 
+  // جلب المسار على الطرقات: من موقع العامل ← المحطة 1 ← المحطة 2 ...
+  const routeKey = JSON.stringify([me && [me.lat.toFixed(4), me.lng.toFixed(4)], stops.map((o) => o.id)])
+  useEffect(() => {
+    const points = [...(me ? [me] : []), ...stops.map((o) => o.location)]
+    if (points.length < 2) return setLegs([])
+    let cancelled = false
+    api('/route', { method: 'POST', body: { points } })
+      .then((d) => !cancelled && setLegs(d.legs))
+      .catch(() => !cancelled && setLegs(null))
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey])
+
   // إنشاء الخريطة مرة واحدة
   useEffect(() => {
     map.current = L.map(box.current, { zoomControl: false, attributionControl: true }).setView([33.5335, 36.2235], 14)
@@ -74,8 +95,22 @@ export default function DriverMap({ orders }) {
     g.clearLayers()
     const pts = []
     if (me) pts.push([me.lat, me.lng])
+    // المسار: كل جزء بلون المحطة التي يوصل إليها
+    const offset = me ? 0 : 1
+    if (legs && legs.length) {
+      legs.forEach((leg, i) => {
+        const target = stops[i + offset] // مع موقع العامل: الجزء الأول يوصل للمحطة 1
+        if (!target) return
+        const color = colorFor(orders, target.id)
+        const dim = active && active !== target.id
+        L.polyline(leg.path, { color: '#fff', weight: 9, opacity: dim ? 0.4 : 0.9 }).addTo(g)
+        L.polyline(leg.path, { color, weight: 5, opacity: dim ? 0.35 : 0.95, dashArray: leg.road ? null : '8 8' }).addTo(g)
+      })
+    }
     stops.forEach((o, i) => {
-      const m = L.marker([o.location.lat, o.location.lng], { icon: pin(i + 1, colorFor(orders, o.id), active === o.id), zIndexOffset: active === o.id ? 1000 : 0 })
+      const color = colorFor(orders, o.id)
+      const m = L.marker([o.location.lat, o.location.lng], { icon: pin(i + 1, color, active === o.id), zIndexOffset: active === o.id ? 1000 : 0 })
+      m.bindTooltip(label(o.customer.name, color), { permanent: true, direction: 'top', offset: [0, -48], opacity: 1, className: 'dawahi-label' })
       m.on('click', () => {
         setActive(o.id)
         document.getElementById(`stop-${o.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -83,12 +118,12 @@ export default function DriverMap({ orders }) {
       m.addTo(g)
       pts.push([o.location.lat, o.location.lng])
     })
-    if (pts.length > 1) L.polyline(pts, { color: '#1E2E4A', weight: 3, opacity: 0.55, dashArray: '8 8' }).addTo(g)
+    if (!legs && pts.length > 1) L.polyline(pts, { color: '#1E2E4A', weight: 3, opacity: 0.5, dashArray: '8 8' }).addTo(g)
     if (me) {
       if (!meMarker.current) meMarker.current = L.marker([me.lat, me.lng], { icon: meIcon, zIndexOffset: 2000 })
       meMarker.current.setLatLng([me.lat, me.lng]).addTo(g)
     }
-  }, [stops, me, active, orders])
+  }, [stops, me, active, orders, legs])
 
   // تكبير الخريطة لتشمل كل المحطات (مرة عند فتحها أو تغيّر الطلبات)
   const fitAll = () => {
@@ -99,13 +134,17 @@ export default function DriverMap({ orders }) {
     m.stop() // إيقاف أي حركة جارية قبل إعادة التكبير
     m.invalidateSize()
     if (pts.length === 1) m.setView(pts[0], 16, { animate: false })
-    else if (pts.length) m.fitBounds(pts, { padding: [50, 50], maxZoom: 16, animate: false })
+    else if (pts.length) m.fitBounds(pts, { paddingTopLeft: [50, 90], paddingBottomRight: [50, 40], maxZoom: 16, animate: false })
   }
   const key = stops.map((o) => o.id).join(',')
   useEffect(() => {
-    fitAll()
+    const f = focusId && stops.find((o) => o.id === focusId)
+    if (f) {
+      map.current?.setView([f.location.lat, f.location.lng], 16, { animate: false })
+      document.getElementById(`stop-${f.id}`)?.scrollIntoView({ block: 'nearest' })
+    } else fitAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, !!me])
+  }, [key, !!me, focusId])
 
   const focus = (o) => {
     setActive(o.id)
@@ -117,7 +156,7 @@ export default function DriverMap({ orders }) {
 
   return (
     <div className="space-y-3">
-      <div className="relative overflow-hidden rounded-3xl shadow-soft">
+      <div className="relative isolate overflow-hidden rounded-3xl shadow-soft">
         <div ref={box} dir="ltr" className="h-[46vh] min-h-[280px] w-full" />
         <button
           onClick={fitAll}
@@ -140,18 +179,24 @@ export default function DriverMap({ orders }) {
           rel="noreferrer"
           className="flex items-center justify-center gap-2 rounded-2xl bg-navy py-3.5 text-sm font-extrabold text-white"
         >
-          <Navigation size={18} /> ابدأ التوصيل بالترتيب ({stops.length} محطات)
+          <Navigation size={18} /> فتح كل المحطات بالترتيب في خرائط Google
         </a>
       )}
 
       <p className="px-1 text-[11px] text-navy/50">
-        {stops.length > 1 ? 'الترتيب المقترح يعتمد على أقصر مسافة من موقعك، والطلبات الجاهزة للتسليم أولاً.' : 'اضغط على المحطة لتراها على الخريطة.'}
+        {legs && legs.length && legs.every((l) => l.road)
+          ? 'المسار مرسوم على الطرقات الفعلية. الترتيب يبدأ بالطلبات الجاهزة للتسليم ثم الأقرب.'
+          : 'الترتيب المقترح يبدأ بالطلبات الجاهزة للتسليم ثم الأقرب إلى موقعك.'}
       </p>
 
       <ol className="space-y-2">
         {stops.map((o, i) => {
           const color = colorFor(orders, o.id)
-          const d = me ? km(me, o.location) : null
+          // المسافة والوقت على الطرقات (تراكمي حتى هذه المحطة)
+          const upto = legs && legs.length && me ? legs.slice(0, i + 1) : null
+          const road = upto && upto.every((l) => l.road)
+          const d = road ? upto.reduce((a, l) => a + l.distanceKm, 0) : me ? km(me, o.location) : null
+          const mins = road ? Math.max(1, Math.round(upto.reduce((a, l) => a + l.minutes, 0))) : null
           return (
             <li
               key={o.id}
@@ -171,7 +216,8 @@ export default function DriverMap({ orders }) {
                 </p>
                 <p className="text-[11px] text-navy/50">
                   {STATUS[o.status]}
-                  {d !== null && ` • على بعد ${fmtKm(d)}`}
+                  {d !== null && ` • ${fmtKm(d)}`}
+                  {mins !== null && ` • نحو ${mins} دقيقة`}
                   {o.floor ? ` • الطابق ${o.floor}` : ''}
                 </p>
               </div>
@@ -188,11 +234,11 @@ export default function DriverMap({ orders }) {
                 target="_blank"
                 rel="noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                aria-label="الطريق"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
+                aria-label="فتح في خرائط Google"
+                className="flex h-10 shrink-0 items-center justify-center gap-1 rounded-xl px-2.5 text-[11px] font-bold text-white"
                 style={{ background: color }}
               >
-                <Navigation size={16} />
+                <Navigation size={14} /> Google
               </a>
             </li>
           )

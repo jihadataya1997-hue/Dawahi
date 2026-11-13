@@ -133,9 +133,11 @@ function adminContentView() {
 }
 
 /** مسارات الإدارة الخاصة بالمحتوى — ترجع true إذا عالجت الطلب */
-export async function contentAdminRoute(req, res, url) {
+export async function contentAdminRoute(req, res, url, need) {
   const { pathname } = url
   const m = req.method
+  if (/^\/api\/admin\/(content|banners|announcements)/.test(pathname)) need('content.manage')
+  if (pathname.startsWith('/api/admin/customers')) need(m === 'GET' ? 'customers.view' : 'customers.manage')
 
   // نصوص التطبيق + الخدمات + العملة + رقم الدعم
   if (pathname === '/api/admin/content') {

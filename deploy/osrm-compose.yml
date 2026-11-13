@@ -1,0 +1,35 @@
+# محرك الطرقات (OSRM) لخريطة سوريا — مشروع dawahi-osrm على السيرفر
+# يُنزّل خريطة سوريا من Geofabrik (رابطها في متغير PBF_URL) ويجهّزها مرة واحدة، ثم يشغّل محرك المسارات على شبكة edge
+name: dawahi-osrm
+services:
+  download:
+    image: node:22-alpine
+    volumes: [osrm:/data]
+    environment:
+      PBF_URL: ${PBF_URL}   # https://download.geofabrik.de/asia/syria-latest.osm.pbf
+    command: ["node", "-e", "const fs=require('fs');const f='/data/syria-latest.osm.pbf';if(fs.existsSync(f)&&fs.statSync(f).size>1e6){console.log('exists');process.exit(0)}fetch(process.env.PBF_URL).then(async r=>{if(!r.ok)throw new Error(r.status);fs.writeFileSync(f,Buffer.from(await r.arrayBuffer()));console.log('downloaded',fs.statSync(f).size)}).catch(e=>{console.error(e);process.exit(1)})"]
+  prepare:
+    image: osrm/osrm-backend:v5.25.0
+    volumes: [osrm:/data]
+    depends_on:
+      download:
+        condition: service_completed_successfully
+    command: ["sh", "-c", "[ -f /data/syria-latest.osrm.mldgr ] || (osrm-extract -p /opt/car.lua /data/syria-latest.osm.pbf && osrm-partition /data/syria-latest.osrm && osrm-customize /data/syria-latest.osrm); echo PREPARED"]
+    mem_limit: 3g
+  osrm:
+    image: osrm/osrm-backend:v5.25.0
+    container_name: dawahi-osrm
+    restart: unless-stopped
+    volumes: [osrm:/data]
+    depends_on:
+      prepare:
+        condition: service_completed_successfully
+    command: ["osrm-routed", "--algorithm", "mld", "/data/syria-latest.osrm"]
+    networks: [edge]
+    mem_limit: 1g
+volumes:
+  osrm: {}
+networks:
+  edge:
+    external: true
+    name: edge

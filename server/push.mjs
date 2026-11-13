@@ -51,9 +51,11 @@ export const hasSubscription = (ownerType, ownerId) =>
  * payload: { title, body, url, tag }
  */
 export function notify(ownerType, ownerId, payload) {
-  const subs = db
-    .prepare('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE owner_type = ? AND owner_id = ?')
-    .all(ownerType, ownerId)
+  // تنبيهات الإدارة تصل لكل أجهزة فريق الإدارة (المالك والمشرفين)
+  const subs =
+    ownerType === 'admin'
+      ? db.prepare(`SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE owner_type = 'admin'`).all()
+      : db.prepare('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE owner_type = ? AND owner_id = ?').all(ownerType, ownerId)
   for (const s of subs) {
     webpush
       .sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), {

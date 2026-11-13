@@ -16,7 +16,8 @@ export default function LoginScreen() {
   const submit = async (e) => {
     e.preventDefault()
     if (busy) return
-    if (!name.trim()) return setError(t('auth.nameErr'))
+    // الاسم الكامل: كلمتان على الأقل
+    if (name.trim().split(/\s+/).filter((w) => w.length >= 2).length < 2) return setError(t('auth.nameErr'))
     if (!isValidSyrianMobile(phone)) return setError(t('auth.phoneErr'))
     setBusy(true)
     try {

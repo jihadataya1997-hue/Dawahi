@@ -15,6 +15,8 @@ import {
   Phone,
   Plus,
   Search,
+  ShieldCheck,
+  UserPlus,
   Send,
   Trash2,
   X,
@@ -704,7 +706,7 @@ export function AppContent() {
                 </div>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <input value={s.label} maxLength={20} onChange={(e) => setSvc(i, { label: e.target.value })} placeholder="الاسم" className={inputCls} />
+                <input value={s.label} maxLength={20} onChange={(e) => setSvc(i, { label: e.target.value })} placeholder="الاسم الكامل" className={inputCls} />
                 <input value={s.sub} maxLength={24} onChange={(e) => setSvc(i, { sub: e.target.value })} placeholder="وصف قصير" className={inputCls} />
               </div>
             </li>
@@ -719,6 +721,273 @@ export function AppContent() {
         </SaveButton>
         <p className="mt-2 text-center text-[11px] text-navy/40">تظهر التعديلات للزبائن عند فتح التطبيق التالي.</p>
       </div>
+    </div>
+  )
+}
+
+/* ───────── الفريق والصلاحيات ───────── */
+
+export function Team() {
+  const [staff, setStaff] = useState(null)
+  const [roles, setRoles] = useState(null)
+  const [perms, setPerms] = useState({})
+  const [error, setError] = useState('')
+  const [form, setForm] = useState({ name: '', phone: '', password: '', roleId: '' })
+  const [busy, setBusy] = useState('')
+  const [editingRole, setEditingRole] = useState(null) // {id?, name, permissions}
+  const [pwFor, setPwFor] = useState(null)
+  const [newPw, setNewPw] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const [s, r] = await Promise.all([adminApi('/staff'), adminApi('/roles')])
+      setStaff(s.staff)
+      setRoles(r.roles)
+      setPerms(r.permissions)
+      setForm((f) => (f.roleId ? f : { ...f, roleId: String(r.roles[0]?.id || '') }))
+    } catch (err) {
+      setError(adminErrorText(err))
+    }
+  }, [])
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const run = async (key, fn) => {
+    setBusy(key)
+    setError('')
+    try {
+      await fn()
+      await load()
+      return true
+    } catch (err) {
+      setError(adminErrorText(err))
+      return false
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const addStaff = (e) => {
+    e.preventDefault()
+    run('add', () => adminApi('/staff', { method: 'POST', body: { ...form, roleId: Number(form.roleId) } })).then(
+      (ok) => ok && setForm({ name: '', phone: '', password: '', roleId: form.roleId })
+    )
+  }
+  const saveRole = () =>
+    run('role', () =>
+      editingRole.id
+        ? adminApi(`/roles/${editingRole.id}`, { method: 'PATCH', body: { name: editingRole.name, permissions: editingRole.permissions } })
+        : adminApi('/roles', { method: 'POST', body: { name: editingRole.name, permissions: editingRole.permissions } })
+    ).then((ok) => ok && setEditingRole(null))
+
+  if (!staff || !roles) return error ? <Err>{error}</Err> : <Spinner />
+
+  return (
+    <div className="space-y-4">
+      <Err>{error}</Err>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <h2 className="flex items-center gap-2 font-extrabold">
+            <UserPlus size={18} className="text-brand" /> إضافة حساب للفريق
+          </h2>
+          <p className="mt-1 text-xs text-navy/50">
+            يدخل صاحب الحساب إلى لوحة الإدارة برقم موبايله وكلمة السر، ويرى فقط الأقسام المسموحة لدوره. يمكن للمشرف أن يكون عامل توصيل أيضاً بحساب
+            منفصل في تطبيق العمال.
+          </p>
+          <form onSubmit={addStaff} className="mt-4 space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="الاسم الكامل" className={inputCls} />
+              <input
+                dir="ltr"
+                inputMode="numeric"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '') })}
+                placeholder="09xxxxxxxx"
+                className={`${inputCls} text-end font-en`}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="كلمة السر (8 أحرف على الأقل)"
+                className={inputCls}
+              />
+              <select value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value })} className={inputCls}>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <SaveButton busy={busy === 'add'} disabled={!form.name || form.phone.length !== 10 || form.password.length < 8}>
+              إضافة الحساب
+            </SaveButton>
+          </form>
+        </Card>
+
+        <Card>
+          <h2 className="font-extrabold">الحسابات</h2>
+          {staff.length === 0 ? (
+            <p className="py-8 text-center text-sm text-navy/40">لا توجد حسابات بعد. أنت تدخل كمالك بكلمة السر الرئيسية.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-navy/5">
+              {staff.map((m) => (
+                <li key={m.id} className={`py-3 ${m.active ? '' : 'opacity-50'}`}>
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold">
+                        {m.name} {m.isCourier && <span className="rounded bg-sky-100 px-1.5 text-[10px] text-sky-700">عامل توصيل أيضاً</span>}
+                      </p>
+                      <p className="text-[11px] text-navy/50">
+                        <span dir="ltr" className="font-en">{m.phone}</span>
+                        {m.lastLoginAt ? `، آخر دخول ${fmtDate(m.lastLoginAt)}` : '، لم يدخل بعد'}
+                      </p>
+                    </div>
+                    <select
+                      value={m.roleId}
+                      onChange={(e) => run(`r${m.id}`, () => adminApi(`/staff/${m.id}`, { method: 'PATCH', body: { roleId: Number(e.target.value) } }))}
+                      className="rounded-lg border border-navy/10 bg-navy-50 px-2 py-1.5 text-xs font-bold"
+                    >
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {pwFor === m.id ? (
+                      <>
+                        <input value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="كلمة سر جديدة" className={`${inputCls} max-w-[200px] py-1.5`} />
+                        <button
+                          onClick={() => run(`p${m.id}`, () => adminApi(`/staff/${m.id}`, { method: 'PATCH', body: { password: newPw } })).then((ok) => ok && (setPwFor(null), setNewPw('')))}
+                          disabled={newPw.length < 8}
+                          className="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                        >
+                          حفظ
+                        </button>
+                        <button onClick={() => setPwFor(null)} className="rounded-lg bg-navy-50 px-3 py-1.5 text-xs font-bold">
+                          تراجع
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => setPwFor(m.id)} className="rounded-lg bg-navy-50 px-3 py-1.5 text-xs font-bold">
+                        تغيير كلمة السر
+                      </button>
+                    )}
+                    <button
+                      onClick={() => run(`a${m.id}`, () => adminApi(`/staff/${m.id}`, { method: 'PATCH', body: { active: !m.active } }))}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-bold ${m.active ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'}`}
+                    >
+                      {m.active ? 'إيقاف الحساب' : 'تفعيل الحساب'}
+                    </button>
+                    {busy.endsWith(String(m.id)) && busy !== 'add' && <LoaderCircle size={16} className="animate-spin text-brand" />}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 font-extrabold">
+            <ShieldCheck size={18} className="text-brand" /> الأدوار والصلاحيات
+          </h2>
+          <button onClick={() => setEditingRole({ name: '', permissions: [] })} className="flex items-center gap-1 rounded-xl bg-navy px-3 py-2 text-xs font-bold text-white">
+            <Plus size={14} /> دور جديد
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-navy/50">المالك يملك كل الصلاحيات دائماً. أنشئ أدواراً جديدة عندما يكبر فريقك، مثل «مدير فرع».</p>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-xs">
+            <thead>
+              <tr className="border-b border-navy/10 text-navy/50">
+                <th className="py-2 text-start font-bold">الصلاحية</th>
+                {roles.map((r) => (
+                  <th key={r.id} className="px-2 py-2 font-bold">
+                    <button onClick={() => setEditingRole({ ...r })} className="inline-flex items-center gap-1 hover:text-brand">
+                      {r.name} <Pencil size={11} />
+                    </button>
+                    <span className="block font-normal text-navy/40">{r.members} حساب</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(perms).map(([key, label]) => (
+                <tr key={key} className="border-b border-navy/5">
+                  <td className="py-2.5">{label}</td>
+                  {roles.map((r) => (
+                    <td key={r.id} className="px-2 py-2.5 text-center">
+                      {r.permissions.includes(key) ? <Check size={16} className="inline text-emerald-600" /> : <span className="text-navy/20">—</span>}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {editingRole && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/60 p-4 animate-fade-in" onClick={() => setEditingRole(null)}>
+          <div className="w-full max-w-md rounded-3xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-extrabold">{editingRole.id ? 'تعديل الدور' : 'دور جديد'}</h2>
+              <button onClick={() => setEditingRole(null)} aria-label="إغلاق" className="flex h-9 w-9 items-center justify-center rounded-full bg-navy-50">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="mt-4">
+              <Field label="اسم الدور">
+                <input value={editingRole.name} maxLength={40} onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })} className={inputCls} />
+              </Field>
+            </div>
+            <p className="mt-4 text-sm font-bold">الصلاحيات</p>
+            <ul className="mt-2 space-y-2">
+              {Object.entries(perms).map(([key, label]) => (
+                <li key={key}>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editingRole.permissions.includes(key)}
+                      onChange={(e) =>
+                        setEditingRole({
+                          ...editingRole,
+                          permissions: e.target.checked ? [...editingRole.permissions, key] : editingRole.permissions.filter((p) => p !== key),
+                        })
+                      }
+                      className="h-4 w-4 accent-[#FF8A00]"
+                    />
+                    {label}
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-5 flex gap-2">
+              {editingRole.id && !editingRole.members && (
+                <button
+                  onClick={() => run('del', () => adminApi(`/roles/${editingRole.id}`, { method: 'DELETE' })).then((ok) => ok && setEditingRole(null))}
+                  className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600"
+                >
+                  حذف
+                </button>
+              )}
+              <div className="flex-1">
+                <SaveButton busy={busy === 'role'} onClick={saveRole} disabled={!editingRole.name.trim()}>
+                  حفظ الدور
+                </SaveButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

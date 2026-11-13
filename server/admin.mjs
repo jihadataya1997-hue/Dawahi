@@ -3,7 +3,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, getSettings, UPLOADS_DIR } from './db.mjs'
-import { HttpError, bad, sha256, now, str, isPhone, isPin, hashPin, clientIp, rateLimit, readJson, send, log, toOrder } from './lib.mjs'
+import { HttpError, bad, sha256, now, str, isPhone, isPin, hashPin, isPassword, hashSecret, verifySecret, clientIp, rateLimit, readJson, send, log, toOrder } from './lib.mjs'
 import { hasSubscription, notify, removeSubscription, saveSubscription } from './push.mjs'
 import { BACKUP_DIR, isBackupName, listBackups, runBackup } from './backup.mjs'
 import { cancelOffers, courierLoad, nudge } from './dispatch.mjs'
@@ -26,6 +26,11 @@ const GROUPS = {
   done: ['delivered'],
   cancelled: ['cancelled'],
 }
+function cleanPerms(list) {
+  if (!Array.isArray(list)) throw bad('INVALID', 'permissions must be a list', 'permissions')
+  return [...new Set(list.filter((p) => ALL_PERMS.includes(p)))]
+}
+
 const SETTING_KEYS = {
   deliveryFee: 'delivery_fee',
   gasPrice: 'gas_price',
@@ -45,13 +50,36 @@ function passwordMatches(input) {
   return timingSafeEqual(Buffer.from(sha256(input), 'hex'), Buffer.from(sha256(ADMIN_PASSWORD), 'hex'))
 }
 
+// كل الصلاحيات المتاحة (الأدوار تُبنى منها)
+export const PERMISSIONS = {
+  'orders.view': 'عرض الطلبات',
+  'orders.manage': 'إدارة الطلبات (تسليم، تغيير الحالة، إلغاء)',
+  'couriers.manage': 'إدارة عمال التوصيل',
+  'customers.view': 'عرض الزبائن',
+  'customers.manage': 'إيقاف الزبائن',
+  'content.manage': 'الإعلانات والإشعارات ومحتوى التطبيق',
+  'pricing.manage': 'الأسعار والتوزيع التلقائي',
+  'backups.manage': 'النسخ الاحتياطي',
+  'staff.manage': 'إدارة الفريق والصلاحيات',
+}
+const ALL_PERMS = Object.keys(PERMISSIONS)
+
+/** يتحقق من الجلسة ويرجع هوية المستخدم وصلاحياته */
 function authAdmin(req) {
   const h = req.headers.authorization || ''
   const token = h.startsWith('Bearer ') ? h.slice(7) : ''
   if (!token || token.length > 200) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
-  const row = db.prepare('SELECT token_hash, expires_at FROM admin_sessions WHERE token_hash = ?').get(sha256(token))
+  const row = db
+    .prepare(
+      `SELECT s.token_hash, s.expires_at, s.staff_id, st.name, st.active, r.name AS role, r.permissions
+       FROM admin_sessions s LEFT JOIN staff st ON st.id = s.staff_id LEFT JOIN roles r ON r.id = st.role_id
+       WHERE s.token_hash = ?`
+    )
+    .get(sha256(token))
   if (!row || row.expires_at < now()) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
-  return row.token_hash
+  if (row.staff_id === null) return { hash: row.token_hash, staffId: null, name: 'المالك', role: 'مالك', isOwner: true, perms: ALL_PERMS }
+  if (!row.active) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
+  return { hash: row.token_hash, staffId: row.staff_id, name: row.name, role: row.role, isOwner: false, perms: JSON.parse(row.permissions) }
 }
 
 const ORDER_WITH_CUSTOMER = `
@@ -86,29 +114,143 @@ export async function adminRoute(req, res, url) {
   const m = req.method
 
   if (m === 'POST' && pathname === '/api/admin/login') {
-    rateLimit(`admin-login:${clientIp(req)}`, 5, 15 * 60 * 1000)
-    if (!ADMIN_PASSWORD) throw new HttpError(503, 'NOT_CONFIGURED', 'Admin password is not set on the server')
+    rateLimit(`admin-login:${clientIp(req)}`, 8, 15 * 60 * 1000)
     const body = await readJson(req)
-    if (!passwordMatches(body.password)) {
-      log('warn', 'admin login failed', { ip: clientIp(req) })
-      throw new HttpError(401, 'WRONG_PASSWORD', 'Wrong password')
+    const phone = String(body.phone || '').replace(/\s/g, '')
+    let staffId = null
+    if (phone) {
+      // دخول عضو بالفريق: رقم الموبايل + كلمة السر
+      const st = db.prepare('SELECT id, password_hash, active FROM staff WHERE phone = ?').get(phone)
+      if (!st || !st.active || !verifySecret(body.password, st.password_hash)) {
+        log('warn', 'staff login failed', { ip: clientIp(req) })
+        throw new HttpError(401, 'WRONG_PASSWORD', 'Wrong phone or password')
+      }
+      staffId = st.id
+      db.prepare('UPDATE staff SET last_login_at = ? WHERE id = ?').run(now(), st.id)
+    } else {
+      // دخول المالك بكلمة السر الرئيسية
+      if (!ADMIN_PASSWORD) throw new HttpError(503, 'NOT_CONFIGURED', 'Admin password is not set on the server')
+      if (!passwordMatches(body.password)) {
+        log('warn', 'admin login failed', { ip: clientIp(req) })
+        throw new HttpError(401, 'WRONG_PASSWORD', 'Wrong password')
+      }
     }
     const token = randomBytes(32).toString('base64url')
     const expires = new Date(Date.now() + SESSION_DAYS * 864e5).toISOString()
     db.prepare('DELETE FROM admin_sessions WHERE expires_at < ?').run(now())
-    db.prepare('INSERT INTO admin_sessions (token_hash, expires_at) VALUES (?, ?)').run(sha256(token), expires)
-    log('info', 'admin login', { ip: clientIp(req) })
+    db.prepare('INSERT INTO admin_sessions (token_hash, expires_at, staff_id) VALUES (?, ?, ?)').run(sha256(token), expires, staffId)
+    log('info', 'admin login', { ip: clientIp(req), staffId })
     return send(res, 200, { token })
   }
 
-  const sessionHash = authAdmin(req)
+  const me = authAdmin(req)
+  const sessionHash = me.hash
+  // يرمي خطأ إذا المستخدم ما عنده أي من الصلاحيات المطلوبة
+  const need = (...perms) => {
+    if (!perms.some((p) => me.perms.includes(p))) throw new HttpError(403, 'FORBIDDEN', 'You do not have permission')
+  }
+  const actor = me.isOwner ? 'admin' : `staff:${me.staffId}`
+
+  if (m === 'GET' && pathname === '/api/admin/me') {
+    return send(res, 200, { me: { name: me.name, role: me.role, isOwner: me.isOwner, perms: me.perms }, permissions: PERMISSIONS })
+  }
 
   if (m === 'POST' && pathname === '/api/admin/logout') {
     db.prepare('DELETE FROM admin_sessions WHERE token_hash = ?').run(sessionHash)
     return send(res, 204)
   }
 
+  // ───── الفريق والأدوار ─────
+  if (pathname === '/api/admin/roles') {
+    need('staff.manage')
+    if (m === 'GET') {
+      const rows = db
+        .prepare('SELECT r.id, r.name, r.permissions, r.is_system AS isSystem, (SELECT COUNT(*) FROM staff s WHERE s.role_id = r.id) AS members FROM roles r ORDER BY r.id')
+        .all()
+      return send(res, 200, { roles: rows.map((r) => ({ ...r, permissions: JSON.parse(r.permissions), isSystem: !!r.isSystem })), permissions: PERMISSIONS })
+    }
+    if (m === 'POST') {
+      const body = await readJson(req)
+      const name = str(body.name, 40, 'name', { required: true })
+      const perms = cleanPerms(body.permissions)
+      if (db.prepare('SELECT 1 FROM roles WHERE name = ?').get(name)) throw new HttpError(409, 'NAME_TAKEN', 'Role name exists')
+      const r = db.prepare('INSERT INTO roles (name, permissions) VALUES (?, ?)').run(name, JSON.stringify(perms))
+      log('info', 'role created', { roleId: Number(r.lastInsertRowid) })
+      return send(res, 201, { id: Number(r.lastInsertRowid) })
+    }
+  }
+  let rm_ = /^\/api\/admin\/roles\/(\d{1,9})$/.exec(pathname)
+  if (rm_) {
+    need('staff.manage')
+    const id = Number(rm_[1])
+    const role = db.prepare('SELECT * FROM roles WHERE id = ?').get(id)
+    if (!role) throw new HttpError(404, 'NOT_FOUND', 'Role not found')
+    if (m === 'PATCH') {
+      const body = await readJson(req)
+      if (body.name !== undefined) db.prepare('UPDATE roles SET name = ? WHERE id = ?').run(str(body.name, 40, 'name', { required: true }), id)
+      if (body.permissions !== undefined) db.prepare('UPDATE roles SET permissions = ? WHERE id = ?').run(JSON.stringify(cleanPerms(body.permissions)), id)
+      log('info', 'role updated', { roleId: id })
+      return send(res, 200, { ok: true })
+    }
+    if (m === 'DELETE') {
+      if (db.prepare('SELECT 1 FROM staff WHERE role_id = ?').get(id)) throw new HttpError(409, 'ROLE_IN_USE', 'Role has members')
+      db.prepare('DELETE FROM roles WHERE id = ?').run(id)
+      return send(res, 204)
+    }
+  }
+  if (pathname === '/api/admin/staff') {
+    need('staff.manage')
+    if (m === 'GET') {
+      const rows = db
+        .prepare(
+          `SELECT s.id, s.name, s.phone, s.active, s.role_id AS roleId, r.name AS role, s.last_login_at AS lastLoginAt,
+             EXISTS (SELECT 1 FROM couriers c WHERE c.phone = s.phone AND c.active = 1) AS isCourier
+           FROM staff s JOIN roles r ON r.id = s.role_id ORDER BY s.active DESC, s.name`
+        )
+        .all()
+      return send(res, 200, { staff: rows.map((r) => ({ ...r, active: !!r.active, isCourier: !!r.isCourier })) })
+    }
+    if (m === 'POST') {
+      const body = await readJson(req)
+      const name = str(body.name, 60, 'name', { required: true })
+      const phone = String(body.phone || '').replace(/\s/g, '')
+      if (!isPhone(phone)) throw bad('INVALID_PHONE', 'Phone must be 09xxxxxxxx', 'phone')
+      if (!isPassword(body.password)) throw bad('WEAK_PASSWORD', 'Password must be at least 8 characters', 'password')
+      if (!db.prepare('SELECT 1 FROM roles WHERE id = ?').get(Number(body.roleId))) throw bad('INVALID', 'Unknown role', 'roleId')
+      if (db.prepare('SELECT 1 FROM staff WHERE phone = ?').get(phone)) throw new HttpError(409, 'PHONE_TAKEN', 'Phone already used')
+      const r = db
+        .prepare('INSERT INTO staff (name, phone, password_hash, role_id) VALUES (?, ?, ?, ?)')
+        .run(name, phone, hashSecret(body.password), Number(body.roleId))
+      log('info', 'staff created', { staffId: Number(r.lastInsertRowid) })
+      return send(res, 201, { id: Number(r.lastInsertRowid) })
+    }
+  }
+  rm_ = /^\/api\/admin\/staff\/(\d{1,9})$/.exec(pathname)
+  if (rm_ && m === 'PATCH') {
+    need('staff.manage')
+    const id = Number(rm_[1])
+    if (!db.prepare('SELECT 1 FROM staff WHERE id = ?').get(id)) throw new HttpError(404, 'NOT_FOUND', 'Staff not found')
+    const body = await readJson(req)
+    if (body.name !== undefined) db.prepare('UPDATE staff SET name = ? WHERE id = ?').run(str(body.name, 60, 'name', { required: true }), id)
+    if (body.roleId !== undefined) {
+      if (!db.prepare('SELECT 1 FROM roles WHERE id = ?').get(Number(body.roleId))) throw bad('INVALID', 'Unknown role', 'roleId')
+      db.prepare('UPDATE staff SET role_id = ? WHERE id = ?').run(Number(body.roleId), id)
+    }
+    if (body.password !== undefined) {
+      if (!isPassword(body.password)) throw bad('WEAK_PASSWORD', 'Password must be at least 8 characters', 'password')
+      db.prepare('UPDATE staff SET password_hash = ? WHERE id = ?').run(hashSecret(body.password), id)
+      db.prepare('DELETE FROM admin_sessions WHERE staff_id = ?').run(id)
+    }
+    if (body.active !== undefined) {
+      db.prepare('UPDATE staff SET active = ? WHERE id = ?').run(body.active ? 1 : 0, id)
+      if (!body.active) db.prepare('DELETE FROM admin_sessions WHERE staff_id = ?').run(id)
+    }
+    log('info', 'staff updated', { staffId: id, fields: Object.keys(body).filter((k) => k !== 'password') })
+    return send(res, 200, { ok: true })
+  }
+
   if (m === 'GET' && pathname === '/api/admin/stats') {
+    need('orders.view')
     const since = damascusMidnightUtc()
     const today = db
       .prepare(
@@ -132,6 +274,7 @@ export async function adminRoute(req, res, url) {
   }
 
   if (m === 'GET' && pathname === '/api/admin/orders') {
+    need('orders.view')
     const group = GROUPS[url.searchParams.get('group')] ? url.searchParams.get('group') : 'open'
     const statuses = GROUPS[group]
     const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 100, 1), 200)
@@ -146,6 +289,7 @@ export async function adminRoute(req, res, url) {
 
   let mm = /^\/api\/admin\/orders\/(\d{1,12})$/.exec(pathname)
   if (mm && m === 'GET') {
+    need('orders.view')
     const row = db.prepare(`${ORDER_WITH_CUSTOMER} WHERE o.id = ?`).get(Number(mm[1]))
     if (!row) throw new HttpError(404, 'NOT_FOUND', 'Order not found')
     const events = db
@@ -156,6 +300,7 @@ export async function adminRoute(req, res, url) {
 
   mm = /^\/api\/admin\/orders\/(\d{1,12})\/status$/.exec(pathname)
   if (mm && m === 'POST') {
+    need('orders.manage')
     const id = Number(mm[1])
     const body = await readJson(req)
     const to = body.status
@@ -193,7 +338,7 @@ export async function adminRoute(req, res, url) {
         .run(to, to === 'new' ? '' : courier, to === 'new' ? '' : courierPhone, to === 'new' ? null : courierId, ts, id, row.status)
       if (r.changes !== 1) throw new HttpError(409, 'CHANGED', 'Order was changed, refresh and try again')
       db.prepare('INSERT INTO order_events (order_id, status, actor, created_at) VALUES (?, ?, ?, ?)').run(
-        id, to, 'admin', ts)
+        id, to, actor, ts)
       db.exec('COMMIT')
     } catch (err) {
       db.exec('ROLLBACK')
@@ -225,6 +370,7 @@ export async function adminRoute(req, res, url) {
 
   mm = /^\/api\/admin\/uploads\/([a-f0-9]{32}\.(?:jpg|png|webp))$/.exec(pathname)
   if (mm && m === 'GET') {
+    need('orders.view')
     const buf = await readFile(join(UPLOADS_DIR, mm[1]))
     const type = mm[1].endsWith('.png') ? 'image/png' : mm[1].endsWith('.webp') ? 'image/webp' : 'image/jpeg'
     res.writeHead(200, { 'content-type': type, 'cache-control': 'private, max-age=86400' })
@@ -233,6 +379,7 @@ export async function adminRoute(req, res, url) {
 
   // شباب التوصيل
   if (pathname === '/api/admin/couriers') {
+    need(m === 'GET' ? 'orders.manage' : 'couriers.manage', 'couriers.manage')
     if (m === 'GET') {
       const rows = db
         .prepare(
@@ -258,6 +405,7 @@ export async function adminRoute(req, res, url) {
   }
   mm = /^\/api\/admin\/couriers\/(\d{1,9})$/.exec(pathname)
   if (mm && m === 'PATCH') {
+    need('couriers.manage')
     const id = Number(mm[1])
     const c = db.prepare('SELECT * FROM couriers WHERE id = ?').get(id)
     if (!c) throw new HttpError(404, 'NOT_FOUND', 'Courier not found')
@@ -285,7 +433,7 @@ export async function adminRoute(req, res, url) {
   if (pathname === '/api/admin/push') {
     const body = await readJson(req)
     if (m === 'POST') {
-      saveSubscription('admin', 0, body.subscription)
+      saveSubscription('admin', me.staffId ?? 0, body.subscription)
       return send(res, 200, { ok: true })
     }
     if (m === 'DELETE') {
@@ -293,13 +441,14 @@ export async function adminRoute(req, res, url) {
       return send(res, 204)
     }
   }
-  if (m === 'GET' && pathname === '/api/admin/push') return send(res, 200, { enabled: hasSubscription('admin', 0) })
+  if (m === 'GET' && pathname === '/api/admin/push') return send(res, 200, { enabled: hasSubscription('admin', me.staffId ?? 0) })
   if (m === 'POST' && pathname === '/api/admin/push/test') {
     const n = notify('admin', 0, { title: 'ضواحي: تجربة الإشعارات ✅', body: 'سيصلك إشعار مثل هذا مع كل طلب جديد.', url: '/admin', tag: 'test' })
     return send(res, 200, { devices: n })
   }
 
   // النسخ الاحتياطية: عرض، أخذ نسخة الآن، تنزيل
+  if (pathname === '/api/admin/backups' || pathname.startsWith('/api/admin/backups/')) need('backups.manage')
   if (pathname === '/api/admin/backups') {
     if (m === 'GET') return send(res, 200, { backups: await listBackups() })
     if (m === 'POST') {
@@ -321,6 +470,7 @@ export async function adminRoute(req, res, url) {
   }
 
   if (pathname === '/api/admin/dispatch') {
+    need('pricing.manage')
     const read = () => {
       const s = getSettings()
       return Object.fromEntries(Object.entries(DISPATCH_KEYS).map(([k, [dbKey]]) => [k, s[dbKey]]))
@@ -342,6 +492,7 @@ export async function adminRoute(req, res, url) {
   }
 
   if (pathname === '/api/admin/settings') {
+    need('pricing.manage')
     if (m === 'GET') {
       const s = getSettings()
       return send(res, 200, {
@@ -374,7 +525,7 @@ export async function adminRoute(req, res, url) {
     }
   }
 
-  if (await contentAdminRoute(req, res, url)) return
+  if (await contentAdminRoute(req, res, url, need)) return
 
   throw new HttpError(404, 'NOT_FOUND', 'Not found')
 }
