@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#1E2E4A" />
+<title>نزّل تطبيق ضواحي — كل شي بدك ياه بقدسيا لباب بيتك</title>
+<meta name="description" content="اكتب شو بدك من أي محل بضاحية قدسيا، وشب التوصيل بيشتريلك ياه وبيجيبو لباب البيت. بتدفع حسب الفاتورة عند الاستلام." />
+<meta property="og:title" content="ضواحي — شو بدك نجبلك؟" />
+<meta property="og:description" content="أي شي من أي محل بقدسيا، لباب بيتك. نزّل التطبيق مجاناً." />
+<meta property="og:image" content="/icon-512.png" />
+<meta property="og:type" content="website" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icon-192.png" type="image/png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Lalezar&family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --navy: #1e2e4a;
+    --navy-2: #2a3d60;
+    --orange: #ff8a00;
+    --orange-ink: #b85f00;
+    --sky: #eef2f7;
+    --slate: #56657e;
+    --line: #d8dfe9;
+    --green: #17855a;
+    --display: 'Lalezar', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+    --body: 'IBM Plex Sans Arabic', 'Cairo', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { font-family: var(--body); color: var(--navy); background: var(--sky); line-height: 1.75; font-size: 17px; }
+  a { color: inherit; }
+  img { display: block; }
+  :focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; border-radius: 6px; }
+  .wrap { width: min(1080px, 100% - 40px); margin-inline: auto; }
+
+  /* الشريط العلوي */
+  .bar { display: flex; align-items: center; justify-content: space-between; padding-block: 18px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .brand img { width: 44px; height: 44px; border-radius: 12px; }
+  .brand b { font-family: var(--display); font-size: 28px; font-weight: 400; line-height: 1; }
+  .where { font-size: 14px; color: var(--slate); display: flex; align-items: center; gap: 6px; }
+  .where svg { width: 16px; height: 16px; color: var(--orange); }
+
+  /* البطل */
+  .hero { display: grid; gap: 40px; padding-block: 28px 64px; align-items: center; }
+  @media (min-width: 900px) { .hero { grid-template-columns: 1.15fr 0.85fr; padding-block: 24px 88px; } }
+  h1 { font-family: var(--display); font-weight: 400; font-size: clamp(64px, 17vw, 104px); line-height: 0.95; letter-spacing: 0; color: var(--navy); }
+  .lede { margin-top: 18px; font-size: 19px; max-width: 34ch; color: var(--slate); }
+
+  /* صندوق الطلب الذي يكتب لحاله */
+  .ask { margin-top: 28px; background: #fff; border: 2px solid var(--navy); border-radius: 22px; padding: 18px 20px 16px; max-width: 520px; box-shadow: 8px 8px 0 var(--navy); }
+  .ask small { display: block; font-size: 13px; color: var(--slate); margin-bottom: 6px; }
+  .ask p { font-size: 22px; font-weight: 500; min-height: 2.6em; line-height: 1.3; }
+  .caret { display: inline-block; width: 2px; height: 1.05em; background: var(--orange); vertical-align: -0.15em; margin-inline-start: 2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .ask .shop { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .ask .shop span { font-size: 13px; padding: 4px 10px; border-radius: 99px; background: var(--sky); color: var(--slate); }
+
+  /* زر التنزيل */
+  .cta { margin-top: 32px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+  .btn { appearance: none; border: 0; cursor: pointer; font: inherit; display: inline-flex; align-items: center; gap: 12px; background: var(--orange); color: var(--navy); font-weight: 700; font-size: 20px; padding: 18px 30px; border-radius: 18px; text-decoration: none; transition: transform .15s ease; }
+  .btn:active { transform: scale(.97); }
+  .btn svg { width: 26px; height: 26px; }
+  .btn.ghost { background: transparent; color: var(--navy); border: 2px solid var(--navy); font-size: 16px; padding: 12px 20px; }
+  .fine { font-size: 14px; color: var(--slate); }
+  .done { display: none; background: #e3f4ec; color: var(--green); font-weight: 500; border-radius: 14px; padding: 12px 16px; }
+
+  /* صورة الموبايل */
+  .phone { justify-self: center; width: min(300px, 78vw); aspect-ratio: 9 / 18.5; background: var(--navy); border-radius: 44px; padding: 12px; position: relative; }
+  .screen { background: #f5f7fa; border-radius: 34px; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+  .s-head { background: var(--navy); color: #fff; padding: 22px 18px 34px; border-radius: 0 0 26px 26px; }
+  .s-head .row { display: flex; align-items: center; gap: 8px; }
+  .s-head img { width: 30px; height: 30px; border-radius: 9px; }
+  .s-head b { font-family: var(--display); font-weight: 400; font-size: 22px; }
+  .s-head p { font-size: 12px; opacity: .7; margin-top: 12px; }
+  .s-head strong { font-size: 14px; }
+  .s-card { margin: -20px 14px 0; background: var(--orange); color: var(--navy); border-radius: 20px; padding: 16px; }
+  .s-card b { display: block; font-size: 15px; line-height: 1.4; }
+  .s-card span { display: inline-block; margin-top: 10px; background: var(--navy); color: #fff; font-size: 11px; padding: 6px 12px; border-radius: 99px; }
+  .s-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 14px; }
+  .s-grid div { background: #fff; border-radius: 14px; padding: 10px 4px; text-align: center; font-size: 11px; font-weight: 500; }
+  .s-grid i { display: block; width: 28px; height: 28px; margin: 0 auto 6px; border-radius: 9px; background: var(--sky); }
+  .s-live { margin: auto 14px 14px; background: var(--navy); color: #fff; border-radius: 16px; padding: 12px; font-size: 12px; display: flex; align-items: center; gap: 10px; }
+  .s-live i { width: 10px; height: 10px; border-radius: 50%; background: #34d399; flex: none; }
+
+  /* الأقسام */
+  section { padding-block: 64px; }
+  h2 { font-family: var(--display); font-weight: 400; font-size: clamp(36px, 8vw, 56px); line-height: 1.05; }
+  .sub { margin-top: 8px; color: var(--slate); max-width: 52ch; }
+
+  /* كيف بتمشي — خطوات متسلسلة فعلاً */
+  .steps { margin-top: 36px; display: grid; gap: 14px; counter-reset: s; list-style: none; }
+  @media (min-width: 900px) { .steps { grid-template-columns: repeat(3, 1fr); gap: 20px; } }
+  .steps li { background: #fff; border-radius: 24px; padding: 24px; position: relative; border: 1px solid var(--line); }
+  .steps li::before { counter-increment: s; content: counter(s, arabic-indic); font-family: var(--display); font-size: 54px; line-height: 1; color: var(--orange); display: block; margin-bottom: 8px; }
+  .steps h3 { font-size: 19px; font-weight: 700; }
+  .steps p { margin-top: 6px; color: var(--slate); font-size: 16px; }
+
+  /* الخدمات */
+  .svc { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .svc span { background: #fff; border: 1px solid var(--line); border-radius: 99px; padding: 10px 18px; font-weight: 500; }
+  .svc span.main { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+  /* الثقة */
+  .trust { background: var(--navy); color: #fff; border-radius: 36px; padding: 44px 28px; }
+  @media (min-width: 900px) { .trust { padding: 56px; } }
+  .trust h2 { color: #fff; }
+  .trust ul { list-style: none; margin-top: 28px; display: grid; gap: 22px; }
+  @media (min-width: 900px) { .trust ul { grid-template-columns: repeat(3, 1fr); } }
+  .trust li b { display: block; font-size: 19px; }
+  .trust li p { color: #c4cedd; font-size: 16px; margin-top: 4px; }
+  .trust .fee { font-family: var(--display); font-size: 40px; color: var(--orange); line-height: 1.1; margin-top: 6px; display: block; }
+
+  /* طريقة التثبيت */
+  .how { display: grid; gap: 16px; margin-top: 28px; }
+  @media (min-width: 900px) { .how { grid-template-columns: 1fr 1fr; } }
+  .how article { background: #fff; border-radius: 24px; padding: 24px; border: 1px solid var(--line); }
+  .how article.here { border: 2px solid var(--orange); }
+  .how h3 { font-size: 19px; display: flex; align-items: center; gap: 8px; }
+  .how ol { margin-top: 12px; padding-inline-start: 22px; color: var(--slate); }
+  .how li { margin-top: 6px; }
+  .how kbd { font-family: var(--body); background: var(--sky); border-radius: 6px; padding: 1px 7px; color: var(--navy); font-weight: 500; }
+
+  footer { padding-block: 40px 56px; color: var(--slate); font-size: 15px; display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: center; }
+  footer a { color: var(--navy); font-weight: 500; }
+
+  @media (prefers-reduced-motion: reduce) { .caret { animation: none; } .btn { transition: none; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="bar">
+      <a class="brand" href="/" aria-label="ضواحي">
+        <img src="/icon-192.png" alt="" width="44" height="44" />
+        <b>ضواحي</b>
+      </a>
+      <span class="where">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        ضاحية قدسيا
+      </span>
+    </header>
+
+    <main>
+      <div class="hero">
+        <div>
+          <h1>شو بدك<br />نجبلك؟</h1>
+          <p class="lede">اكتب طلبك من أي محل بقدسيا، وشب التوصيل بيشتريلك ياه وبيجيبو لباب البيت.</p>
+
+          <div class="ask" aria-hidden="true">
+            <small>طلبك</small>
+            <p><span id="typed"></span><span class="caret"></span></p>
+            <div class="shop"><span id="shop">من أي محل قريب</span></div>
+          </div>
+
+          <div class="cta" id="cta">
+            <button class="btn" id="install" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+              نزّل التطبيق
+            </button>
+            <p class="fine" id="fine">مجاني، ومن غير متجر Play. حجمه صغير وبيشتغل على النت الضعيف.</p>
+            <p class="done" id="done" role="status">تم التثبيت. افتح ضواحي من شاشة موبايلك.</p>
+          </div>
+        </div>
+
+        <div class="phone" aria-hidden="true">
+          <div class="screen">
+            <div class="s-head">
+              <div class="row"><img src="/icon-192.png" alt="" /><b>ضواحي</b></div>
+              <p>التوصيل إلى</p>
+              <strong>ضاحية قدسيا</strong>
+            </div>
+            <div class="s-card">
+              <b>اطلب أي شي من أي محل</b>
+              <span>اطلب الآن</span>
+            </div>
+            <div class="s-grid">
+              <div><i></i>مطاعم</div><div><i></i>سوبرماركت</div><div><i></i>غاز</div>
+              <div><i></i>مازوت</div><div><i></i>صيدلية</div><div><i></i>مكتبات</div>
+            </div>
+            <div class="s-live"><i></i><span>طلبك بالطريق لعندك</span></div>
+          </div>
+        </div>
+      </div>
+
+      <section aria-labelledby="h-steps">
+        <h2 id="h-steps">كيف بتمشي؟</h2>
+        <ol class="steps">
+          <li><h3>اكتب طلبك وحدّد بيتك</h3><p>اكتب شو بدك، أو صوّر القائمة أو الوصفة. اختار محل معيّن إذا بدك، وحط الدبوس على بيتك بالخريطة.</p></li>
+          <li><h3>الشب بيشتري وبيجي</h3><p>شب التوصيل بيتصل فيك، بيشتري الأغراض، وبيوصلك تنبيه بكل خطوة لحتى يدق الباب.</p></li>
+          <li><h3>بتدفع عند الباب</h3><p>ثمن الأغراض حسب سعر المحل، وفوقه أجرة توصيل ثابتة. ما في شي بتدفعو قبل.</p></li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="h-svc">
+        <h2 id="h-svc">شو فينا نجبلك؟</h2>
+        <p class="sub">أي شي بتلاقيه بمحلات قدسيا. وجرة الغاز بنبدّلها ونطلعها لعندك، حتى لو ما في مصعد.</p>
+        <div class="svc">
+          <span class="main">أي شي من أي محل</span>
+          <span>جرة غاز</span><span>مازوت</span><span>سوبرماركت</span><span>خضرة وفواكه</span>
+          <span>صيدلية</span><span>مطاعم</span><span>فرن</span><span>مكتبة وقرطاسية</span>
+        </div>
+      </section>
+
+      <section class="trust" aria-labelledby="h-trust">
+        <h2 id="h-trust">مصاريك واضحة</h2>
+        <ul>
+          <li><b>أجرة التوصيل ثابتة</b><span class="fee" id="fee">١٥٬٠٠٠ ل.س</span><p>نفس الأجرة لأي مكان بالضاحية.</p></li>
+          <li><b>ما في دفع مسبق</b><p>بتدفع ثمن الأغراض للشب لما توصلك، حسب سعر المحل.</p></li>
+          <li><b>بتعرف وين صار طلبك</b><p>تنبيه لما الشب يستلم، لما يشتري، ولما يطلع لعندك.</p></li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="h-how" id="how">
+        <h2 id="h-how">إذا ما زبط الزر</h2>
+        <p class="sub">التطبيق بيتثبّت من المتصفح مباشرة. اتبع خطوات موبايلك:</p>
+        <div class="how">
+          <article id="how-android">
+            <h3>أندرويد</h3>
+            <ol>
+              <li>افتح هالصفحة من <kbd>Chrome</kbd></li>
+              <li>اضغط على النقاط الثلاث <kbd>⋮</kbd> فوق</li>
+              <li>اختار <kbd>تثبيت التطبيق</kbd> أو <kbd>إضافة إلى الشاشة الرئيسية</kbd></li>
+            </ol>
+          </article>
+          <article id="how-ios">
+            <h3>آيفون</h3>
+            <ol>
+              <li>افتح هالصفحة من <kbd>Safari</kbd></li>
+              <li>اضغط زر المشاركة تحت</li>
+              <li>اختار <kbd>إضافة إلى الشاشة الرئيسية</kbd></li>
+            </ol>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>ضواحي، خدمات ضاحية قدسيا</span>
+      <a href="/">أو افتح التطبيق بالمتصفح بدون تثبيت</a>
+    </footer>
+  </div>
+
+<script>
+  (function () {
+    // إذا التطبيق مثبّت ومفتوح كتطبيق، نوديه عالتطبيق مباشرة
+    var standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
+    if (standalone) { location.replace('/'); return }
+
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {})
+
+    var ua = navigator.userAgent
+    var isIOS = /iphone|ipad|ipod/i.test(ua)
+    document.getElementById(isIOS ? 'how-ios' : 'how-android').classList.add('here')
+
+    // زر التنزيل: على أندرويد بيفتح نافذة التثبيت الرسمية
+    var deferred = null
+    var btn = document.getElementById('install')
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e })
+    btn.addEventListener('click', function () {
+      if (deferred) {
+        deferred.prompt()
+        deferred.userChoice.finally(function () { deferred = null })
+      } else {
+        document.getElementById('how').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+      }
+    })
+    window.addEventListener('appinstalled', function () {
+      btn.style.display = 'none'
+      document.getElementById('fine').style.display = 'none'
+      document.getElementById('done').style.display = 'block'
+    })
+
+    // أجرة التوصيل الحقيقية من السيرفر
+    fetch('/api/config').then(function (r) { return r.json() }).then(function (d) {
+      var f = d && d.pricing && d.pricing.deliveryFee
+      if (f) document.getElementById('fee').textContent = new Intl.NumberFormat('ar-SY').format(f) + ' ل.س'
+    }).catch(function () {})
+
+    // صندوق الطلب: يكتب أمثلة حقيقية لحاله
+    var examples = [
+      ['٢ ربطة خبز وكيلو لبن', 'من أي محل قريب'],
+      ['جرة غاز، عندي فاضية للتبديل', 'طابق تالت بلا مصعد'],
+      ['علبة بنادول وشراب سعال', 'من الصيدلية المناوبة'],
+      ['كيلو بندورة ونص كيلو خيار', 'من خضرجي الحارة'],
+      ['دفتر ٨٠ ورقة وعلبة ألوان', 'من أقرب مكتبة']
+    ]
+    var typed = document.getElementById('typed')
+    var shop = document.getElementById('shop')
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      typed.textContent = examples[0][0]; return
+    }
+    var i = 0
+    function play() {
+      var text = examples[i][0]; var n = 0
+      shop.textContent = examples[i][1]
+      var t = setInterval(function () {
+        typed.textContent = text.slice(0, ++n)
+        if (n >= text.length) {
+          clearInterval(t)
+          setTimeout(function () {
+            var d = setInterval(function () {
+              typed.textContent = text.slice(0, --n)
+              if (n <= 0) { clearInterval(d); i = (i + 1) % examples.length; setTimeout(play, 300) }
+            }, 25)
+          }, 1800)
+        }
+      }, 65)
+    }
+    play()
+  })()
+</script>
+</body>
+</html>

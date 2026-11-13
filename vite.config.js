@@ -12,6 +12,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         admin: resolve(__dirname, 'admin.html'),
         driver: resolve(__dirname, 'driver.html'),
+        download: resolve(__dirname, 'download.html'),
       },
     },
   },
