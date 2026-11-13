@@ -19,3 +19,4 @@ npm run build    # نسخة النشر داخل مجلد dist
 - `server/db.mjs` — قاعدة بيانات SQLite وجداولها.
 - تشغيل محلي: `node server/server.mjs` ثم `npm run dev` (طلبات /api تُحوَّل تلقائياً).
 - على السيرفر: مشروع Docker اسمه `dawahi-api` (الملف `server/docker-compose.yml`)، والبيانات في volume اسمه `dawahi-data`.
+- النسخ الاحتياطي: نسخة يومية تلقائية في `/srv/dawahi-backups` على السيرفر (آخر 14 يوماً)، وتُنزَّل من لوحة التحكم ← النسخ الاحتياطي.

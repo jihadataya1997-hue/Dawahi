@@ -8,6 +8,7 @@ import { db, getSettings, UPLOADS_DIR } from './db.mjs'
 import { HttpError, bad, sha256, now, isPhone, str, distanceKm, clientIp, rateLimit, readJson, send, log } from './lib.mjs'
 import { adminRoute } from './admin.mjs'
 import { toOrder } from './lib.mjs'
+import { scheduleBackups } from './backup.mjs'
 
 const PORT = Number(process.env.PORT || 3000)
 const MAX_PHOTO = 2.5 * 1024 * 1024
@@ -290,6 +291,7 @@ const server = createServer(async (req, res) => {
 
 server.requestTimeout = 30_000
 server.listen(PORT, () => log('info', 'dawahi api listening', { port: PORT }))
+scheduleBackups()
 
 for (const sig of ['SIGTERM', 'SIGINT']) {
   process.on(sig, () => {

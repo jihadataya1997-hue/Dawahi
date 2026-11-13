@@ -55,6 +55,19 @@ export async function adminPhotoUrl(name) {
   return URL.createObjectURL(await res.blob())
 }
 
+export async function downloadBackup(name) {
+  const res = await fetch(`/api/admin/backups/${name}`, { headers: { authorization: `Bearer ${getAdminToken()}` } })
+  if (!res.ok) throw new Error('download')
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+}
+
 const ERR = {
   NETWORK: 'لا يوجد اتصال بالإنترنت',
   WRONG_PASSWORD: 'كلمة السر غلط',
@@ -64,5 +77,6 @@ const ERR = {
   BAD_TRANSITION: 'لا يمكن نقل الطلب لهذه الحالة',
   CHANGED: 'الطلب تغيّر، حدّث الصفحة',
   INVALID: 'قيمة غير صحيحة',
+  INVALID_PHONE: 'رقم الشب لازم يبلش بـ 09 ويكون 10 أرقام',
 }
 export const adminErrorText = (e) => ERR[e?.code] || 'صار خطأ، جرّب مرة ثانية'

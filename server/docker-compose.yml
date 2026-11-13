@@ -9,9 +9,11 @@ services:
     environment:
       PORT: "3000"
       DATA_DIR: /data
+      BACKUP_DIR: /backups
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}   # تُضبط في متغيرات المشروع على Hostinger (لا تُكتب هنا)
     volumes:
       - dawahi-data:/data
+      - /srv/dawahi-backups:/backups   # النسخ الاحتياطية خارج volume البيانات
     command:
       - sh
       - -c

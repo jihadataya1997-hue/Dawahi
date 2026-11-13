@@ -3,7 +3,8 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, getSettings, UPLOADS_DIR } from './db.mjs'
-import { HttpError, bad, sha256, now, str, clientIp, rateLimit, readJson, send, log, toOrder } from './lib.mjs'
+import { HttpError, bad, sha256, now, str, isPhone, clientIp, rateLimit, readJson, send, log, toOrder } from './lib.mjs'
+import { BACKUP_DIR, isBackupName, listBackups, runBackup } from './backup.mjs'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
 const SESSION_DAYS = 30
@@ -51,6 +52,7 @@ const ORDER_WITH_CUSTOMER = `
 const withCustomer = (r, events) => ({
   ...toOrder(r, events),
   customer: { name: r.customer_name, phone: r.customer_phone },
+  courierPhone: r.courier_phone || '',
   photo: r.photo || null,
 })
 
@@ -145,13 +147,20 @@ export async function adminRoute(req, res, url) {
       throw new HttpError(409, 'BAD_TRANSITION', `Cannot move from ${row.status} to ${to}`)
     const courier = body.courierName !== undefined ? str(body.courierName, 60, 'courierName') : row.courier_name
     if (to === 'assigned' && !courier) throw bad('COURIER_REQUIRED', 'Write the courier name', 'courierName')
+    let courierPhone = row.courier_phone
+    if (body.courierPhone !== undefined) {
+      courierPhone = String(body.courierPhone || '').replace(/\s/g, '')
+      if (courierPhone && !isPhone(courierPhone)) throw bad('INVALID_PHONE', 'Courier phone must be 09xxxxxxxx', 'courierPhone')
+    }
     const ts = now()
     db.exec('BEGIN IMMEDIATE')
     try {
       // الشرط على الحالة القديمة يمنع تعارض تعديلين بنفس اللحظة
       const r = db
-        .prepare('UPDATE orders SET status = ?, courier_name = ?, updated_at = ? WHERE id = ? AND status = ?')
-        .run(to, to === 'new' ? '' : courier, ts, id, row.status)
+        .prepare(
+          'UPDATE orders SET status = ?, courier_name = ?, courier_phone = ?, updated_at = ? WHERE id = ? AND status = ?'
+        )
+        .run(to, to === 'new' ? '' : courier, to === 'new' ? '' : courierPhone, ts, id, row.status)
       if (r.changes !== 1) throw new HttpError(409, 'CHANGED', 'Order was changed, refresh and try again')
       db.prepare('INSERT INTO order_events (order_id, status, actor, created_at) VALUES (?, ?, ?, ?)').run(
         id, to, 'admin', ts)
@@ -170,6 +179,27 @@ export async function adminRoute(req, res, url) {
     const buf = await readFile(join(UPLOADS_DIR, mm[1]))
     const type = mm[1].endsWith('.png') ? 'image/png' : mm[1].endsWith('.webp') ? 'image/webp' : 'image/jpeg'
     res.writeHead(200, { 'content-type': type, 'cache-control': 'private, max-age=86400' })
+    return res.end(buf)
+  }
+
+  // النسخ الاحتياطية: عرض، أخذ نسخة الآن، تنزيل
+  if (pathname === '/api/admin/backups') {
+    if (m === 'GET') return send(res, 200, { backups: await listBackups() })
+    if (m === 'POST') {
+      await runBackup({ force: true })
+      return send(res, 200, { backups: await listBackups() })
+    }
+  }
+  mm = /^\/api\/admin\/backups\/([^/]+)$/.exec(pathname)
+  if (mm && m === 'GET') {
+    if (!isBackupName(mm[1])) throw new HttpError(404, 'NOT_FOUND', 'Not found')
+    const buf = await readFile(join(BACKUP_DIR, mm[1]))
+    log('info', 'backup downloaded', { name: mm[1], ip: clientIp(req) })
+    res.writeHead(200, {
+      'content-type': 'application/octet-stream',
+      'content-disposition': `attachment; filename="${mm[1]}"`,
+      'cache-control': 'no-store',
+    })
     return res.end(buf)
   }
 

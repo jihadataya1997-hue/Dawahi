@@ -3,6 +3,9 @@ import {
   Check,
   ChevronLeft,
   ClipboardCopy,
+  Database,
+  Download,
+  Send,
   Flame,
   LoaderCircle,
   LogOut,
@@ -15,7 +18,7 @@ import {
   X,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
-import { adminApi, adminErrorText, adminPhotoUrl, getAdminToken, setAdminToken, setLoggedOutHandler } from './adminApi'
+import { adminApi, adminErrorText, adminPhotoUrl, downloadBackup, getAdminToken, setAdminToken, setLoggedOutHandler } from './adminApi'
 
 const STATUS = {
   new: { label: 'جديد — بانتظار شب', cls: 'bg-amber-100 text-amber-800' },
@@ -45,6 +48,23 @@ const timeAgo = (iso) => {
   const h = Math.round(m / 60)
   if (h < 24) return `قبل ${h} س`
   return new Date(iso).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' })
+}
+
+// الشباب المحفوظين على هذا الجهاز (للاختيار السريع)
+const COURIERS_KEY = 'dawahi.couriers'
+const loadCouriers = () => {
+  try {
+    return JSON.parse(localStorage.getItem(COURIERS_KEY)) || []
+  } catch {
+    return []
+  }
+}
+const rememberCourier = (name, phone) => {
+  if (!name) return
+  const list = [{ name, phone }, ...loadCouriers().filter((c) => c.name !== name)].slice(0, 8)
+  try {
+    localStorage.setItem(COURIERS_KEY, JSON.stringify(list))
+  } catch {}
 }
 
 /* ───────── التطبيق ───────── */
@@ -144,7 +164,7 @@ function Dashboard({ onLogout }) {
   const lastMaxId = useRef(0)
 
   const load = useCallback(async () => {
-    if (tab === 'prices') return
+    if (tab === 'prices' || tab === 'backups') return
     try {
       const [o, s] = await Promise.all([adminApi(`/orders?group=${tab}`), adminApi('/stats')])
       setOrders(o.orders)
@@ -210,6 +230,7 @@ function Dashboard({ onLogout }) {
             ['done', 'تم التوصيل'],
             ['cancelled', 'الملغاة'],
             ['prices', 'الأسعار'],
+            ['backups', 'النسخ الاحتياطي'],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -226,6 +247,8 @@ function Dashboard({ onLogout }) {
         {error && <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-sm font-bold text-rose-600">{error}</p>}
         {tab === 'prices' ? (
           <Prices />
+        ) : tab === 'backups' ? (
+          <Backups />
         ) : loading ? (
           <div className="flex justify-center pt-16 text-brand">
             <LoaderCircle size={32} className="animate-spin" />
@@ -319,6 +342,8 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
   const [o, setO] = useState(null)
   const [photo, setPhoto] = useState(null)
   const [courier, setCourier] = useState('')
+  const [courierPhone, setCourierPhone] = useState('')
+  const [saved] = useState(loadCouriers)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
@@ -330,6 +355,7 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
       .then(async (d) => {
         setO(d.order)
         setCourier(d.order.courierName || '')
+        setCourierPhone(d.order.courierPhone || '')
         if (d.order.photo) {
           url = await adminPhotoUrl(d.order.photo).catch(() => null)
           setPhoto(url)
@@ -343,7 +369,11 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
     setBusy(status)
     setError('')
     try {
-      const d = await adminApi(`/orders/${o.id}/status`, { method: 'POST', body: { status, courierName: courier } })
+      const d = await adminApi(`/orders/${o.id}/status`, {
+        method: 'POST',
+        body: { status, courierName: courier, courierPhone },
+      })
+      if (status === 'assigned') rememberCourier(courier, courierPhone)
       const fresh = await adminApi(`/orders/${o.id}`).catch(() => null)
       setO((prev) => ({ ...prev, ...(fresh ? fresh.order : d.order) }))
       setConfirmCancel(false)
@@ -455,9 +485,19 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
               </a>
             </section>
 
+            {/^09\d{8}$/.test(courierPhone) && (
+              <a
+                href={waUrl(courierPhone, orderText(o))}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-sm font-extrabold text-white"
+              >
+                <Send size={16} className="-scale-x-100" /> إرسال الطلب لـ {courier || 'الشب'} على واتساب
+              </a>
+            )}
             <button
               onClick={copy}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-navy/15 py-3 text-sm font-bold"
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-navy/15 py-3 text-sm font-bold"
             >
               {copied ? <Check size={16} className="text-emerald-600" /> : <ClipboardCopy size={16} />}
               {copied ? 'تم النسخ — الصقه للشب على واتساب' : 'نسخ تفاصيل الطلب لإرسالها للشب'}
@@ -467,13 +507,49 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
             {!['delivered', 'cancelled'].includes(o.status) && (
               <section className="mt-5 rounded-3xl bg-navy p-4 text-white">
                 <p className="text-xs text-white/60">تغيير حالة الطلب</p>
-                {(o.status === 'new' || o.status === 'assigned') && (
-                  <input
-                    value={courier}
-                    onChange={(e) => setCourier(e.target.value)}
-                    placeholder="اسم شب التوصيل"
-                    className="mt-3 w-full rounded-2xl bg-white/10 px-4 py-3 text-sm outline-none placeholder:text-white/40 focus:bg-white/20"
-                  />
+                {o.status === 'new' && (
+                  <>
+                    {saved.length > 0 && (
+                      <div className="scrollbar-hide mt-3 flex gap-2 overflow-x-auto">
+                        {saved.map((c) => (
+                          <button
+                            key={c.name}
+                            onClick={() => {
+                              setCourier(c.name)
+                              setCourierPhone(c.phone || '')
+                            }}
+                            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${
+                              courier === c.name ? 'bg-brand' : 'bg-white/10 text-white/80'
+                            }`}
+                          >
+                            🛵 {c.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <input
+                        value={courier}
+                        onChange={(e) => setCourier(e.target.value)}
+                        placeholder="اسم الشب"
+                        className="min-w-0 rounded-2xl bg-white/10 px-4 py-3 text-sm outline-none placeholder:text-white/40 focus:bg-white/20"
+                      />
+                      <input
+                        value={courierPhone}
+                        onChange={(e) => setCourierPhone(e.target.value.replace(/[^\d]/g, ''))}
+                        placeholder="رقمه 09xxxxxxxx"
+                        inputMode="numeric"
+                        dir="ltr"
+                        className="min-w-0 rounded-2xl bg-white/10 px-4 py-3 text-end font-en text-sm outline-none placeholder:text-white/40 focus:bg-white/20"
+                      />
+                    </div>
+                  </>
+                )}
+                {o.status !== 'new' && o.courierName && (
+                  <p className="mt-2 text-sm font-bold">
+                    🛵 {o.courierName}
+                    {o.courierPhone && <span dir="ltr" className="ms-2 font-en text-white/60">{o.courierPhone}</span>}
+                  </p>
                 )}
                 <div className="mt-3 grid gap-2">
                   {o.status === 'new' && <Action onClick={() => move('assigned')} busy={busy === 'assigned'} label="تسليم الطلب للشب" />}
@@ -629,3 +705,87 @@ function Prices() {
   )
 }
 
+
+/* ───────── النسخ الاحتياطي ───────── */
+
+function Backups() {
+  const [list, setList] = useState(null)
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    adminApi('/backups')
+      .then((d) => setList(d.backups))
+      .catch((err) => setError(adminErrorText(err)))
+  }, [])
+
+  const backupNow = async () => {
+    setBusy('now')
+    setError('')
+    try {
+      setList((await adminApi('/backups', { method: 'POST' })).backups)
+    } catch (err) {
+      setError(adminErrorText(err))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const download = async (name) => {
+    setBusy(name)
+    setError('')
+    try {
+      await downloadBackup(name)
+    } catch {
+      setError('ما قدرنا ننزّل النسخة، جرّب مرة ثانية')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <div className="rounded-3xl bg-white p-5 shadow-soft">
+      <h2 className="flex items-center gap-2 font-extrabold">
+        <Database size={18} className="text-brand" /> النسخ الاحتياطي
+      </h2>
+      <p className="mt-1 text-xs leading-relaxed text-navy/50">
+        نسخة تلقائية كل يوم من الطلبات والزبائن والأسعار، تُحفظ على السيرفر لمدة 14 يوماً. نزّل نسخة على جهازك من وقت
+        لآخر لتكون عندك نسخة خارج السيرفر.
+      </p>
+      <button
+        onClick={backupNow}
+        disabled={!!busy}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-navy py-3 text-sm font-bold text-white disabled:opacity-60"
+      >
+        {busy === 'now' ? <LoaderCircle size={16} className="animate-spin" /> : 'خذ نسخة الآن'}
+      </button>
+      {error && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600">{error}</p>}
+      {!list ? (
+        <div className="flex justify-center py-8 text-brand">
+          <LoaderCircle size={24} className="animate-spin" />
+        </div>
+      ) : list.length === 0 ? (
+        <p className="py-8 text-center text-sm text-navy/40">لا يوجد نسخ بعد — أول نسخة تُؤخذ تلقائياً خلال ساعة</p>
+      ) : (
+        <ul className="mt-4 divide-y divide-navy/5">
+          {list.map((b) => (
+            <li key={b.name} className="flex items-center gap-3 py-3">
+              <span className="min-w-0 flex-1">
+                <span className="block font-en text-sm font-bold">{b.name.replace('dawahi-', '').replace('.db', '')}</span>
+                <span className="text-[11px] text-navy/40">{Math.max(1, Math.round(b.size / 1024))} KB</span>
+              </span>
+              <button
+                onClick={() => download(b.name)}
+                disabled={!!busy}
+                className="flex items-center gap-1.5 rounded-xl bg-brand-50 px-3 py-2 text-xs font-bold text-brand disabled:opacity-60"
+              >
+                {busy === b.name ? <LoaderCircle size={14} className="animate-spin" /> : <Download size={14} />}
+                تنزيل
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}

@@ -84,6 +84,10 @@ const MIGRATIONS = [
     expires_at  TEXT NOT NULL
   );
   `,
+  `
+  -- رقم شب التوصيل (لإرسال الطلب له على واتساب)
+  ALTER TABLE orders ADD COLUMN courier_phone TEXT NOT NULL DEFAULT '';
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')
