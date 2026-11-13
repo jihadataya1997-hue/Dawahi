@@ -1,10 +1,9 @@
-import { ClipboardList, House, UserRound, Wallet } from 'lucide-react'
+import { ClipboardList, House, UserRound } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
 
 const items = [
   { id: 'home', Icon: House },
   { id: 'orders', Icon: ClipboardList },
-  { id: 'wallet', Icon: Wallet },
   { id: 'account', Icon: UserRound },
 ]
 

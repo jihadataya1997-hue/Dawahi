@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
 import { Choice, Field, RowChoice, Stepper, Stepper2 } from './ui'
+import LocationPicker, { LocationField, loadLastLocation } from './LocationPicker'
 
 // ⚙️ الأسعار — لاحقاً تأتي من لوحة التحكم / قاعدة البيانات بدل كتابتها هنا
 export const PRICING = {
@@ -24,21 +25,27 @@ export const PRICING = {
   stairsPerFloor: 2000, // رسم الدرج لكل طابق لكل جرة (بدون مصعد)
 }
 
-const initial = { qty: 1, type: 'swap', floor: 0, elevator: true, notes: '' }
+const initial = () => ({ qty: 1, type: 'swap', location: loadLastLocation(), floor: 0, elevator: true, notes: '' })
 
 export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   const { t, formatNumber } = useLang()
   const g = (k) => t(`gas.${k}`)
   const [step, setStep] = useState(0)
   const [order, setOrder] = useState(initial)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [error, setError] = useState('')
   const [status, setStatus] = useState('idle') // idle | searching | found
-  const set = (patch) => setOrder((o) => ({ ...o, ...patch }))
+  const set = (patch) => {
+    setError('')
+    setOrder((o) => ({ ...o, ...patch }))
+  }
 
   // إعادة ضبط عند الفتح + منع تمرير الصفحة خلف الـ Sheet
   useEffect(() => {
     if (open) {
       setStep(0)
-      setOrder(initial)
+      setOrder(initial())
+      setError('')
       setStatus('idle')
     }
     document.body.style.overflow = open ? 'hidden' : ''
@@ -143,6 +150,9 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
 
               {step === 1 && (
                 <div className="space-y-6 animate-fade-in">
+                  <Field label={t('custom.addressQ')}>
+                    <LocationField value={order.location} onOpen={() => setPickerOpen(true)} />
+                  </Field>
                   <Field label={g('floorQ')}>
                     <div className="flex items-center justify-between rounded-2xl bg-navy-50 p-2">
                       <Stepper2 onClick={() => set({ floor: Math.max(0, order.floor - 1) })} Icon={Minus} />
@@ -217,6 +227,11 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
               )}
             </div>
 
+            {error && (
+              <p className="mx-5 mb-2 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600 animate-fade-in">
+                {error}
+              </p>
+            )}
             {/* أزرار الأسفل */}
             <div className="pb-safe flex gap-3 border-t border-navy/5 bg-white px-5 py-4">
               {step > 0 && (
@@ -228,7 +243,10 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
                 </button>
               )}
               <button
-                onClick={() => (step < 2 ? setStep(step + 1) : confirm())}
+                onClick={() => {
+                  if (step === 1 && !order.location) return setError(t('map.required'))
+                  step < 2 ? setStep(step + 1) : confirm()
+                }}
                 className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_#FF8A00] transition active:scale-[0.98]"
               >
                 {step < 2 ? g('next') : g('confirm')}
@@ -269,6 +287,15 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
           </div>
         )}
       </div>
+      <LocationPicker
+        open={pickerOpen}
+        initial={order.location}
+        onClose={() => setPickerOpen(false)}
+        onConfirm={(loc) => {
+          set({ location: loc })
+          setPickerOpen(false)
+        }}
+      />
     </div>
   )
 }

@@ -22,6 +22,8 @@ import {
 import { useLang } from '../i18n/LanguageProvider'
 import { Field, RowChoice, Stepper, Stepper2 } from './ui'
 import { PRICING } from './GasOrderSheet'
+import { useAuth } from '../auth/AuthProvider'
+import LocationPicker, { LocationField, loadLastLocation, mapsLink } from './LocationPicker'
 
 const CATEGORIES = [
   { id: 'any', Icon: ShoppingBag },
@@ -33,15 +35,16 @@ const CATEGORIES = [
   { id: 'other', Icon: Package },
 ]
 
-const blank = (category = 'any', items = '') => ({
+const blank = (category = 'any', items = '', phone = '') => ({
   category,
   items,
   photo: null,
   storeMode: 'any', // any | specific
   storeName: '',
+  location: loadLastLocation(),
   address: '',
   floor: 0,
-  phone: '',
+  phone,
   notes: '',
 })
 
@@ -51,11 +54,13 @@ const blank = (category = 'any', items = '') => ({
  */
 export default function CustomOrderSheet({ open, initialCategory, initialText, onClose, onConfirmed }) {
   const { t, formatNumber } = useLang()
+  const { user } = useAuth()
   const c = (k) => t(`custom.${k}`)
   const [step, setStep] = useState(0)
   const [order, setOrder] = useState(blank())
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
   const fileRef = useRef(null)
   const set = (patch) => {
     setError('')
@@ -65,12 +70,12 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
   useEffect(() => {
     if (open) {
       setStep(0)
-      setOrder(blank(initialCategory || 'any', initialText || ''))
+      setOrder(blank(initialCategory || 'any', initialText || '', user?.phone || ''))
       setStatus('idle')
       setError('')
     }
     document.body.style.overflow = open ? 'hidden' : ''
-  }, [open, initialCategory, initialText])
+  }, [open, initialCategory, initialText, user])
 
   if (!open) return null
 
@@ -82,7 +87,8 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
 
   const next = () => {
     if (step === 0 && !order.items.trim() && !order.photo) return setError(c('required'))
-    if (step === 1 && (!order.address.trim() || order.phone.trim().length < 9)) return setError(c('addressRequired'))
+    if (step === 1 && !order.location) return setError(t('map.required'))
+    if (step === 1 && order.phone.replace(/\s/g, '').length < 10) return setError(c('addressRequired'))
     if (step < 2) return setStep(step + 1)
     setStatus('searching')
     // هنا يُرسل الطلب للسيرفر — حالياً محاكاة
@@ -207,12 +213,13 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
               {step === 1 && (
                 <div className="space-y-6 animate-fade-in">
                   <Field label={c('addressQ')}>
+                    <LocationField value={order.location} onOpen={() => setPickerOpen(true)} />
                     <textarea
                       rows={2}
                       value={order.address}
                       onChange={(e) => set({ address: e.target.value })}
                       placeholder={c('addressPh')}
-                      className="w-full resize-none rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none transition focus:border-brand focus:bg-white"
+                      className="mt-3 w-full resize-none rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none transition focus:border-brand focus:bg-white"
                     />
                   </Field>
 
@@ -277,8 +284,18 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
                     <div className="mt-3 flex items-start gap-1.5 border-t border-navy/10 pt-3 text-xs text-navy/60">
                       <MapPin size={14} className="mt-0.5 shrink-0" />
                       <span>
-                        {order.address}
+                        {order.address || t('map.picked')}
                         {order.floor > 0 && ` — ${t('gas.floor')} ${formatNumber(order.floor)}`}
+                        {order.location && (
+                          <a
+                            href={mapsLink(order.location)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ms-1 font-bold text-brand underline"
+                          >
+                            ({t('map.view')})
+                          </a>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -375,6 +392,15 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
           </div>
         )}
       </div>
+      <LocationPicker
+        open={pickerOpen}
+        initial={order.location}
+        onClose={() => setPickerOpen(false)}
+        onConfirm={(loc) => {
+          set({ location: loc })
+          setPickerOpen(false)
+        }}
+      />
     </div>
   )
 }

@@ -8,31 +8,48 @@ import BottomNav from './components/BottomNav'
 import ActiveOrderWidget from './components/ActiveOrderWidget'
 import GasOrderSheet from './components/GasOrderSheet'
 import CustomOrderSheet from './components/CustomOrderSheet'
+import LoginScreen from './screens/LoginScreen'
+import OrdersScreen from './screens/OrdersScreen'
+import AccountScreen from './screens/AccountScreen'
+import { useAuth } from './auth/AuthProvider'
 
 export default function App() {
+  const { user } = useAuth()
   const [gasOpen, setGasOpen] = useState(false)
-  // طلب حر: { category, text } أو null
-  const [custom, setCustom] = useState(null)
-  const [activeOrder, setActiveOrder] = useState(true)
+  const [custom, setCustom] = useState(null) // { category, text } أو null
+  const [activeOrder, setActiveOrder] = useState(false)
   const [tab, setTab] = useState('home')
 
-  // الغاز له شاشة خاصة، وباقي الخدمات تفتح "اطلب أي شي" مع اختيار نوع المحل مسبقاً
-  // (لاحقاً عند التعاقد مع مطاعم: "مطاعم" تفتح قائمة المطاعم الشريكة بدل ذلك)
+  // الزبون لازم يسجّل دخول أولاً
+  if (!user) return <LoginScreen />
+
+  // الغاز له شاشة خاصة، وباقي الخدمات تفتح "اطلب أي شي" مع نوع المحل مختار مسبقاً
+  // (لاحقاً عند التعاقد مع مطاعم: "مطاعم" تفتح قائمة المطاعم الشريكة)
   const openService = (id) => {
     if (id === 'gas') setGasOpen(true)
     else setCustom({ category: id, text: '' })
+  }
+  const startOrder = () => {
+    setTab('home')
+    setCustom({ category: 'any', text: '' })
   }
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col overflow-hidden bg-[#F5F7FA] sm:shadow-2xl">
       <main className="scrollbar-hide flex-1 overflow-y-auto pb-44">
-        <Header />
-        <div className="relative z-10 -mt-6 space-y-6 px-4">
-          <SearchBar onSubmit={(text) => setCustom({ category: 'any', text })} />
-          <HeroOrderCard onClick={() => setCustom({ category: 'any', text: '' })} />
-          <ServicesGrid onSelect={openService} />
-          <PromoCarousel />
-        </div>
+        {tab === 'home' && (
+          <>
+            <Header />
+            <div className="relative z-10 -mt-6 space-y-6 px-4">
+              <SearchBar onSubmit={(text) => setCustom({ category: 'any', text })} />
+              <HeroOrderCard onClick={startOrder} />
+              <ServicesGrid onSelect={openService} />
+              <PromoCarousel />
+            </div>
+          </>
+        )}
+        {tab === 'orders' && <OrdersScreen onStart={startOrder} />}
+        {tab === 'account' && <AccountScreen />}
       </main>
 
       {activeOrder && <ActiveOrderWidget onClose={() => setActiveOrder(false)} />}
