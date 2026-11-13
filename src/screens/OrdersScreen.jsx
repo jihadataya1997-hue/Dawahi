@@ -107,6 +107,9 @@ function OrderCard({ order: o }) {
         </p>
       )}
 
+      {o.courierName && OPEN_STATUSES.includes(o.status) && (
+        <p className="mt-2 text-xs font-bold text-sky-700">🛵 {o.courierName}</p>
+      )}
       {OPEN_STATUSES.includes(o.status) && <Progress status={o.status} />}
 
       {o.status === 'new' &&

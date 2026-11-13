@@ -74,6 +74,16 @@ const MIGRATIONS = [
     ('empty_cylinder_price', '350000'),
     ('stairs_fee_per_floor', '2000');
   `,
+  `
+  -- لوحة التحكم: اسم شب التوصيل على الطلب + جلسات المدير
+  ALTER TABLE orders ADD COLUMN courier_name TEXT NOT NULL DEFAULT '';
+
+  CREATE TABLE admin_sessions (
+    token_hash  TEXT PRIMARY KEY,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    expires_at  TEXT NOT NULL
+  );
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

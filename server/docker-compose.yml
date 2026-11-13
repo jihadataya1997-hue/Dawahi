@@ -9,6 +9,7 @@ services:
     environment:
       PORT: "3000"
       DATA_DIR: /data
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}   # تُضبط في متغيرات المشروع على Hostinger (لا تُكتب هنا)
     volumes:
       - dawahi-data:/data
     command:
