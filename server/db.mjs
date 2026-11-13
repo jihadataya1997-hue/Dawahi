@@ -88,6 +88,74 @@ const MIGRATIONS = [
   -- رقم شب التوصيل (لإرسال الطلب له على واتساب)
   ALTER TABLE orders ADD COLUMN courier_phone TEXT NOT NULL DEFAULT '';
   `,
+  `
+  -- حسابات شباب التوصيل + التنبيهات (Web Push)
+  CREATE TABLE couriers (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 60),
+    phone       TEXT NOT NULL UNIQUE CHECK (phone GLOB '09[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'),
+    pin_hash    TEXT NOT NULL,
+    active      INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+
+  CREATE TABLE courier_sessions (
+    token_hash  TEXT PRIMARY KEY,
+    courier_id  INTEGER NOT NULL REFERENCES couriers(id) ON DELETE CASCADE,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE INDEX courier_sessions_courier ON courier_sessions(courier_id);
+
+  ALTER TABLE orders ADD COLUMN courier_id INTEGER REFERENCES couriers(id);
+  CREATE INDEX orders_courier_status ON orders(courier_id, status);
+
+  CREATE TABLE push_subscriptions (
+    id          INTEGER PRIMARY KEY,
+    owner_type  TEXT NOT NULL CHECK (owner_type IN ('courier','admin','customer')),
+    owner_id    INTEGER NOT NULL,
+    endpoint    TEXT NOT NULL UNIQUE,
+    p256dh      TEXT NOT NULL,
+    auth        TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE INDEX push_owner ON push_subscriptions(owner_type, owner_id);
+
+  -- مفاتيح سرية يولّدها السيرفر لنفسه (مثل مفاتيح التنبيهات)
+  CREATE TABLE secrets (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  `,
+  `
+  -- التوزيع التلقائي: عروض الطلبات على الشباب
+  ALTER TABLE couriers ADD COLUMN online INTEGER NOT NULL DEFAULT 0 CHECK (online IN (0,1));
+  ALTER TABLE couriers ADD COLUMN last_assigned_at TEXT;
+  ALTER TABLE couriers ADD COLUMN missed_offers INTEGER NOT NULL DEFAULT 0;
+
+  ALTER TABLE orders ADD COLUMN dispatch_round INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE orders ADD COLUMN next_dispatch_at TEXT;
+
+  CREATE TABLE order_offers (
+    id           INTEGER PRIMARY KEY,
+    order_id     INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    courier_id   INTEGER NOT NULL REFERENCES couriers(id) ON DELETE CASCADE,
+    round        INTEGER NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending'
+                 CHECK (status IN ('pending','accepted','declined','expired','cancelled')),
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    expires_at   TEXT NOT NULL,
+    responded_at TEXT
+  );
+  -- ضمان على مستوى القاعدة: الطلب الواحد ما بيكون معروض على أكتر من شب بنفس اللحظة
+  CREATE UNIQUE INDEX order_offers_one_pending ON order_offers(order_id) WHERE status = 'pending';
+  CREATE INDEX order_offers_courier ON order_offers(courier_id, status);
+  CREATE INDEX order_offers_pending_exp ON order_offers(status, expires_at);
+
+  INSERT INTO settings (key, value) VALUES
+    ('auto_dispatch', '1'),
+    ('offer_timeout_sec', '60'),
+    ('max_orders_per_courier', '3');
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

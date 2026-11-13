@@ -108,8 +108,22 @@ export function toOrder(r, events) {
     hasPhoto: !!r.photo,
     deliveryFee: r.delivery_fee,
     courierName: r.courier_name || '',
+    courierId: r.courier_id ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     ...(events ? { events } : {}),
   }
+}
+
+// رمز الدخول (PIN) لشباب التوصيل — يُخزّن مشفّراً فقط
+import { randomBytes as _rb, scryptSync, timingSafeEqual as _tse } from 'node:crypto'
+export const isPin = (p) => typeof p === 'string' && /^\d{4,6}$/.test(p)
+export function hashPin(pin) {
+  const salt = _rb(16).toString('hex')
+  return `${salt}:${scryptSync(pin, salt, 32).toString('hex')}`
+}
+export function verifyPin(pin, stored) {
+  if (!isPin(pin) || typeof stored !== 'string' || !stored.includes(':')) return false
+  const [salt, hash] = stored.split(':')
+  return _tse(Buffer.from(hash, 'hex'), scryptSync(pin, salt, 32))
 }

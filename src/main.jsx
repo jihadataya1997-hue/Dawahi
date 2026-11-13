@@ -21,6 +21,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 // تسجيل الـ Service Worker ليصبح التطبيق قابلاً للتثبيت (PWA)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {})
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {})
   })
 }

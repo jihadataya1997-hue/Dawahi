@@ -21,6 +21,7 @@ services:
         set -e
         apk add --no-cache git >/dev/null
         rm -rf /app && git clone --depth 1 https://github.com/jihadataya1997-hue/dawahi.git /app
+        cd /app/server && npm ci --omit=dev --no-audit --no-fund
         exec node --disable-warning=ExperimentalWarning /app/server/server.mjs
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]

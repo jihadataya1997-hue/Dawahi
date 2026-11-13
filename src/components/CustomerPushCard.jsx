@@ -1,0 +1,40 @@
+import { useEffect, useState } from 'react'
+import { BellRing, LoaderCircle } from 'lucide-react'
+import { api } from '../api'
+import { enablePush, pushState } from '../push'
+import { useLang } from '../i18n/LanguageProvider'
+
+// بطاقة صغيرة: "فعّل التنبيهات لتعرف وين صار طلبك"
+export default function CustomerPushCard() {
+  const { lang } = useLang()
+  const [state, setState] = useState(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    pushState().then(setState).catch(() => {})
+  }, [])
+  if (state !== 'off') return null
+  const enable = async () => {
+    setBusy(true)
+    try {
+      await enablePush((subscription) => api('/push', { method: 'POST', body: { subscription } }))
+      setState('enabled')
+    } catch (e) {
+      if (e.message === 'denied') setState('denied')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <button onClick={enable} disabled={busy} className="flex w-full items-center gap-3 rounded-3xl bg-white p-4 text-start shadow-soft">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand text-white">
+        {busy ? <LoaderCircle size={20} className="animate-spin" /> : <BellRing size={20} />}
+      </span>
+      <span className="flex-1">
+        <span className="block text-sm font-bold">{lang === 'ar' ? 'فعّل التنبيهات' : 'Turn on notifications'}</span>
+        <span className="block text-xs text-navy/50">
+          {lang === 'ar' ? 'لتعرف وين صار طلبك حتى والتطبيق مسكّر' : 'Know where your order is, even with the app closed'}
+        </span>
+      </span>
+    </button>
+  )
+}

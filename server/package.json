@@ -1,0 +1,7 @@
+{
+  "name": "dawahi-server",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node --disable-warning=ExperimentalWarning server.mjs" },
+  "dependencies": { "web-push": "^3.6.7" }
+}

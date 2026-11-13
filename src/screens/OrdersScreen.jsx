@@ -3,6 +3,7 @@ import { ClipboardList, Flame, ImageIcon, LoaderCircle, MapPin, ShoppingBag } fr
 import { useLang } from '../i18n/LanguageProvider'
 import { useOrders, OPEN_STATUSES } from '../orders/OrdersProvider'
 import { errorText } from '../i18n/errorText'
+import CustomerPushCard from '../components/CustomerPushCard'
 
 const STATUS_STYLE = {
   new: 'bg-amber-50 text-amber-700',
@@ -40,6 +41,9 @@ export default function OrdersScreen({ onStart }) {
         </div>
       ) : (
         <ul className="-mt-4 space-y-3 px-4">
+          <li>
+            <CustomerPushCard />
+          </li>
           {orders.map((o) => (
             <OrderCard key={o.id} order={o} />
           ))}

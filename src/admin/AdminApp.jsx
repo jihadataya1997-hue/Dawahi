@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  BellOff,
+  BellRing,
   Check,
   ChevronLeft,
   ClipboardCopy,
@@ -15,9 +17,13 @@ import {
   RefreshCw,
   ShoppingBag,
   Tag,
+  UserPlus,
+  Users,
+  Zap,
   X,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
+import { disablePush, enablePush, pushState, registerSW } from '../push'
 import { adminApi, adminErrorText, adminPhotoUrl, downloadBackup, getAdminToken, setAdminToken, setLoggedOutHandler } from './adminApi'
 
 const STATUS = {
@@ -164,7 +170,7 @@ function Dashboard({ onLogout }) {
   const lastMaxId = useRef(0)
 
   const load = useCallback(async () => {
-    if (tab === 'prices' || tab === 'backups') return
+    if (tab === 'prices' || tab === 'backups' || tab === 'couriers') return
     try {
       const [o, s] = await Promise.all([adminApi(`/orders?group=${tab}`), adminApi('/stats')])
       setOrders(o.orders)
@@ -209,6 +215,7 @@ function Dashboard({ onLogout }) {
             <h1 className="font-extrabold">لوحة تحكم ضواحي</h1>
             <p className="text-[11px] text-white/50">تتحدث تلقائياً كل 10 ثوانٍ</p>
           </div>
+          <AdminBell />
           <button onClick={load} aria-label="تحديث" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
             <RefreshCw size={18} />
           </button>
@@ -229,7 +236,8 @@ function Dashboard({ onLogout }) {
             ['open', 'المفتوحة'],
             ['done', 'تم التوصيل'],
             ['cancelled', 'الملغاة'],
-            ['prices', 'الأسعار'],
+            ['couriers', 'الشباب'],
+            ['prices', 'الأسعار والتوزيع'],
             ['backups', 'النسخ الاحتياطي'],
           ].map(([id, label]) => (
             <button
@@ -246,7 +254,13 @@ function Dashboard({ onLogout }) {
       <main className="p-4">
         {error && <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-sm font-bold text-rose-600">{error}</p>}
         {tab === 'prices' ? (
-          <Prices />
+          <>
+            <DispatchSettings />
+            <div className="h-4" />
+            <Prices />
+          </>
+        ) : tab === 'couriers' ? (
+          <Couriers />
         ) : tab === 'backups' ? (
           <Backups />
         ) : loading ? (
@@ -314,6 +328,11 @@ function OrderRow({ order: o, onOpen }) {
         </div>
         <p className="mt-3 line-clamp-2 whitespace-pre-line text-sm text-navy/80">{summaryOf(o)}</p>
         {o.courierName && <p className="mt-2 text-xs font-bold text-sky-700">🛵 {o.courierName}</p>}
+        {o.offer && (
+          <p className="mt-2 flex items-center gap-1 text-xs font-bold text-amber-700">
+            <Zap size={13} /> معروض على {o.offer.courierName} — بانتظار قبوله
+          </p>
+        )}
       </button>
     </li>
   )
@@ -344,6 +363,13 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
   const [courier, setCourier] = useState('')
   const [courierPhone, setCourierPhone] = useState('')
   const [saved] = useState(loadCouriers)
+  const [registered, setRegistered] = useState([])
+  const [courierId, setCourierId] = useState(null)
+  useEffect(() => {
+    adminApi('/couriers')
+      .then((d) => setRegistered(d.couriers.filter((c) => c.active)))
+      .catch(() => {})
+  }, [])
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
@@ -371,9 +397,9 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
     try {
       const d = await adminApi(`/orders/${o.id}/status`, {
         method: 'POST',
-        body: { status, courierName: courier, courierPhone },
+        body: courierId ? { status, courierId } : { status, courierName: courier, courierPhone, courierId: null },
       })
-      if (status === 'assigned') rememberCourier(courier, courierPhone)
+      if (status === 'assigned' && !courierId) rememberCourier(courier, courierPhone)
       const fresh = await adminApi(`/orders/${o.id}`).catch(() => null)
       setO((prev) => ({ ...prev, ...(fresh ? fresh.order : d.order) }))
       setConfirmCancel(false)
@@ -507,8 +533,37 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
             {!['delivered', 'cancelled'].includes(o.status) && (
               <section className="mt-5 rounded-3xl bg-navy p-4 text-white">
                 <p className="text-xs text-white/60">تغيير حالة الطلب</p>
-                {o.status === 'new' && (
+                {o.status === 'new' && o.offer && (
+                  <p className="mt-2 rounded-xl bg-amber-500/20 px-3 py-2 text-xs">
+                    ⚡ التوزيع التلقائي عارضه هلق على <b>{o.offer.courierName}</b>. إذا سلّمته يدوياً، العرض بينلغى.
+                  </p>
+                )}
+                {o.status === 'new' && registered.length > 0 && (
+                  <div className="mt-3">
+                    <p className="mb-2 text-[11px] text-white/50">شباب التطبيق (بيوصلهم تنبيه):</p>
+                    <div className="flex flex-wrap gap-2">
+                      {registered.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => {
+                            setCourierId(courierId === c.id ? null : c.id)
+                            setCourier(c.name)
+                            setCourierPhone(c.phone)
+                          }}
+                          className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                            courierId === c.id ? 'bg-brand' : 'bg-white/10 text-white/80'
+                          }`}
+                        >
+                          <span className={`me-1 inline-block h-2 w-2 rounded-full ${c.online ? 'bg-emerald-400' : 'bg-white/30'}`} />
+                          {c.name} ({c.openOrders}/3)
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {o.status === 'new' && !courierId && (
                   <>
+                    <p className="mt-3 text-[11px] text-white/50">أو شب من برّا التطبيق (واتساب):</p>
                     {saved.length > 0 && (
                       <div className="scrollbar-hide mt-3 flex gap-2 overflow-x-auto">
                         {saved.map((c) => (
@@ -786,6 +841,313 @@ function Backups() {
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+/* ───────── تنبيهات المدير (طلب جديد حتى واللوحة مسكّرة) ───────── */
+
+function AdminBell() {
+  const [state, setState] = useState('loading')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    registerSW()
+      .catch(() => {})
+      .finally(() => pushState().then(setState))
+  }, [])
+  const toggle = async () => {
+    setBusy(true)
+    try {
+      if (state === 'enabled') {
+        await disablePush((endpoint) => adminApi('/push', { method: 'DELETE', body: { endpoint } }))
+        setState('off')
+      } else if (state === 'off') {
+        await enablePush((subscription) => adminApi('/push', { method: 'POST', body: { subscription } }))
+        setState('enabled')
+        await adminApi('/push/test', { method: 'POST' }).catch(() => {})
+      } else if (state === 'denied') {
+        alertBox('التنبيهات مرفوضة من المتصفح. افتح إعدادات الموقع واسمح بالإشعارات.')
+      } else if (state === 'ios-install') {
+        alertBox('على الآيفون: أضف اللوحة للشاشة الرئيسية (زر المشاركة ← إضافة إلى الشاشة الرئيسية) وافتحها من هناك.')
+      } else {
+        alertBox('هالمتصفح ما بيدعم التنبيهات. استعمل Chrome.')
+      }
+    } catch (err) {
+      if (err.message === 'denied') setState('denied')
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (state === 'loading') return null
+  const on = state === 'enabled'
+  return (
+    <button
+      onClick={toggle}
+      aria-label="التنبيهات"
+      title={on ? 'التنبيهات شغالة' : 'فعّل تنبيهات الطلبات الجديدة'}
+      className={`flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${on ? 'bg-emerald-500' : 'bg-brand animate-pulse'}`}
+    >
+      {busy ? <LoaderCircle size={16} className="animate-spin" /> : on ? <BellRing size={16} /> : <BellOff size={16} />}
+      <span className="hidden sm:inline">{on ? 'التنبيهات شغالة' : 'فعّل التنبيهات'}</span>
+    </button>
+  )
+}
+
+// رسالة بسيطة بدل alert (بعض المتصفحات بتمنعه)
+function alertBox(text) {
+  const el = document.createElement('div')
+  el.className = 'fixed inset-x-4 top-4 z-[100] rounded-2xl bg-navy p-4 text-sm text-white shadow-float'
+  el.textContent = text
+  document.body.appendChild(el)
+  setTimeout(() => el.remove(), 6000)
+}
+
+/* ───────── إدارة الشباب ───────── */
+
+function Couriers() {
+  const [list, setList] = useState(null)
+  const [form, setForm] = useState({ name: '', phone: '', pin: '' })
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+  const [created, setCreated] = useState(null)
+
+  const load = useCallback(() => {
+    adminApi('/couriers')
+      .then((d) => setList(d.couriers))
+      .catch((err) => setError(adminErrorText(err)))
+  }, [])
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 15000)
+    return () => clearInterval(id)
+  }, [load])
+
+  const add = async (e) => {
+    e.preventDefault()
+    setBusy('add')
+    setError('')
+    try {
+      await adminApi('/couriers', { method: 'POST', body: form })
+      setCreated({ ...form })
+      setForm({ name: '', phone: '', pin: '' })
+      load()
+    } catch (err) {
+      setError(
+        { PHONE_TAKEN: 'هالرقم مسجّل لشب تاني', INVALID_PIN: 'الرمز لازم يكون 4 لـ 6 أرقام', INVALID_PHONE: 'الرقم لازم يبلش بـ 09 ويكون 10 أرقام' }[err.code] ||
+          adminErrorText(err)
+      )
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const patch = async (c, body) => {
+    setBusy(`c${c.id}`)
+    try {
+      await adminApi(`/couriers/${c.id}`, { method: 'PATCH', body })
+      load()
+    } catch (err) {
+      setError(adminErrorText(err))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const resetPin = (c) => {
+    const pin = String(Math.floor(1000 + Math.random() * 9000))
+    patch(c, { pin }).then(() => setCreated({ name: c.name, phone: c.phone, pin }))
+  }
+
+  const share = (c) =>
+    `https://wa.me/963${c.phone.slice(1)}?text=${encodeURIComponent(
+      `أهلين ${c.name} 👋\nهاد حسابك بتطبيق شباب ضواحي:\nالرابط: https://dawahi.prodev.cloud/driver\nالرقم: ${c.phone}\nالرمز: ${c.pin}\n\nافتح الرابط من Chrome، ثبّت التطبيق، وفعّل التنبيهات.`
+    )}`
+
+  return (
+    <div className="space-y-4">
+      <form onSubmit={add} className="rounded-3xl bg-white p-5 shadow-soft">
+        <h2 className="flex items-center gap-2 font-extrabold">
+          <UserPlus size={18} className="text-brand" /> إضافة شب توصيل
+        </h2>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="الاسم"
+            className="rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-sm outline-none focus:border-brand focus:bg-white"
+          />
+          <input
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '') })}
+            placeholder="09xxxxxxxx"
+            inputMode="numeric"
+            dir="ltr"
+            className="rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-end font-en text-sm outline-none focus:border-brand focus:bg-white"
+          />
+          <input
+            value={form.pin}
+            onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+            placeholder="رمز سري (4 أرقام)"
+            inputMode="numeric"
+            dir="ltr"
+            className="rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-end font-en text-sm outline-none focus:border-brand focus:bg-white"
+          />
+        </div>
+        {error && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600">{error}</p>}
+        <button
+          disabled={busy === 'add' || !form.name || form.phone.length !== 10 || form.pin.length < 4}
+          className="mt-4 flex w-full items-center justify-center rounded-2xl bg-brand py-3 text-sm font-extrabold text-white disabled:opacity-50"
+        >
+          {busy === 'add' ? <LoaderCircle size={18} className="animate-spin" /> : 'إضافة'}
+        </button>
+      </form>
+
+      {created && (
+        <div className="rounded-3xl bg-emerald-50 p-4 text-sm">
+          <p className="font-bold text-emerald-800">
+            ✅ حساب {created.name} جاهز — الرمز: <span className="font-en">{created.pin}</span>
+          </p>
+          <a
+            href={share(created)}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3 font-bold text-white"
+          >
+            <Send size={16} className="-scale-x-100" /> ابعتله الرابط والرمز على واتساب
+          </a>
+        </div>
+      )}
+
+      <div className="rounded-3xl bg-white p-5 shadow-soft">
+        <h2 className="flex items-center gap-2 font-extrabold">
+          <Users size={18} className="text-brand" /> الشباب
+        </h2>
+        {!list ? (
+          <div className="flex justify-center py-8 text-brand">
+            <LoaderCircle size={24} className="animate-spin" />
+          </div>
+        ) : list.length === 0 ? (
+          <p className="py-6 text-center text-sm text-navy/40">ما في شباب مسجلين بعد</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-navy/5">
+            {list.map((c) => (
+              <li key={c.id} className={`py-3 ${c.active ? '' : 'opacity-50'}`}>
+                <div className="flex items-center gap-3">
+                  <span className={`h-3 w-3 shrink-0 rounded-full ${c.online && c.active ? 'bg-emerald-500' : 'bg-navy/20'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold">
+                      {c.name} <span className="text-xs font-normal text-navy/50">— {c.openOrders} طلب مفتوح</span>
+                    </p>
+                    <p className="text-[11px] text-navy/50">
+                      <span dir="ltr" className="font-en">{c.phone}</span> • {c.online ? 'متاح' : 'غير متاح'} •{' '}
+                      {c.push ? '🔔 التنبيهات شغالة' : '🔕 ما فعّل التنبيهات'}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2 ps-6">
+                  {c.active && (
+                    <button onClick={() => patch(c, { online: !c.online })} className="rounded-xl bg-navy-50 px-3 py-1.5 text-xs font-bold">
+                      {c.online ? 'خلّيه غير متاح' : 'خلّيه متاح'}
+                    </button>
+                  )}
+                  <button onClick={() => resetPin(c)} className="rounded-xl bg-navy-50 px-3 py-1.5 text-xs font-bold">
+                    رمز جديد
+                  </button>
+                  <button
+                    onClick={() => patch(c, { active: !c.active })}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-bold ${c.active ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'}`}
+                  >
+                    {c.active ? 'إيقاف الحساب' : 'تفعيل الحساب'}
+                  </button>
+                  {busy === `c${c.id}` && <LoaderCircle size={16} className="animate-spin text-brand" />}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ───────── إعدادات التوزيع التلقائي ───────── */
+
+function DispatchSettings() {
+  const [v, setV] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    adminApi('/dispatch')
+      .then((d) => setV(d.dispatch))
+      .catch((err) => setError(adminErrorText(err)))
+  }, [])
+  const save = async (next) => {
+    setBusy(true)
+    setError('')
+    try {
+      const d = await adminApi('/dispatch', { method: 'PUT', body: { dispatch: next } })
+      setV(d.dispatch)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      setError(adminErrorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (!v) return error ? <p className="text-center text-sm text-rose-600">{error}</p> : null
+  const on = v.autoDispatch === 1
+  return (
+    <div className="rounded-3xl bg-white p-5 shadow-soft">
+      <h2 className="flex items-center gap-2 font-extrabold">
+        <Zap size={18} className="text-brand" /> التوزيع التلقائي
+      </h2>
+      <button
+        onClick={() => save({ autoDispatch: on ? 0 : 1 })}
+        disabled={busy}
+        className={`mt-4 flex w-full items-center gap-3 rounded-2xl p-4 text-start ${on ? 'bg-emerald-500 text-white' : 'bg-navy-50'}`}
+      >
+        <span className="flex-1">
+          <span className="block font-bold">{on ? 'شغّال' : 'متوقف — كل الطلبات بتتوزع يدوياً'}</span>
+          <span className={`block text-xs ${on ? 'text-white/85' : 'text-navy/50'}`}>
+            الطلب بيروح لأول شب فاضي، وإذا ما قبل للي بعده. إذا الكل مشغول، بياخدو الأقرب لطريقه.
+          </span>
+        </span>
+        <span className={`relative h-7 w-12 shrink-0 rounded-full ${on ? 'bg-white/30' : 'bg-navy/15'}`}>
+          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'start-6' : 'start-1'}`} />
+        </span>
+      </button>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="text-xs font-bold">وقت القبول (ثانية)</span>
+          <input
+            inputMode="numeric"
+            dir="ltr"
+            value={v.offerTimeoutSec}
+            onChange={(e) => setV({ ...v, offerTimeoutSec: e.target.value.replace(/\D/g, '') })}
+            className="mt-1 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-end font-en font-bold outline-none focus:border-brand focus:bg-white"
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs font-bold">أقصى طلبات مع الشب</span>
+          <input
+            inputMode="numeric"
+            dir="ltr"
+            value={v.maxOrdersPerCourier}
+            onChange={(e) => setV({ ...v, maxOrdersPerCourier: e.target.value.replace(/\D/g, '') })}
+            className="mt-1 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-end font-en font-bold outline-none focus:border-brand focus:bg-white"
+          />
+        </label>
+      </div>
+      {error && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600">{error}</p>}
+      <button
+        onClick={() => save({ offerTimeoutSec: Number(v.offerTimeoutSec), maxOrdersPerCourier: Number(v.maxOrdersPerCourier) })}
+        disabled={busy}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-navy py-3 text-sm font-bold text-white disabled:opacity-60"
+      >
+        {busy ? <LoaderCircle size={16} className="animate-spin" /> : saved ? <><Check size={16} /> تم الحفظ</> : 'حفظ إعدادات التوزيع'}
+      </button>
     </div>
   )
 }

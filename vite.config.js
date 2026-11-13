@@ -7,8 +7,12 @@ export default defineConfig({
   base: './',
   build: {
     rollupOptions: {
-      // صفحتان: تطبيق الزبون + لوحة التحكم
-      input: { main: resolve(__dirname, 'index.html'), admin: resolve(__dirname, 'admin.html') },
+      // ثلاث صفحات: تطبيق الزبون + لوحة التحكم + تطبيق الشب
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        admin: resolve(__dirname, 'admin.html'),
+        driver: resolve(__dirname, 'driver.html'),
+      },
     },
   },
   // أثناء التطوير: طلبات /api تذهب للسيرفر المحلي

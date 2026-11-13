@@ -9,6 +9,9 @@ import { HttpError, bad, sha256, now, isPhone, str, distanceKm, clientIp, rateLi
 import { adminRoute } from './admin.mjs'
 import { toOrder } from './lib.mjs'
 import { scheduleBackups } from './backup.mjs'
+import { courierRoute } from './courier.mjs'
+import { cancelOffers, dispatchOrder, startDispatcher } from './dispatch.mjs'
+import { VAPID_PUBLIC_KEY, notify, removeSubscription, saveSubscription } from './push.mjs'
 
 const PORT = Number(process.env.PORT || 3000)
 const MAX_PHOTO = 2.5 * 1024 * 1024
@@ -140,7 +143,21 @@ async function createOrder(req, res, user) {
     throw err
   }
   log('info', 'order created', { orderId: row.id, customerId: user.id, kind: row.kind })
+  notify('admin', 0, {
+    title: `🔔 طلب جديد D-${1000 + row.id}`,
+    body: `${user.name} — ${o.kind === 'gas' ? `غاز (${o.details.qty} جرة)` : (o.details.items || 'طلب بالصورة').slice(0, 80)}`,
+    url: '/admin',
+    tag: `order-${row.id}`,
+  })
   send(res, 201, { order: toOrder(row) })
+  // توزيع فوري على أنسب شب
+  setImmediate(() => {
+    try {
+      dispatchOrder(row.id)
+    } catch (err) {
+      log('error', 'dispatch failed', { orderId: row.id, err: err?.stack || String(err) })
+    }
+  })
 }
 
 function listOrders(res, user, url) {
@@ -177,6 +194,7 @@ function cancelOrder(res, user, id) {
     db.exec('ROLLBACK')
     throw err
   }
+  cancelOffers(row.id)
   log('info', 'order cancelled', { orderId: row.id, customerId: user.id })
   send(res, 200, { order: toOrder(db.prepare('SELECT * FROM orders WHERE id = ?').get(row.id)) })
 }
@@ -234,6 +252,11 @@ async function route(req, res, url) {
     return send(res, 200, { token, user: publicUser(customer) })
   }
 
+  if (m === 'GET' && pathname === '/api/push/key') return send(res, 200, { key: VAPID_PUBLIC_KEY })
+
+  // تطبيق شب التوصيل — له تسجيل دخول خاص
+  if (pathname.startsWith('/api/courier/')) return courierRoute(req, res, url)
+
   // واجهة الإدارة (لوحة التحكم) — لها تسجيل دخول خاص
   if (pathname.startsWith('/api/admin/')) return adminRoute(req, res, url)
 
@@ -247,6 +270,19 @@ async function route(req, res, url) {
     const name = str(body.name, 60, 'name', { required: true })
     db.prepare('UPDATE customers SET name = ?, updated_at = ? WHERE id = ?').run(name, now(), user.id)
     return send(res, 200, { user: { ...publicUser(user), name } })
+  }
+
+  // تنبيهات الزبون (تغيّر حالة طلبه)
+  if (pathname === '/api/push') {
+    const body = await readJson(req)
+    if (m === 'POST') {
+      saveSubscription('customer', user.id, body.subscription)
+      return send(res, 200, { ok: true })
+    }
+    if (m === 'DELETE') {
+      removeSubscription(body.endpoint)
+      return send(res, 204)
+    }
   }
 
   if (m === 'POST' && pathname === '/api/auth/logout') {
@@ -292,6 +328,7 @@ const server = createServer(async (req, res) => {
 server.requestTimeout = 30_000
 server.listen(PORT, () => log('info', 'dawahi api listening', { port: PORT }))
 scheduleBackups()
+startDispatcher()
 
 for (const sig of ['SIGTERM', 'SIGINT']) {
   process.on(sig, () => {
