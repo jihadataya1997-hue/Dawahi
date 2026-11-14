@@ -57,13 +57,13 @@ export default function BannerCarousel({ onAction }) {
         onScroll={onScroll}
         onTouchStart={() => (paused.current = true)}
         onTouchEnd={() => setTimeout(() => (paused.current = false), 4000)}
-        className="scrollbar-hide -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 scroll-px-4"
+        className="scrollbar-hide flex snap-x snap-mandatory gap-3 overflow-x-auto"
       >
         {banners.map((b) => (
           <button
             key={b.id}
             onClick={() => onAction(b)}
-            className={`relative flex h-40 w-[88%] shrink-0 snap-start overflow-hidden rounded-3xl text-start shadow-soft active:scale-[0.99] ${THEMES[b.theme] || THEMES.orange}`}
+            className={`relative flex h-36 w-full shrink-0 snap-start overflow-hidden rounded-3xl text-start shadow-soft active:scale-[0.99] ${THEMES[b.theme] || THEMES.orange}`}
           >
             {b.image && (
               <>

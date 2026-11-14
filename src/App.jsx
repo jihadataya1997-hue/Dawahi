@@ -65,7 +65,7 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col overflow-hidden bg-[#F5F7FA] sm:shadow-2xl">
-      <main className="scrollbar-hide flex-1 overflow-y-auto pb-28">
+      <main className="scrollbar-hide min-h-0 flex-1 overflow-y-auto pb-4">
         {tab === 'home' && (
           <HomeScreen
             activeOrder={activeOrder}

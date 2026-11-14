@@ -27,6 +27,15 @@
   }
 }
 
+/* تطبيق الزبون: الشاشة ثابتة والمحتوى بيتمرر من جوّا.
+   --app-h ارتفاع الشاشة الحقيقي (بيصحح مشكلة آيفون بوضع التطبيق المثبّت) */
+html.app-shell,
+html.app-shell body,
+html.app-shell #root {
+  height: var(--app-h, 100%);
+  overflow: hidden;
+}
+
 @keyframes zapPing {
   75%, 100% { transform: scale(2); opacity: 0; }
 }

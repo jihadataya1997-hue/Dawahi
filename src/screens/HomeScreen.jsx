@@ -1,18 +1,11 @@
-import { Zap, Bell, BookOpen, ChevronLeft, Flame, Fuel, MapPin, PencilLine, Pill, ShieldCheck, ShoppingCart, Truck, UtensilsCrossed, Wallet, BellRing } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Zap, Bell, BookOpen, ChevronLeft, Flame, Fuel, MapPin, PencilLine, Pill, ShoppingCart, Truck, UtensilsCrossed } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import BannerCarousel from '../components/BannerCarousel'
 import { useLang } from '../i18n/LanguageProvider'
 import { useAppConfig } from '../config/AppConfigProvider'
 import { OPEN_STATUSES } from '../orders/OrdersProvider'
 
-const ICONS = {
-  restaurants: { Icon: UtensilsCrossed },
-  supermarket: { Icon: ShoppingCart },
-  gas: { Icon: Flame },
-  diesel: { Icon: Fuel },
-  pharmacy: { Icon: Pill },
-  library: { Icon: BookOpen },
-}
 
 /**
  * الصفحة الرئيسية — ترتيب واضح:
@@ -20,27 +13,26 @@ const ICONS = {
  */
 export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onService, onBanner, onOpenOrders }) {
   const { t, lang, toggleLang } = useLang()
-  const { areaName, texts, services, pricing, money, peak } = useAppConfig()
-  const list = services.filter((s) => s.enabled !== false && ICONS[s.id])
-  const heroTitle = lang === 'ar' && texts.heroTitle ? texts.heroTitle : t('hero.title')
+  const { areaName, services, pricing, money, peak } = useAppConfig()
+  const ar = lang === 'ar'
+  // اختصارات سريعة: كلها بتفتح نفس "اكتب طلبك" مع نوع المحل محدد (أو طلب الغاز)
+  const quick = QUICK.filter((q) => services.some((s) => s.id === q.id))
+  // الغاز والمازوت (طلبات تقيلة) بصف لحالهن، وإذا واحد بس بياخد العرض كله
+  const heavyCount = quick.filter((q) => q.heavy).length
+  const paused = (id) => services.find((s) => s.id === id)?.paused
 
   return (
     <div className="pb-6">
-      {/* ١) الشريط العلوي */}
-      <header className="speed-bg pt-safe rounded-b-[2rem] bg-brand px-4 pb-6 text-white">
-        <div className="flex items-center gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <LogoMark className="h-10 w-10" />
-            <span className="font-brand text-2xl font-black italic tracking-tight text-lime">ZAPP</span>
-          </div>
-          <button
-            onClick={toggleLang}
-            aria-label="Language"
-            className="flex h-10 items-center rounded-full bg-white/10 px-3 font-en text-xs font-bold active:scale-95"
-          >
-            {lang === 'ar' ? 'EN' : 'ع'}
+      {/* ١) الرأس: الشعار + الموقع + صندوق الطلب */}
+      <header className="pt-safe rounded-b-[2rem] bg-brand px-4 pb-6 text-white">
+        <div className="flex items-center gap-2">
+          <LogoMark className="h-9 w-9" />
+          <span className="font-brand text-[22px] font-black italic tracking-tight text-lime">ZAPP</span>
+          <span className="flex-1" />
+          <button onClick={toggleLang} aria-label="Language" className="flex h-10 items-center rounded-full bg-white/15 px-3 font-en text-xs font-bold active:scale-95">
+            {ar ? 'EN' : 'ع'}
           </button>
-          <button onClick={onBell} aria-label={t('inbox.title')} className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/10 active:scale-95">
+          <button onClick={onBell} aria-label={t('inbox.title')} className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/15 active:scale-95">
             <Bell size={19} />
             {unread > 0 && (
               <span className="absolute -end-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-brand bg-lime px-1 text-[10px] font-bold text-navy">
@@ -50,91 +42,146 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
           </button>
         </div>
 
-        <p className="mt-4 flex items-center gap-1.5 text-xs text-white/70">
+        <p className="mt-5 flex items-center gap-1.5 text-xs text-white/75">
           <MapPin size={14} className="shrink-0 text-lime" />
           {t('deliverTo')} <b className="font-bold text-white">{areaName}</b>
         </p>
+        <h1 className="mt-1.5 text-[26px] font-black leading-tight">{ar ? 'شو بدك نجيبلك اليوم؟' : 'What can we get you today?'}</h1>
+        <p className="mt-1 text-sm text-white/75">
+          {ar ? 'اكتب طلبك من أي محل، وعامل التوصيل بيشتريه وبيوصله لباب بيتك.' : 'Write your order from any shop, and a courier buys and brings it to your door.'}
+        </p>
+
+        {/* صندوق الطلب: هو الشي الأساسي بالتطبيق */}
+        <button onClick={onOrder} className="mt-4 block w-full rounded-3xl bg-white p-4 text-start text-navy shadow-float active:scale-[0.99]">
+          <span className="flex min-h-[3.25rem] items-start gap-2 rounded-2xl bg-navy-50 px-3.5 py-3 text-[15px] text-navy/45">
+            <PencilLine size={18} className="mt-0.5 shrink-0 text-brand" />
+            <TypingHint ar={ar} />
+          </span>
+          <span className="btn-zap mt-3 flex items-center justify-center gap-2 bg-lime py-3.5 text-[15px] font-extrabold text-navy">
+            {ar ? 'اكتب طلبك' : 'Write your order'}
+            <ChevronLeft size={18} className="ltr:rotate-180" />
+          </span>
+        </button>
 
         {peak && (
-          <p className="mt-3 flex items-center gap-2 rounded-2xl bg-lime px-3 py-2 text-xs font-bold text-navy">
-            <Zap size={15} className="shrink-0" />
-            <span>
-              {lang === 'ar'
-                ? `${peak.label}: أجرة التوصيل ${money(pricing.deliveryFee)}${peak.until ? ` حتى ${peak.until}` : ''}`
-                : `Peak time: delivery ${money(pricing.deliveryFee)}${peak.until ? ` until ${peak.until}` : ''}`}
-            </span>
+          <p className="mt-3 flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2 text-xs font-bold">
+            <Zap size={15} className="shrink-0 text-lime" />
+            {ar
+              ? `${peak.label}: أجرة التوصيل ${money(pricing.deliveryFee)}${peak.until ? ` حتى ${peak.until}` : ''}`
+              : `Peak time: delivery ${money(pricing.deliveryFee)}${peak.until ? ` until ${peak.until}` : ''}`}
           </p>
         )}
-
-        {/* زر الطلب الرئيسي */}
-        <button
-          onClick={onOrder}
-          className="mt-3 flex w-full items-center gap-3 rounded-3xl bg-white p-4 text-start text-navy shadow-float active:scale-[0.99]"
-        >
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-lime text-navy">
-            <PencilLine size={22} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-base font-extrabold">{t('searchPlaceholder')}</span>
-            <span className="block truncate text-xs text-navy/55">{heroTitle}</span>
-          </span>
-          <ChevronLeft size={20} className="shrink-0 text-navy/30 ltr:rotate-180" />
-        </button>
       </header>
 
       <div className="space-y-7 px-4 pt-5">
         {/* ٢) الطلب الحالي */}
         {activeOrder && <ActiveOrderCard order={activeOrder} onClick={onOpenOrders} />}
 
-        {/* ٣) الإعلانات */}
-        <BannerCarousel onAction={onBanner} />
-
-        {/* ٤) الخدمات */}
-        {list.length > 0 && (
+        {/* ٣) اختصارات: نفس الخدمة، بس أسرع */}
+        {quick.length > 0 && (
           <section>
-            <h2 className="mb-3 text-base font-extrabold">{t('services')}</h2>
-            <div className="grid grid-cols-3 gap-3">
-              {list.map((s) => {
-                const { Icon } = ICONS[s.id]
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => onService(s.id)}
-                    className={`relative flex flex-col items-center gap-2 rounded-3xl bg-white px-2 py-4 shadow-soft active:scale-95 ${s.paused ? 'opacity-60' : ''}`}
-                  >
-                    {s.paused && (
-                      <span className="absolute -top-2 rounded-full bg-navy px-2 py-0.5 text-[10px] font-bold text-lime">
-                        {lang === 'ar' ? 'متوقف مؤقتاً' : 'Paused'}
-                      </span>
-                    )}
-                    <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${s.paused ? 'bg-navy/5 text-navy/40' : 'bg-brand-50 text-brand'}`}>
-                      <Icon size={24} strokeWidth={2.2} />
+            <h2 className="text-base font-extrabold">{ar ? 'أو ابدأ من هون' : 'Or start here'}</h2>
+            <p className="mb-3 text-xs text-navy/50">{ar ? 'منجيبلك من أي محل بالضاحية' : 'From any shop in the area'}</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              {quick.map(({ id, Icon, ar: la, en, sub, heavy }) => (
+                <button
+                  key={id}
+                  onClick={() => onService(id)}
+                  className={`relative flex items-center gap-3 rounded-2xl bg-white p-3 text-start shadow-soft active:scale-[0.98] ${
+                    heavy && heavyCount === 1 ? 'col-span-2' : ''
+                  } ${heavy ? 'ring-2 ring-lime' : ''
+                  } ${paused(id) ? 'opacity-55' : ''}`}
+                >
+                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${heavy ? 'bg-lime text-navy' : 'bg-brand-50 text-brand'}`}>
+                    <Icon size={22} strokeWidth={2.2} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-extrabold">{ar ? la : en}</span>
+                    <span className="block truncate text-[11px] text-navy/50">
+                      {paused(id)
+                        ? ar ? 'متوقف مؤقتاً' : 'Paused for now'
+                        : id === 'gas' ? `${money(pricing.gasPrice)} ${ar ? 'للجرة' : 'each'}` : ar ? sub : ''}
                     </span>
-                    <span className="text-[13px] font-bold">{lang === 'ar' && s.label ? s.label : t(`svc.${s.id}`)}</span>
-                  </button>
-                )
-              })}
+                  </span>
+                </button>
+              ))}
             </div>
           </section>
         )}
 
-        {/* ٥) لماذا ZAPP */}
-        <section className="grid grid-cols-3 gap-2 rounded-3xl bg-white p-3 shadow-soft">
-          <Trust Icon={Wallet} title={lang === 'ar' ? 'الدفع عند الاستلام' : 'Pay on delivery'} />
-          <Trust Icon={ShieldCheck} title={lang === 'ar' ? `توصيل ${money(pricing.deliveryFee)}` : `Delivery ${money(pricing.deliveryFee)}`} />
-          <Trust Icon={BellRing} title={lang === 'ar' ? 'إشعار بكل خطوة' : 'Live updates'} />
+        {/* ٤) العروض */}
+        <BannerCarousel onAction={onBanner} />
+
+        {/* ٥) كيف بتمشي — خطوات متسلسلة فعلاً */}
+        <section className="rounded-3xl bg-white p-4 shadow-soft">
+          <h2 className="text-base font-extrabold">{ar ? 'كيف بتمشي؟' : 'How it works'}</h2>
+          <ol className="mt-3 space-y-3">
+            {(ar
+              ? [
+                  ['اكتب طلبك وحدد بيتك', 'اكتب الأغراض أو صوّر الورقة، وإذا بدك حدد المحل.'],
+                  ['عامل التوصيل بيشتري وبيجيب', 'بيوصلك إشعار بكل خطوة لحتى يدق بابك.'],
+                  ['بتدفع عند الاستلام', `ثمن الأغراض متل سعر المحل + أجرة توصيل ${money(pricing.deliveryFee)}.`],
+                ]
+              : [
+                  ['Write your order', 'List items or snap a photo, and pick a shop if you like.'],
+                  ['A courier buys and brings it', 'You get a notification at every step.'],
+                  ['Pay on delivery', `Shop price + ${money(pricing.deliveryFee)} delivery.`],
+                ]
+            ).map(([title, sub], i) => (
+              <li key={i} className="flex gap-3">
+                <span className="num-zap flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand text-sm text-lime">{i + 1}</span>
+                <span>
+                  <span className="block text-sm font-extrabold">{title}</span>
+                  <span className="block text-xs leading-relaxed text-navy/55">{sub}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
         </section>
       </div>
     </div>
   )
 }
 
-function Trust({ Icon, title }) {
+// الاختصارات (الأسماء من لوحة الإدارة بتتحكم بالإيقاف والإخفاء)
+const QUICK = [
+  { id: 'gas', Icon: Flame, ar: 'جرة غاز', en: 'Gas cylinder', heavy: true },
+  { id: 'diesel', Icon: Fuel, ar: 'مازوت', en: 'Diesel', sub: 'تعبئة لحد البيت', heavy: true },
+  { id: 'supermarket', Icon: ShoppingCart, ar: 'أغراض البيت', en: 'Groceries', sub: 'سوبرماركت، خضرة، فرن' },
+  { id: 'pharmacy', Icon: Pill, ar: 'دوا من الصيدلية', en: 'Pharmacy', sub: 'صوّر الوصفة وابعتها' },
+  { id: 'restaurants', Icon: UtensilsCrossed, ar: 'أكل من مطعم', en: 'Food', sub: 'من أي مطعم بتحدده' },
+  { id: 'library', Icon: BookOpen, ar: 'قرطاسية', en: 'Stationery', sub: 'دفاتر وأقلام وطباعة' },
+]
+
+// أمثلة بتنكتب لحالها جوّا صندوق الطلب لتوضّح الفكرة
+const EXAMPLES = {
+  ar: ['٢ ربطة خبز وكيلو لبن…', 'علبة بنادول من الصيدلية…', 'كيلو بندورة ونص كيلو خيار…', 'شاورما من المطعم اللي بتحبه…'],
+  en: ['2 bread packs and yogurt…', 'Panadol from the pharmacy…', 'Tomatoes and cucumbers…', 'Shawarma from your favorite place…'],
+}
+function TypingHint({ ar }) {
+  const list = EXAMPLES[ar ? 'ar' : 'en']
+  const [i, setI] = useState(0)
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return setN(list[0].length)
+    const full = list[i]
+    const id = setTimeout(
+      () => {
+        if (n < full.length) setN(n + 1)
+        else {
+          setN(0)
+          setI((i + 1) % list.length)
+        }
+      },
+      n < full.length ? 60 : 1800
+    )
+    return () => clearTimeout(id)
+  }, [i, n, list])
   return (
-    <div className="flex flex-col items-center gap-1.5 px-1 py-2 text-center">
-      <Icon size={20} className="text-brand" />
-      <span className="text-[11px] font-bold leading-tight text-navy/70">{title}</span>
-    </div>
+    <span className="min-w-0 flex-1">
+      {list[i].slice(0, n)}
+      <span className="ms-0.5 inline-block h-4 w-0.5 translate-y-0.5 animate-pulse bg-brand" />
+    </span>
   )
 }
 

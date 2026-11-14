@@ -10,7 +10,7 @@ const items = [
 export default function BottomNav({ active, onChange }) {
   const { t } = useLang()
   return (
-    <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 mx-auto max-w-md rounded-t-3xl border-t border-navy/5 bg-white shadow-[0_-8px_30px_-12px_rgba(11,27,53,0.2)]">
+    <nav className="pb-safe relative z-30 shrink-0 rounded-t-3xl border-t border-navy/5 bg-white shadow-[0_-8px_30px_-12px_rgba(11,27,53,0.2)]">
       <ul className="flex items-center justify-around px-2 py-2">
         {items.map(({ id, Icon }) => {
           const on = active === id
