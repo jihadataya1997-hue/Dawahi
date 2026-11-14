@@ -1,6 +1,6 @@
 // واجهة الإدارة (لوحة التحكم) — كل المسارات تحت /api/admin/
 import { randomBytes, timingSafeEqual } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, getSettings, UPLOADS_DIR } from './db.mjs'
 import { HttpError, bad, sha256, now, str, isPhone, isPin, hashPin, isPassword, hashSecret, verifySecret, clientIp, rateLimit, readJson, send, log, toOrder } from './lib.mjs'
@@ -66,6 +66,7 @@ function passwordMatches(input) {
 export const PERMISSIONS = {
   'orders.view': 'عرض الطلبات',
   'orders.manage': 'إدارة الطلبات (تسليم، تغيير الحالة، إلغاء)',
+  'orders.delete': 'حذف الطلبات نهائياً (طلبات التجربة)',
   'couriers.manage': 'إدارة عمال التوصيل',
   'customers.view': 'عرض الزبائن',
   'customers.manage': 'إيقاف الزبائن',
@@ -337,6 +338,42 @@ export async function adminRoute(req, res, url) {
       .prepare('SELECT status, actor, created_at AS at FROM order_events WHERE order_id = ? ORDER BY id')
       .all(row.id)
     return send(res, 200, { order: withCustomer(row, events) })
+  }
+
+  // حذف طلبات نهائياً (طلبات التجربة): بيرجّع رصيد العامل ونقاط الزبون وبيمسح الصورة
+  if (pathname === '/api/admin/orders/delete' && m === 'POST') {
+    need('orders.delete')
+    const body = await readJson(req)
+    const ids = [...new Set((Array.isArray(body.ids) ? body.ids : []).map(Number))].filter((n) => Number.isInteger(n) && n > 0)
+    if (!ids.length || ids.length > 200) throw bad('INVALID', 'Choose 1 to 200 orders', 'ids')
+    const photos = []
+    let deleted = 0
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      for (const id of ids) {
+        const o = db.prepare('SELECT id, customer_id, photo, points_awarded, points_used FROM orders WHERE id = ?').get(id)
+        if (!o) continue
+        // عمولات الطلب على رصيد العامل
+        for (const l of db.prepare('SELECT courier_id, amount FROM courier_ledger WHERE order_id = ?').all(id))
+          db.prepare('UPDATE couriers SET balance = balance - ? WHERE id = ?').run(l.amount, l.courier_id)
+        db.prepare('DELETE FROM courier_ledger WHERE order_id = ?').run(id)
+        // النقاط
+        if (o.points_awarded)
+          db.prepare('UPDATE customers SET points = MAX(0, points - ?) WHERE id = ?').run(o.points_awarded, o.customer_id)
+        if (o.points_used) db.prepare('UPDATE customers SET points = points + ? WHERE id = ?').run(o.points_used, o.customer_id)
+        db.prepare('DELETE FROM orders WHERE id = ?').run(id) // الأحداث والعروض والكودات بتنحذف معه
+        if (o.photo) photos.push(o.photo)
+        deleted++
+      }
+      db.exec('COMMIT')
+    } catch (err) {
+      db.exec('ROLLBACK')
+      throw err
+    }
+    for (const ph of photos) rm(join(UPLOADS_DIR, ph), { force: true }).catch(() => {})
+    log('info', 'orders deleted', { by: me.name, ids, deleted })
+    nudge()
+    return send(res, 200, { deleted })
   }
 
   mm = /^\/api\/admin\/orders\/(\d{1,12})\/status$/.exec(pathname)

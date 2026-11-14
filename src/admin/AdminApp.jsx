@@ -38,6 +38,7 @@ import {
   Gift,
   UtensilsCrossed,
   Wallet,
+  Trash2,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import { disablePush, enablePush, pushState, registerSW } from '../push'
@@ -244,6 +245,7 @@ function Shell({ me, onLogout }) {
   const [section, setSection] = useState(() => (NAV.some((n) => `#${n.id}` === location.hash) ? location.hash.slice(1) : NAV[0]?.id || 'overview'))
   const [stats, setStats] = useState(null)
   const [selected, setSelected] = useState(null)
+  const [boardKey, setBoardKey] = useState(0)
   const lastWaiting = useRef(null)
 
   // العملة الحالية من إعدادات التطبيق
@@ -346,7 +348,7 @@ function Shell({ me, onLogout }) {
           {section === 'account' && <MyAccount me={me} />}
           {section === 'control' && <AppControlPanel can={(p) => me.perms.includes(p)} />}
           {section === 'overview' && <Overview stats={stats} onGo={go} onOpenOrder={setSelected} />}
-          {section === 'orders' && <OrdersBoard onOpen={setSelected} />}
+          {section === 'orders' && <OrdersBoard key={boardKey} onOpen={setSelected} />}
           {section === 'couriers' && <Couriers />}
           {section === 'customers' && <Customers />}
           {section === 'promos' && <Promos />}
@@ -374,6 +376,11 @@ function Shell({ me, onLogout }) {
           onUpdated={(o) => {
             setSelected(o)
             loadStats()
+          }}
+          onDeleted={() => {
+            setSelected(null)
+            loadStats()
+            setBoardKey((k) => k + 1)
           }}
         />
       )}
@@ -468,9 +475,34 @@ function Shortcut({ Icon, title, sub, onClick }) {
 /* ───────── الطلبات ───────── */
 
 function OrdersBoard({ onOpen }) {
+  const can = useCan()
   const [tab, setTab] = useState('open')
   const [orders, setOrders] = useState(null)
   const [error, setError] = useState('')
+  const [picking, setPicking] = useState(false) // وضع اختيار طلبات للحذف
+  const [picked, setPicked] = useState(new Set())
+  const [deleting, setDeleting] = useState(false)
+  const togglePick = (id) =>
+    setPicked((s) => {
+      const n = new Set(s)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+  const removePicked = async () => {
+    if (!picked.size) return
+    if (!window.confirm(`حذف ${picked.size} طلب نهائياً؟\nما بترجع. (رصيد السائقين ونقاط الزبائن بيرجعوا متل قبل هالطلبات)`)) return
+    setDeleting(true)
+    try {
+      await adminApi('/orders/delete', { method: 'POST', body: { ids: [...picked] } })
+      setPicked(new Set())
+      setPicking(false)
+      await load()
+    } catch (err) {
+      setError(adminErrorText(err))
+    } finally {
+      setDeleting(false)
+    }
+  }
   const load = useCallback(async () => {
     try {
       setOrders((await adminApi(`/orders?group=${tab}`)).orders)
@@ -501,10 +533,31 @@ function OrdersBoard({ onOpen }) {
             {label}
           </button>
         ))}
-        <button onClick={load} aria-label="تحديث" className="ms-auto flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-soft">
+        {can('orders.delete') && (
+          <button
+            onClick={() => (setPicking(!picking), setPicked(new Set()))}
+            className={`ms-auto rounded-full px-4 py-2 text-sm font-bold ${picking ? 'bg-rose-600 text-white' : 'bg-white text-rose-600 shadow-soft'}`}
+          >
+            {picking ? 'إلغاء التحديد' : 'حذف طلبات'}
+          </button>
+        )}
+        <button onClick={load} aria-label="تحديث" className={`${can('orders.delete') ? '' : 'ms-auto '}flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-soft`}>
           <RefreshCw size={16} />
         </button>
       </div>
+      {picking && (
+        <div className="sticky top-2 z-10 mt-3 flex items-center gap-3 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-bold text-white shadow-float">
+          <span className="flex-1">{picked.size ? `اخترت ${picked.size} طلب` : 'كبس على الطلبات يلي بدك تحذفها (طلبات التجربة)'}</span>
+          {orders?.length > 0 && (
+            <button onClick={() => setPicked(new Set(orders.map((o) => o.id)))} className="rounded-xl bg-white/20 px-3 py-1.5 text-xs">
+              اختار الكل
+            </button>
+          )}
+          <button disabled={!picked.size || deleting} onClick={removePicked} className="rounded-xl bg-white px-3 py-1.5 text-xs text-rose-600 disabled:opacity-50">
+            {deleting ? '...' : 'احذف نهائياً'}
+          </button>
+        </div>
+      )}
       {error && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-sm font-bold text-rose-600">{error}</p>}
       {!orders ? (
         <div className="flex justify-center pt-16 text-brand">
@@ -515,7 +568,7 @@ function OrdersBoard({ onOpen }) {
       ) : (
         <ul className="mt-4 grid gap-3 lg:grid-cols-2">
           {orders.map((o) => (
-            <OrderRow key={o.id} order={o} onOpen={() => onOpen(o)} />
+            <OrderRow key={o.id} order={o} picked={picking ? picked.has(o.id) : null} onOpen={() => (picking ? togglePick(o.id) : onOpen(o))} />
           ))}
         </ul>
       )}
@@ -532,17 +585,22 @@ function summaryOf(o) {
   return o.details.items || (o.hasPhoto ? 'طلب مرفق بصورة' : '')
 }
 
-function OrderRow({ order: o, onOpen }) {
+function OrderRow({ order: o, onOpen, picked = null }) {
   const st = STATUS[o.status]
   return (
     <li>
       <button
         onClick={onOpen}
         className={`w-full rounded-3xl bg-white p-4 text-start shadow-soft active:scale-[0.99] ${
-          o.status === 'new' ? 'ring-2 ring-amber-400' : ''
+          picked ? 'ring-2 ring-rose-500' : o.status === 'new' ? 'ring-2 ring-amber-400' : ''
         }`}
       >
         <div className="flex items-center gap-3">
+          {picked !== null && (
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 ${picked ? 'border-rose-500 bg-rose-500 text-white' : 'border-navy/20'}`}>
+              {picked && <Check size={14} strokeWidth={3} />}
+            </span>
+          )}
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand">
             {o.kind === 'gas' ? <Flame size={20} /> : <ShoppingBag size={20} />}
           </span>
@@ -588,8 +646,18 @@ function orderText(o) {
   return lines.join('\n')
 }
 
-function OrderDetail({ orderId, onClose, onUpdated }) {
+function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
   const can = useCan()
+  const removeOrder = async () => {
+    if (!window.confirm(`حذف الطلب ${o.number} نهائياً؟ ما بيرجع.`)) return
+    try {
+      await adminApi('/orders/delete', { method: 'POST', body: { ids: [o.id] } })
+      onDeleted?.()
+      onClose()
+    } catch (err) {
+      setError(adminErrorText(err))
+    }
+  }
   const [o, setO] = useState(null)
   const [photo, setPhoto] = useState(null)
   const [courier, setCourier] = useState('')
@@ -886,12 +954,18 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
                       <b>{STATUS[e.status]?.label}</b>{' '}
                       <span className="text-navy/50">
                         — {new Date(e.at).toLocaleTimeString('ar-SY', { hour: 'numeric', minute: '2-digit' })}
-                        {e.actor === 'admin' || e.actor.startsWith('staff') ? ' (الإدارة)' : e.actor.startsWith('courier') ? ' (عامل التوصيل)' : ' (الزبون)'}
+                        {e.actor === 'admin' || e.actor.startsWith('staff') ? ' (الإدارة)' : e.actor.startsWith('supervisor') ? ' (المشرف)' : e.actor.startsWith('courier') ? ' (عامل التوصيل)' : ' (الزبون)'}
                       </span>
                     </li>
                   ))}
                 </ol>
               </section>
+            )}
+
+            {can('orders.delete') && (
+              <button onClick={removeOrder} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 py-3 text-sm font-bold text-rose-600">
+                <Trash2 size={16} /> حذف الطلب نهائياً (طلب تجربة)
+              </button>
             )}
           </>
         )}
