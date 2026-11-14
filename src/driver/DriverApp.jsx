@@ -256,7 +256,7 @@ function Home({ onLogout }) {
   const refreshMe = useCallback(() => {
     api('/me')
       .then((d) => {
-        setMe(d.courier)
+        setMe({ ...d.courier, wallet: d.wallet })
         setLoad(d.load)
         setMax(d.max || 3)
       })
@@ -288,7 +288,8 @@ function Home({ onLogout }) {
   useShareLocation(!!me?.online && !zapp)
   useEffect(() => {
     if (!zapp || !me) return
-    if (me.online) zapp.start({ token: getToken(), base: location.origin }).catch(() => {})
+    // المشرف: الخدمة بتضل شغّالة حتى لو مو متاح، لحتى يوصله إشعار بكل طلب جديد
+    if (me.online || me.supervisor) zapp.start({ token: getToken(), base: location.origin }).catch(() => {})
     else zapp.stop().catch(() => {})
   }, [zapp, me?.online, me])
   const load_ = loadOrders
@@ -351,6 +352,7 @@ function Home({ onLogout }) {
             {!zapp && <DriverApkCard />}
             {!zapp && <InstallCard />}
             {me && <AvailabilityCard me={me} load={load} max={max} onChange={refreshMe} />}
+            {me?.wallet && <WalletCard wallet={me.wallet} load={load} />}
           </>
         )}
         {me?.online && (
@@ -394,6 +396,29 @@ function Home({ onLogout }) {
         )}
       </main>
       )}
+    </div>
+  )
+}
+
+/* ───────── رصيد العامل ───────── */
+
+function WalletCard({ wallet, load }) {
+  const fmt = (n) => `${new Intl.NumberFormat('en-US').format(n)} ل.س`
+  const low = wallet.enabled && wallet.balance - wallet.commission * load < wallet.commission
+  if (!wallet.enabled && wallet.balance === 0) return null
+  return (
+    <div className={`rounded-3xl p-4 ${low ? 'bg-rose-600 text-white' : 'bg-white shadow-soft'}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-extrabold">رصيدك</span>
+        <span className={`num-zap text-2xl ${low ? 'text-white' : wallet.balance < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{fmt(wallet.balance)}</span>
+      </div>
+      <p className={`mt-1 text-xs ${low ? 'text-white/85' : 'text-navy/55'}`}>
+        {low
+          ? 'رصيدك ما بيكفي، ما رح توصلك طلبات جديدة لحتى تشحن. تواصل مع الإدارة.'
+          : wallet.balance < 0
+            ? `عليك ${fmt(-wallet.balance)} للإدارة. عمولة التطبيق ${fmt(wallet.commission)} عن كل طلب.`
+            : `بيكفي لـ ${wallet.ordersLeft} طلب. عمولة التطبيق ${fmt(wallet.commission)} عن كل طلب واصل.`}
+      </p>
     </div>
   )
 }

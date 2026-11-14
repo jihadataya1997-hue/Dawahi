@@ -53,8 +53,9 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
   const openService = (id) => {
     const note = pausedNote(id)
     if (note) return setToast(note)
-    if (id === 'gas') setGasOpen(true)
-    else setCustom({ category: id, text: '' })
+    // الغاز والمازوت طلب توصيل متل أي طلب (منجيبه من المحل وبتدفع سعره عند الاستلام)
+    const preset = { gas: 'تبديل جرة غاز: جرة وحدة', diesel: 'تعبئة مازوت: ___ ليتر' }
+    setCustom({ category: id, text: preset[id] || '' })
   }
   const checkout = (cart) => {
     setStoreOpen(null)
@@ -64,7 +65,7 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
   const onBanner = (b) => {
     const note = pausedNote(b.action === 'gas' ? 'gas' : b.action === 'order' ? b.actionValue : null)
     if (note) return setToast(note)
-    if (b.action === 'gas') setGasOpen(true)
+    if (b.action === 'gas') setCustom({ category: 'gas', text: 'تبديل جرة غاز: جرة وحدة' })
     else if (b.action === 'order') setCustom({ category: b.actionValue || 'any', text: '' })
     else if (b.action === 'url' && b.actionValue) window.open(b.actionValue, '_blank', 'noopener')
   }
@@ -86,6 +87,7 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
             onBanner={onBanner}
             onOpenOrders={() => setTab('orders')}
             restaurants={<RestaurantsRow stores={stores} onOpen={setStoreOpen} />}
+            onReorder={(o) => setCustom({ category: o.category || 'any', text: o.details.items, store: o.details.storeName || '' })}
           />
         )}
         {tab === 'orders' && <OrdersScreen onStart={startOrder} />}
@@ -106,8 +108,8 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
         initialCategory={custom?.category}
         initialText={custom?.text}
         cart={custom?.cart}
+        initialStore={custom?.store}
         onClose={() => setCustom(null)}
-        onGas={() => (setCustom(null), setGasOpen(true))}
       />
     </div>
   )

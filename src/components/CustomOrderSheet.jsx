@@ -1,27 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   BookOpen,
-  Building2,
   Camera,
   Check,
-  ChevronLeft,
   Flame,
   Fuel,
-  Info,
+  Gift,
   LoaderCircle,
   MapPin,
   Minus,
-  Package,
   Pill,
   Plus,
-  ShoppingBag,
   ShoppingCart,
   Store,
   UtensilsCrossed,
   X,
+  Zap,
 } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
-import { Field, RowChoice, Stepper, Stepper2 } from './ui'
 import { useAuth } from '../auth/AuthProvider'
 import { useOrders } from '../orders/OrdersProvider'
 import { useAppConfig } from '../config/AppConfigProvider'
@@ -29,59 +25,64 @@ import CustomerPushCard from './CustomerPushCard'
 import PromoBox from './PromoBox'
 import { compressImage, newClientKey } from '../api'
 import { errorText } from '../i18n/errorText'
-import LocationPicker, { LocationField, loadLastLocation, mapsLink } from './LocationPicker'
+import LocationPicker, { LocationField, loadLastLocation } from './LocationPicker'
 import { useAddresses } from '../addresses/AddressesProvider'
-import { AddressChooser, SaveAddressBox, fromAddress } from '../addresses/AddressChooser'
+import { AddressChooser, fromAddress } from '../addresses/AddressChooser'
 
-const CATEGORIES = [
-  { id: 'any', Icon: ShoppingBag },
-  { id: 'restaurants', Icon: UtensilsCrossed },
-  { id: 'supermarket', Icon: ShoppingCart },
-  { id: 'pharmacy', Icon: Pill },
-  { id: 'library', Icon: BookOpen },
-  { id: 'diesel', Icon: Fuel },
-  { id: 'other', Icon: Package },
+// اختصارات فوق صندوق الكتابة: بتحدد نوع المحل وبتكتب بداية الطلب إذا الصندوق فاضي
+const QUICK = [
+  { id: 'gas', Icon: Flame, ar: 'تبديل جرة غاز', en: 'Gas swap', text: ['تبديل جرة غاز: جرة وحدة', 'Gas cylinder swap: 1 cylinder'] },
+  { id: 'diesel', Icon: Fuel, ar: 'تعبئة مازوت', en: 'Diesel', text: ['تعبئة مازوت: ___ ليتر', 'Diesel refill: ___ liters'] },
+  { id: 'pharmacy', Icon: Pill, ar: 'صيدلية', en: 'Pharmacy', text: ['', ''] },
+  { id: 'supermarket', Icon: ShoppingCart, ar: 'أغراض البيت', en: 'Groceries', text: ['', ''] },
+  { id: 'restaurants', Icon: UtensilsCrossed, ar: 'مطعم', en: 'Food', text: ['', ''] },
+  { id: 'library', Icon: BookOpen, ar: 'قرطاسية', en: 'Stationery', text: ['', ''] },
 ]
+const PH = {
+  any: ['اكتب شو بدك، مثلاً:\n٢ ربطة خبز، كيلو بندورة، علبة لبنة', 'Write what you need, e.g.:\n2 bread packs, 1kg tomatoes'],
+  gas: ['مثلاً: جرة وحدة، والبيت بلا مصعد', 'e.g. one cylinder, no elevator'],
+  diesel: ['كم ليتر بدك؟', 'How many liters?'],
+  pharmacy: ['اكتب اسم الدوا، أو صوّر الوصفة', 'Medicine name, or snap the prescription'],
+  supermarket: ['شو بدك من السوبرماركت أو الفرن؟', 'What do you need?'],
+  restaurants: ['شو بدك تاكل؟ ومن أي مطعم؟', 'What would you like to eat?'],
+  library: ['دفاتر، أقلام، طباعة...', 'Notebooks, pens, printing...'],
+}
 
 const blank = (category = 'any', items = '', phone = '') => ({
   category,
   items,
   photo: null,
-  storeMode: 'any', // any | specific
   storeName: '',
   location: loadLastLocation(),
   address: '',
   floor: 0,
   phone,
-  notes: '',
-  addressId: null, // عنوان محفوظ مختار، أو null = عنوان جديد
-  saveAddress: true,
-  saveLabel: 'البيت',
+  addressId: null,
 })
 
 /**
- * "اطلب أي شي" — الزبون يكتب طلبه بحرية، يحدد المحل إذا بدو،
- * وعامل التوصيل يشتري الأغراض ويوصلها. لا يحتاج محلات متعاقدة.
+ * طلب من شاشة وحدة: شو بدك + (اختياري) من وين + عنوانك المحفوظ → اطلب.
+ * عامل التوصيل بيشتري وبيوصل، والزبون بيدفع عند الاستلام.
  */
-export default function CustomOrderSheet({ open, initialCategory, initialText, cart, onClose, onConfirmed, onGas }) {
+export default function CustomOrderSheet({ open, initialCategory, initialText, initialStore, cart, onClose, onConfirmed }) {
   const { t, lang, formatNumber } = useLang()
+  const ar = lang === 'ar'
+  const L = (a, e) => (ar ? a : e)
   const { user } = useAuth()
   const { createOrder } = useOrders()
   const { pricing, money, services, peak } = useAppConfig()
   const { addresses, defaultAddress, add: addAddress } = useAddresses()
-  // الأقسام الموقّفة أو المخفية من الإدارة ما بتطلع بالاختيارات
-  const cats = CATEGORIES.filter(({ id }) => id === 'any' || id === 'other' || services.some((s) => s.id === id && !s.paused))
-  const gasOn = !!onGas && services.some((s) => s.id === 'gas' && !s.paused)
-  const dieselOn = services.some((s) => s.id === 'diesel' && !s.paused)
+  const quick = QUICK.filter((q) => services.some((s) => s.id === q.id && !s.paused))
   const [clientKey, setClientKey] = useState('')
   const [created, setCreated] = useState(null)
-  const c = (k) => t(`custom.${k}`)
-  const [step, setStep] = useState(0)
   const [order, setOrder] = useState(blank())
   const [perk, setPerk] = useState({ promoCode: '', usePoints: false, discount: 0 })
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [editAddress, setEditAddress] = useState(false)
+  const [showPromo, setShowPromo] = useState(false)
+  const [showPhone, setShowPhone] = useState(false)
   const fileRef = useRef(null)
   const set = (patch) => {
     setError('')
@@ -91,19 +92,20 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, c
   useEffect(() => {
     if (open) {
       setPerk({ promoCode: '', usePoints: false, discount: 0 })
-      setStep(0)
-      // العنوان الافتراضي المحفوظ بيتعبّى لحاله
       const b = cart
-        ? { ...blank('restaurants', '', user?.phone || ''), storeMode: 'specific', storeName: cart.storeName }
-        : blank(initialCategory || 'any', initialText || '', user?.phone || '')
+        ? { ...blank('restaurants', '', user?.phone || ''), storeName: cart.storeName }
+        : { ...blank(initialCategory || 'any', initialText || '', user?.phone || ''), storeName: initialStore || '' }
       setOrder(defaultAddress ? { ...b, ...fromAddress(defaultAddress) } : b)
+      setEditAddress(false)
+      setShowPromo(false)
+      setShowPhone(false)
       setStatus('idle')
       setError('')
       setCreated(null)
       setClientKey(newClientKey()) // مفتاح ثابت لهذا الطلب يمنع تكراره عند إعادة المحاولة
     }
     document.body.style.overflow = open ? 'hidden' : ''
-  }, [open, initialCategory, initialText, cart, user])
+  }, [open, initialCategory, initialText, initialStore, cart, user])
 
   if (!open) return null
 
@@ -119,15 +121,29 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, c
     }
   }
 
-  const next = () => {
-    if (step === 0 && !cart && !order.items.trim() && !order.photo) return setError(c('required'))
-    if (step === 1 && !order.location) return setError(t('map.required'))
-    if (step === 1 && order.phone.replace(/\s/g, '').length < 10) return setError(c('addressRequired'))
-    if (step < 2) return setStep(step + 1)
-    submit()
+  const pickQuick = (q) => {
+    const on = order.category === q.id
+    const preset = q.text[ar ? 0 : 1]
+    set({
+      category: on ? 'any' : q.id,
+      // الصندوق فاضي أو فيه نص اختصار تاني → منحط نص الاختصار الجديد
+      items: on ? (QUICK.some((x) => x.text.includes(order.items)) ? '' : order.items) : !order.items.trim() || QUICK.some((x) => x.text.includes(order.items)) ? preset : order.items,
+    })
   }
 
+  const savedAddress = addresses.find((a) => a.id === order.addressId)
+  const fee = Math.max(0, pricing.deliveryFee - perk.discount)
+
   const submit = async () => {
+    if (!cart && !order.items.trim() && !order.photo) return setError(L('اكتب شو بدك، أو صوّر الورقة', 'Write your order or add a photo'))
+    if (!order.location) {
+      setEditAddress(true)
+      return setError(t('map.required'))
+    }
+    if (order.phone.replace(/\s/g, '').length < 10) {
+      setShowPhone(true)
+      return setError(L('اكتب رقم موبايل صحيح', 'Enter a valid phone number'))
+    }
     setStatus('searching')
     try {
       const o = await createOrder({
@@ -136,23 +152,23 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, c
         category: order.category,
         items: order.items,
         photo: order.photo?.dataUrl,
-        storeMode: order.storeMode,
+        storeMode: order.storeName.trim() ? 'specific' : 'any',
         storeName: order.storeName,
         location: order.location,
         address: order.address,
         floor: order.floor,
         contactPhone: order.phone,
-        notes: order.notes,
+        notes: '',
         promoCode: perk.promoCode || undefined,
         usePoints: perk.usePoints || undefined,
         ...(cart ? { storeId: cart.storeId, cart: cart.lines.map((l) => ({ itemId: l.id, qty: l.qty })) } : {}),
       })
       setCreated(o)
       setStatus('found')
-      // أول مرة بيحدد عنوان جديد → منحفظه لطلباته الجاية
-      if (!order.addressId && order.saveAddress && order.location)
+      // أول عنوان بيتحفظ لحاله للطلبات الجاية
+      if (!order.addressId && order.location)
         addAddress({
-          label: order.saveLabel.trim() || (addresses.length ? `عنوان ${addresses.length + 1}` : 'البيت'),
+          label: addresses.length ? L(`عنوان ${addresses.length + 1}`, `Address ${addresses.length + 1}`) : L('البيت', 'Home'),
           location: order.location,
           details: order.address,
           floor: order.floor,
@@ -164,355 +180,192 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, c
     }
   }
 
+  const input = 'w-full rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none transition focus:border-brand focus:bg-white'
 
   return (
     <div className="fixed inset-0 z-50 mx-auto flex max-w-md flex-col justify-end">
       <div className="absolute inset-0 bg-navy/60 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
 
-      <div className="relative flex max-h-[94%] flex-col rounded-t-[2rem] bg-white animate-sheet-up">
-        <div className="flex justify-center pt-3">
-          <span className="h-1.5 w-12 rounded-full bg-navy/15" />
-        </div>
-        <div className="flex items-center justify-between px-5 pb-2 pt-3">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand">
-              <ShoppingBag size={22} />
-            </span>
-            <h2 className="text-lg font-extrabold">{c('title')}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-navy-50 text-navy/60 active:scale-95"
-          >
+      <div className="relative flex max-h-[95%] flex-col rounded-t-[2rem] bg-white animate-sheet-up">
+        <div className="flex items-center justify-between px-5 pb-1 pt-4">
+          <h2 className="text-xl font-black">{cart ? cart.storeName : L('شو بدك نجيبلك؟', 'What can we bring you?')}</h2>
+          <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full bg-navy-50 text-navy/60 active:scale-95">
             <X size={18} />
           </button>
         </div>
 
         {status === 'idle' ? (
           <>
-            <Stepper step={step} labels={c('steps')} />
-
-            <div className="scrollbar-hide flex-1 overflow-y-auto px-5 pb-4">
-              {step === 0 && cart && (
-                <div className="space-y-5 animate-fade-in">
-                  <div className="rounded-3xl bg-navy-50 p-4">
-                    <p className="flex items-center gap-2 text-sm font-black">
-                      <UtensilsCrossed size={17} className="text-brand" /> {cart.storeName}
-                    </p>
-                    <ul className="mt-3 space-y-2 text-sm">
-                      {cart.lines.map((l) => (
-                        <li key={l.id} className="flex items-center justify-between gap-3">
-                          <span>
-                            <b className="num-zap me-1 text-brand">{formatNumber(l.qty)}×</b> {l.name}
-                          </span>
-                          <span className="shrink-0 font-bold">{money(l.price * l.qty)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="mt-3 flex items-center justify-between border-t border-dashed border-navy/15 pt-3 text-sm font-black">
-                      <span>{lang === 'ar' ? 'مجموع الأكل' : 'Food total'}</span>
-                      <span className="text-brand">{money(cart.total)}</span>
-                    </div>
-                  </div>
-                  <Field label={lang === 'ar' ? 'ملاحظة للمطعم (اختياري)' : 'Note for the restaurant (optional)'}>
-                    <textarea
-                      rows={2}
-                      value={order.items}
-                      onChange={(e) => set({ items: e.target.value })}
-                      placeholder={lang === 'ar' ? 'مثلاً: بدون بصل، زيادة ثوم' : 'e.g. no onions'}
-                      className="w-full resize-none rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none focus:border-brand focus:bg-white"
-                    />
-                  </Field>
+            <div className="scrollbar-hide flex-1 space-y-4 overflow-y-auto px-5 pb-4 pt-2">
+              {cart ? (
+                <div className="rounded-3xl bg-navy-50 p-4">
+                  <ul className="space-y-2 text-sm">
+                    {cart.lines.map((l) => (
+                      <li key={l.id} className="flex items-center justify-between gap-3">
+                        <span>
+                          <b className="num-zap me-1 text-brand">{formatNumber(l.qty)}×</b> {l.name}
+                        </span>
+                        <span className="shrink-0 font-bold">{money(l.price * l.qty)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <textarea
+                    rows={1}
+                    value={order.items}
+                    onChange={(e) => set({ items: e.target.value })}
+                    placeholder={L('ملاحظة للمطعم (اختياري): بدون بصل...', 'Note for the restaurant (optional)')}
+                    className="mt-3 w-full resize-none rounded-xl border border-navy/10 bg-white p-3 text-sm outline-none focus:border-brand"
+                  />
                 </div>
-              )}
-
-              {step === 0 && !cart && (
-                <div className="space-y-6 animate-fade-in">
-                  {/* اختصارات سريعة: تبديل جرة غاز (بتفتح طلب الغاز) وتعبئة مازوت */}
-                  {(gasOn || dieselOn) && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {gasOn && (
-                        <button
-                          onClick={() => onGas?.()}
-                          className="flex items-center gap-2 rounded-2xl bg-lime px-3 py-3 text-start text-navy active:scale-[0.98]"
-                        >
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-navy text-lime"><Flame size={18} /></span>
-                          <span className="text-sm font-black leading-tight">{lang === 'ar' ? 'تبديل جرة غاز' : 'Swap gas cylinder'}</span>
-                        </button>
-                      )}
-                      {dieselOn && (
-                        <button
-                          onClick={() =>
-                            set({
-                              category: 'diesel',
-                              items: order.items.trim() ? order.items : lang === 'ar' ? 'تعبئة مازوت: ___ ليتر' : 'Diesel refill: ___ liters',
-                            })
-                          }
-                          className={`flex items-center gap-2 rounded-2xl px-3 py-3 text-start active:scale-[0.98] ${
-                            order.category === 'diesel' ? 'bg-brand text-white' : 'bg-navy text-white'
-                          }`}
-                        >
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15"><Fuel size={18} /></span>
-                          <span className="text-sm font-black leading-tight">{lang === 'ar' ? 'تعبئة مازوت' : 'Diesel refill'}</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <Field label={c('catQ')}>
+              ) : (
+                <>
+                  {quick.length > 0 && (
                     <div className="scrollbar-hide -mx-5 flex gap-2 overflow-x-auto px-5">
-                      {cats.map(({ id, Icon }) => {
-                        const on = order.category === id
+                      {quick.map((q) => {
+                        const on = order.category === q.id
+                        const hot = q.id === 'gas' || q.id === 'diesel'
                         return (
                           <button
-                            key={id}
-                            onClick={() => set({ category: id })}
-                            className={`flex shrink-0 items-center gap-1.5 rounded-full border-2 px-3.5 py-2 text-xs font-bold transition active:scale-95 ${
-                              on ? 'border-brand bg-brand text-white' : 'border-navy/10 text-navy/60'
+                            key={q.id}
+                            onClick={() => pickQuick(q)}
+                            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-extrabold transition active:scale-95 ${
+                              on ? 'bg-brand text-white' : hot ? 'bg-lime text-navy' : 'bg-navy-50 text-navy/70'
                             }`}
                           >
-                            <Icon size={15} />
-                            {t(`custom.cats.${id}`)}
+                            <q.Icon size={15} />
+                            {ar ? q.ar : q.en}
                           </button>
                         )
                       })}
                     </div>
-                  </Field>
+                  )}
 
-                  <Field label={c('itemsQ')}>
+                  <div className="rounded-3xl border-2 border-brand/25 bg-white focus-within:border-brand">
                     <textarea
-                      rows={5}
+                      autoFocus={!order.items}
+                      rows={4}
                       value={order.items}
                       onChange={(e) => set({ items: e.target.value })}
-                      placeholder={c('itemsPh')}
-                      className="w-full resize-none rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm leading-relaxed outline-none transition focus:border-brand focus:bg-white"
+                      placeholder={(PH[order.category] || PH.any)[ar ? 0 : 1]}
+                      className="block w-full resize-none rounded-t-3xl bg-transparent p-4 text-[15px] leading-relaxed outline-none"
                     />
                     <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} />
-                    {order.photo ? (
-                      <div className="mt-3 flex items-center gap-3 rounded-2xl bg-emerald-50 p-2.5">
-                        <img src={order.photo.url} alt="" className="h-12 w-12 rounded-xl object-cover" />
-                        <span className="flex-1 text-xs font-bold text-emerald-700">{c('attached')}</span>
-                        <button
-                          onClick={() => set({ photo: null })}
-                          aria-label="Remove photo"
-                          className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-navy/50"
-                        >
-                          <X size={16} />
+                    <div className="flex items-center gap-2 border-t border-navy/5 px-3 py-2">
+                      {order.photo ? (
+                        <span className="flex items-center gap-2">
+                          <img src={order.photo.url} alt="" className="h-10 w-10 rounded-lg object-cover" />
+                          <button onClick={() => set({ photo: null })} className="text-xs font-bold text-rose-600">
+                            {L('شيل الصورة', 'Remove')}
+                          </button>
+                        </span>
+                      ) : (
+                        <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-bold text-brand">
+                          <Camera size={17} /> {L('صوّر الورقة أو الوصفة', 'Snap a list or prescription')}
                         </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => fileRef.current?.click()}
-                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-navy/15 py-3 text-xs font-bold text-navy/60 active:scale-[0.98]"
-                      >
-                        <Camera size={18} className="text-brand" />
-                        {c('attach')}
-                      </button>
-                    )}
-                  </Field>
-
-                  <Field label={c('storeQ')}>
-                    <div className="space-y-3">
-                      <RowChoice
-                        active={order.storeMode === 'any'}
-                        onClick={() => set({ storeMode: 'any' })}
-                        Icon={MapPin}
-                        title={c('anyStore')}
-                        sub={c('anyStoreSub')}
-                      />
-                      <RowChoice
-                        active={order.storeMode === 'specific'}
-                        onClick={() => set({ storeMode: 'specific' })}
-                        Icon={Store}
-                        title={c('specificStore')}
-                        sub={c('specificStoreSub')}
-                      />
-                      {order.storeMode === 'specific' && (
-                        <input
-                          autoFocus
-                          value={order.storeName}
-                          onChange={(e) => set({ storeName: e.target.value })}
-                          placeholder={c('storePh')}
-                          className="w-full rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none transition focus:border-brand focus:bg-white animate-fade-in"
-                        />
                       )}
                     </div>
-                  </Field>
-                </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 rounded-2xl bg-navy-50 px-3.5">
+                    <Store size={17} className="shrink-0 text-navy/40" />
+                    <input
+                      value={order.storeName}
+                      onChange={(e) => set({ storeName: e.target.value })}
+                      placeholder={L('من محل معيّن؟ (اختياري، وإلا من أقرب محل)', 'Specific shop? (optional)')}
+                      className="min-w-0 flex-1 bg-transparent py-3.5 text-sm outline-none"
+                    />
+                  </label>
+                </>
               )}
 
-              {step === 1 && (
-                <div className="space-y-6 animate-fade-in">
-                  <Field label={c('addressQ')}>
+              {/* العنوان: المحفوظ بيطلع سطر وحدة، والتغيير عند الطلب */}
+              {savedAddress && !editAddress ? (
+                <button onClick={() => setEditAddress(true)} className="flex w-full items-center gap-3 rounded-2xl bg-navy-50 p-3 text-start">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-white">
+                    <MapPin size={19} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-extrabold">{L('بيوصل لـ', 'Deliver to')} {savedAddress.label}</span>
+                    <span className="block truncate text-xs text-navy/55">
+                      {[savedAddress.details, savedAddress.floor ? `${L('الطابق', 'Floor')} ${formatNumber(savedAddress.floor)}` : L('أرضي', 'Ground')]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs font-bold text-brand">{L('تغيير', 'Change')}</span>
+                </button>
+              ) : (
+                <div className="space-y-3 rounded-3xl bg-navy-50 p-3">
+                  <p className="px-1 text-sm font-extrabold">{L('وين بدك ياه؟', 'Where to?')}</p>
+                  {addresses.length > 0 && (
                     <AddressChooser
                       selectedId={order.addressId}
-                      onSelect={(a) => set(fromAddress(a))}
-                      onNew={() => set({ addressId: null, location: loadLastLocation(), address: '', floor: 0, saveLabel: addresses.length ? '' : 'البيت' })}
+                      onSelect={(a) => (set(fromAddress(a)), setEditAddress(false))}
+                      onNew={() => set({ addressId: null, location: loadLastLocation(), address: '', floor: 0 })}
                     />
-                    {(!addresses.length || order.addressId === null) && (
-                      <div className={addresses.length ? 'mt-3 space-y-3' : 'space-y-3'}>
-                        <LocationField value={order.location} onOpen={() => setPickerOpen(true)} />
-                        <textarea
-                          rows={2}
-                          value={order.address}
-                          onChange={(e) => set({ address: e.target.value })}
-                          placeholder={c('addressPh')}
-                          className="w-full resize-none rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none transition focus:border-brand focus:bg-white"
-                        />
-                        <SaveAddressBox save={order.saveAddress} label={order.saveLabel} onChange={set} />
+                  )}
+                  {(!addresses.length || order.addressId === null) && (
+                    <>
+                      <LocationField value={order.location} onOpen={() => setPickerOpen(true)} />
+                      <input value={order.address} onChange={(e) => set({ address: e.target.value })} placeholder={L('البناية، المدخل، علامة مميزة', 'Building, entrance, landmark')} className={`${input} bg-white`} />
+                      <div className="flex items-center justify-between rounded-2xl bg-white p-1.5">
+                        <button onClick={() => set({ floor: Math.max(0, order.floor - 1) })} aria-label="-" className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy-50">
+                          <Minus size={17} />
+                        </button>
+                        <span className="text-sm font-extrabold">{order.floor === 0 ? L('طابق أرضي', 'Ground floor') : `${L('الطابق', 'Floor')} ${formatNumber(order.floor)}`}</span>
+                        <button onClick={() => set({ floor: Math.min(15, order.floor + 1) })} aria-label="+" className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy-50">
+                          <Plus size={17} />
+                        </button>
                       </div>
-                    )}
-                  </Field>
-
-                  <Field label={c('floorQ')}>
-                    <div className="flex items-center justify-between rounded-2xl bg-navy-50 p-2">
-                      <Stepper2 onClick={() => set({ floor: Math.max(0, order.floor - 1) })} Icon={Minus} />
-                      <div className="flex items-center gap-2">
-                        <Building2 size={20} className="text-brand" />
-                        <span className="text-lg font-extrabold">
-                          {order.floor === 0 ? t('gas.ground') : `${t('gas.floor')} ${formatNumber(order.floor)}`}
-                        </span>
-                      </div>
-                      <Stepper2 onClick={() => set({ floor: Math.min(15, order.floor + 1) })} Icon={Plus} />
-                    </div>
-                  </Field>
-
-                  <Field label={c('phoneQ')}>
-                    <input
-                      type="tel"
-                      inputMode="tel"
-                      dir="ltr"
-                      value={order.phone}
-                      onChange={(e) => set({ phone: e.target.value.replace(/[^\d+ ]/g, '') })}
-                      placeholder="09xx xxx xxx"
-                      className="w-full rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-start font-en text-sm tracking-wider outline-none transition focus:border-brand focus:bg-white rtl:text-end"
-                    />
-                  </Field>
-
-                  <Field label={c('notesLabel')}>
-                    <textarea
-                      rows={2}
-                      value={order.notes}
-                      onChange={(e) => set({ notes: e.target.value })}
-                      placeholder={c('notesPh')}
-                      className="w-full resize-none rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none transition focus:border-brand focus:bg-white"
-                    />
-                  </Field>
+                    </>
+                  )}
                 </div>
               )}
 
-              {step === 2 && (
-                <div className="space-y-4 animate-fade-in">
-                  {/* ملخص الطلب */}
-                  <div className="rounded-3xl bg-navy-50 p-4">
-                    <div className="mb-2 flex items-center gap-2 text-xs font-bold text-brand">
-                      {(() => {
-                        const Icon = CATEGORIES.find((x) => x.id === order.category)?.Icon || ShoppingBag
-                        return <Icon size={14} />
-                      })()}
-                      {t(`custom.cats.${order.category}`)}
-                      <span className="text-navy/30">•</span>
-                      <span className="text-navy/60">
-                        {order.storeMode === 'specific' && order.storeName.trim() ? order.storeName : c('anyStore')}
-                      </span>
-                    </div>
-                    {order.items.trim() && (
-                      <p className="whitespace-pre-line text-sm leading-relaxed text-navy">{order.items}</p>
-                    )}
-                    {order.photo && (
-                      <img src={order.photo.url} alt="" className="mt-3 h-20 w-20 rounded-xl object-cover" />
-                    )}
-                    <div className="mt-3 flex items-start gap-1.5 border-t border-navy/10 pt-3 text-xs text-navy/60">
-                      <MapPin size={14} className="mt-0.5 shrink-0" />
-                      <span>
-                        {order.address || t('map.picked')}
-                        {order.floor > 0 && ` — ${t('gas.floor')} ${formatNumber(order.floor)}`}
-                        {order.location && (
-                          <a
-                            href={mapsLink(order.location)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="ms-1 font-bold text-brand underline"
-                          >
-                            ({t('map.view')})
-                          </a>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* كيف تمشي العملية */}
-                  <div>
-                    <h3 className="mb-3 text-sm font-extrabold">{c('howItWorks')}</h3>
-                    <ol className="space-y-2.5">
-                      {c('how').map((line, i) => (
-                        <li key={i} className="flex items-center gap-3 text-sm">
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-extrabold text-brand">
-                            {formatNumber(i + 1)}
-                          </span>
-                          {line}
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-
-                  <PromoBox fee={pricing.deliveryFee} value={perk} onChange={setPerk} />
-
-                  {/* الفاتورة */}
-                  <div className="rounded-3xl border border-navy/10 p-4 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-navy/70">{c('deliveryFee')}</span>
-                      <span className="font-bold">
-                        {perk.discount > 0 && <s className="me-2 text-xs font-normal text-navy/40">{money(pricing.deliveryFee)}</s>}
-                        {money(Math.max(0, pricing.deliveryFee - perk.discount))}
-                      </span>
-                    </div>
-                    {peak && (
-                      <p className="mt-1 text-[11px] font-bold text-brand">
-                        {lang === 'ar' ? `تشمل زيادة ${peak.label} (${money(peak.extra)})` : `Includes peak surcharge (${money(peak.extra)})`}
-                      </p>
-                    )}
-                    <div className="mt-3 flex items-center justify-between">
-                      <span className="text-navy/70">{c('itemsCost')}</span>
-                      <span className="font-bold text-brand">{cart ? money(cart.total) : c('itemsCostVal')}</span>
-                    </div>
-                    {cart && (
-                      <div className="mt-3 flex items-center justify-between border-t border-dashed border-navy/15 pt-3">
-                        <span className="font-extrabold">{lang === 'ar' ? 'المجموع' : 'Total'}</span>
-                        <span className="text-lg font-black text-brand">{money(cart.total + Math.max(0, pricing.deliveryFee - perk.discount))}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="flex items-start gap-2 rounded-2xl bg-brand-50 p-3 text-xs leading-relaxed text-navy/80">
-                    <Info size={16} className="mt-0.5 shrink-0 text-brand" />
-                    {c('disclaimer')}
-                  </p>
-                </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 px-1 text-xs font-bold">
+                {!showPhone && (
+                  <button onClick={() => setShowPhone(true)} className="text-navy/55">
+                    {L('بيتصل فيك على', 'Courier calls')} <span dir="ltr" className="font-en">{order.phone}</span> · <span className="text-brand">{L('رقم تاني؟', 'Change')}</span>
+                  </button>
+                )}
+                {!showPromo && perk.discount === 0 && !perk.usePoints && (
+                  <button onClick={() => setShowPromo(true)} className="flex items-center gap-1 text-brand">
+                    <Gift size={14} /> {L('عندك كود حسم أو نقاط؟', 'Promo code or points?')}
+                  </button>
+                )}
+              </div>
+              {showPhone && (
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  dir="ltr"
+                  value={order.phone}
+                  onChange={(e) => set({ phone: e.target.value.replace(/[^\d+ ]/g, '') })}
+                  placeholder="09xx xxx xxx"
+                  className={`${input} font-en tracking-wider rtl:text-end`}
+                />
               )}
+              {(showPromo || perk.discount > 0 || perk.usePoints) && <PromoBox fee={pricing.deliveryFee} value={perk} onChange={setPerk} />}
             </div>
 
-            {error && (
-              <p className="mx-5 mb-2 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600 animate-fade-in">
-                {error}
-              </p>
-            )}
+            {error && <p className="mx-5 mb-2 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600 animate-fade-in">{error}</p>}
 
-            <div className="pb-safe flex gap-3 border-t border-navy/5 bg-white px-5 py-4">
-              {step > 0 && (
-                <button
-                  onClick={() => setStep(step - 1)}
-                  className="rounded-2xl bg-navy-50 px-5 py-3.5 text-sm font-bold text-navy active:scale-95"
-                >
-                  {t('gas.back')}
-                </button>
-              )}
+            <div className="pb-safe border-t border-navy/5 bg-white px-5 pb-4 pt-3">
+              <div className="mb-3 flex items-center justify-between text-xs">
+                <span className="text-navy/60">
+                  {cart ? L('الأكل', 'Food') + ` ${money(cart.total)} + ` : L('ثمن الأغراض متل سعر المحل + ', 'Shop price + ')}
+                  {L('توصيل', 'delivery')}{' '}
+                  {perk.discount > 0 && <s className="text-navy/35">{money(pricing.deliveryFee)}</s>} <b className="text-navy">{money(fee)}</b>
+                  {peak ? <span className="text-brand"> · {peak.label}</span> : null}
+                </span>
+                <span className="font-bold text-navy/50">{L('الدفع عند الاستلام', 'Cash on delivery')}</span>
+              </div>
               <button
-                onClick={next}
-                className="flex flex-1 items-center justify-center gap-2 btn-zap bg-brand py-3.5 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_#4B1FE0] transition active:scale-[0.98]"
+                onClick={submit}
+                className="btn-zap flex w-full items-center justify-center gap-2 bg-navy py-4 text-[16px] font-black text-white transition active:scale-[0.98]"
               >
-                {step < 2 ? t('gas.next') : c('confirm')}
-                <ChevronLeft size={18} className="ltr:rotate-180" />
+                {cart ? `${L('اطلب', 'Order')} · ${money(cart.total + fee)}` : L('اطلب هلق', 'Order now')}
+                <Zap size={18} className="fill-lime text-lime" />
               </button>
             </div>
           </>
@@ -530,17 +383,14 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, c
               </>
             ) : (
               <>
-                <span className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
+                <span className="flex h-20 w-20 items-center justify-center rounded-full bg-lime text-navy">
                   <Check size={40} strokeWidth={3} />
                 </span>
-                <p className="mt-5 text-lg font-extrabold">{c('found')}</p>
-                {created && (
-                  <p className="mt-2 rounded-full bg-navy-50 px-4 py-1.5 font-en text-sm font-bold">
-                    {t('ordersExtra.orderNo')} {created.number}
-                  </p>
-                )}
-                <p className="mt-1 text-sm text-navy/60">{c('foundSub')}</p>
-                {/* أهم لحظة لتفعيل التنبيهات: لحتى يعرف أول ما يقبل العامل طلبه */}
+                <p className="mt-5 text-xl font-black">{L('وصل طلبك!', 'Order sent!')}</p>
+                {created && <p className="mt-2 rounded-full bg-navy-50 px-4 py-1.5 font-en text-sm font-bold">{created.number}</p>}
+                <p className="mt-2 text-sm text-navy/60">
+                  {L('عم ندوّرلك على عامل توصيل. أول ما يقبل بيطلعلك اسمه ورقمه.', "We're finding a courier. You'll see their name and number once they accept.")}
+                </p>
                 <div className="mt-4 w-full text-start">
                   <CustomerPushCard />
                 </div>
@@ -551,7 +401,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, c
                   }}
                   className="mt-6 w-full rounded-2xl bg-navy py-3.5 text-sm font-extrabold text-white active:scale-[0.98]"
                 >
-                  {t('gas.done')}
+                  {L('تابع طلبي', 'Track my order')}
                 </button>
               </>
             )}

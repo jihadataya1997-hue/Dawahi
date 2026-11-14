@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { AlertTriangle, ArrowLeftRight, LoaderCircle, MessageCircle, Phone, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeftRight, Ban, Copy, LoaderCircle, MapPin, MessageCircle, Phone, Share2, X } from 'lucide-react'
 import { api, errText } from './driverApi'
 
 const HOME = [33.5375, 36.2165]
@@ -28,6 +28,7 @@ export default function Supervisor() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [moving, setMoving] = useState(null) // الطلب يلي عم ينحوّل
+  const [detail, setDetail] = useState(null) // الطلب المفتوح بالتفاصيل
   const [busy, setBusy] = useState('')
 
   const load = useCallback(async () => {
@@ -119,6 +120,7 @@ export default function Supervisor() {
               const isLate = o.status === 'new' && m >= data.waitingAlertMin
               return (
                 <li key={o.id} className={`rounded-2xl bg-white p-3 shadow-soft ${isLate ? 'ring-2 ring-rose-500' : ''}`}>
+                  <button onClick={() => setDetail(o)} className="block w-full text-start">
                   <div className="flex items-center gap-2">
                     <span className="num-zap text-sm">{o.number}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${o.status === 'new' ? 'bg-rose-100 text-rose-700' : 'bg-brand-50 text-brand'}`}>
@@ -131,6 +133,8 @@ export default function Supervisor() {
                     {o.customer.name}
                     {o.courierName ? ` · مع ${o.courierName}` : o.offer ? ` · معروض على ${o.offer.to}` : ''}
                   </p>
+                  <span className="mt-1 block text-[11px] font-bold text-brand">التفاصيل والمشاركة ←</span>
+                  </button>
                   {['new', 'assigned'].includes(o.status) && (
                     <button
                       onClick={() => setMoving(o)}
@@ -183,6 +187,15 @@ export default function Supervisor() {
         </ul>
       </section>
 
+      {detail && (
+        <OrderDetail
+          base={detail}
+          onClose={() => setDetail(null)}
+          onMove={(o) => (setDetail(null), setMoving(o))}
+          onChanged={() => (setDetail(null), load())}
+        />
+      )}
+
       {moving && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-navy/50" onClick={() => setMoving(null)}>
           <div className="pb-safe max-h-[80%] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
@@ -220,6 +233,170 @@ export default function Supervisor() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// نص الطلب للنسخ أو الإرسال عالواتساب
+function shareText(o) {
+  const d = o.details || {}
+  const loc = o.location ? `https://maps.google.com/?q=${o.location.lat.toFixed(6)},${o.location.lng.toFixed(6)}` : ''
+  const lines = [
+    `🛵 طلب ZAPP ${o.number}`,
+    `الحالة: ${ORDER[o.status] || o.status}`,
+    '',
+    `الطلب: ${o.kind === 'gas' ? `غاز (${d.qty} جرة)` : d.items || 'طلب مرفق بصورة'}`,
+    d.storeName ? `المحل: ${d.storeName}` : 'المحل: أقرب محل مناسب',
+    d.itemsTotal ? `ثمن الأكل: ${new Intl.NumberFormat('en-US').format(d.itemsTotal)} ل.س` : '',
+    '',
+    `الزبون: ${o.customer?.name || ''}`,
+    o.contactPhone || o.customer?.phone ? `رقم الزبون: ${o.contactPhone || o.customer?.phone}` : '',
+    `العنوان: ${o.address || 'محدد عالخريطة'}${o.floor ? ` · الطابق ${o.floor}` : ' · أرضي'}`,
+    loc ? `الموقع: ${loc}` : '',
+    '',
+    `أجرة التوصيل: ${new Intl.NumberFormat('en-US').format(o.deliveryFee || 0)} ل.س`,
+    o.courierName ? `عامل التوصيل: ${o.courierName}${o.courierPhone ? ` (${o.courierPhone})` : ''}` : '',
+  ]
+  return lines.filter((l, i, a) => l !== '' || (a[i - 1] !== '' && i > 0)).join('\n').trim()
+}
+
+function OrderDetail({ base, onClose, onMove, onChanged }) {
+  const [o, setO] = useState(null)
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    api(`/sup/orders/${base.id}`)
+      .then((d) => setO(d.order))
+      .catch((e) => setError(errText(e)))
+  }, [base.id])
+
+  const text = o ? shareText(o) : ''
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const t = document.createElement('textarea')
+      t.value = text
+      document.body.appendChild(t)
+      t.select()
+      document.execCommand('copy')
+      t.remove()
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  const cancel = async () => {
+    setBusy(true)
+    try {
+      await api(`/sup/orders/${base.id}/cancel`, { method: 'POST', body: { reason } })
+      onChanged()
+    } catch (e) {
+      setError(errText(e))
+      setBusy(false)
+    }
+  }
+  const d = o?.details || {}
+  const phone = o?.contactPhone || o?.customer?.phone
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-navy/50" onClick={onClose}>
+      <div className="pb-safe max-h-[90%] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="num-zap text-lg">{base.number}</h3>
+          <button onClick={onClose} aria-label="إغلاق" className="flex h-9 w-9 items-center justify-center rounded-full bg-navy-50">
+            <X size={18} />
+          </button>
+        </div>
+        {error && <p className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-600">{error}</p>}
+        {!o ? (
+          !error && (
+            <div className="flex justify-center py-10 text-brand">
+              <LoaderCircle className="animate-spin" />
+            </div>
+          )
+        ) : (
+          <div className="mt-3 space-y-3 text-sm">
+            <div className="rounded-2xl bg-navy-50 p-3">
+              <p className="text-xs font-bold text-navy/50">{ORDER[o.status] || o.status} · {d.storeName || 'أقرب محل'}</p>
+              <p className="mt-1 whitespace-pre-line leading-relaxed">{o.kind === 'gas' ? `غاز (${d.qty} جرة)` : d.items || 'طلب مرفق بصورة'}</p>
+              {o.hasPhoto && <p className="mt-1 text-xs font-bold text-brand">📷 الطلب فيه صورة (بتبيّن بلوحة الإدارة)</p>}
+            </div>
+            <div className="flex items-center gap-3 rounded-2xl border border-navy/10 p-3">
+              <span className="min-w-0 flex-1">
+                <b className="block">{o.customer?.name}</b>
+                <span dir="ltr" className="font-en text-xs text-navy/55">{phone}</span>
+              </span>
+              {phone && (
+                <a href={`tel:${phone}`} aria-label="اتصال" className="flex h-9 w-9 items-center justify-center rounded-xl bg-lime text-navy">
+                  <Phone size={15} />
+                </a>
+              )}
+            </div>
+            <a
+              href={o.location ? `https://maps.google.com/?q=${o.location.lat},${o.location.lng}` : undefined}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-3 rounded-2xl border border-navy/10 p-3"
+            >
+              <MapPin size={18} className="shrink-0 text-brand" />
+              <span className="flex-1">
+                {o.address || 'محدد عالخريطة'}
+                <span className="block text-xs text-navy/50">{o.floor ? `الطابق ${o.floor}` : 'أرضي'} · افتح بالخريطة</span>
+              </span>
+            </a>
+            <p className="px-1 text-xs text-navy/55">
+              أجرة التوصيل {new Intl.NumberFormat('en-US').format(o.deliveryFee || 0)} ل.س
+              {o.courierName ? ` · مع ${o.courierName}` : ' · ما حدا قبله لسا'}
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={copy} className="flex items-center justify-center gap-1.5 rounded-xl bg-navy-50 py-3 text-xs font-bold">
+                <Copy size={15} /> {copied ? '✓ انتسخ' : 'نسخ الطلب'}
+              </button>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(text)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white"
+              >
+                <Share2 size={15} /> ابعته عالواتساب
+              </a>
+            </div>
+            {['new', 'assigned'].includes(o.status) && (
+              <button onClick={() => onMove(base)} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-navy py-3 text-xs font-bold text-white">
+                <ArrowLeftRight size={15} /> {o.status === 'new' ? 'سلّمه لعامل' : 'حوّله لعامل تاني'}
+              </button>
+            )}
+            {['new', 'assigned', 'buying', 'on_the_way'].includes(o.status) &&
+              (cancelling ? (
+                <div className="space-y-2 rounded-2xl bg-rose-50 p-3">
+                  <input
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    maxLength={200}
+                    placeholder="سبب الإلغاء (بيوصل للزبون)"
+                    className="w-full rounded-xl border border-rose-200 bg-white px-3 py-2.5 text-sm outline-none"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => setCancelling(false)} className="rounded-xl bg-white py-2.5 text-xs font-bold">
+                      رجوع
+                    </button>
+                    <button disabled={busy} onClick={cancel} className="flex items-center justify-center rounded-xl bg-rose-600 py-2.5 text-xs font-bold text-white">
+                      {busy ? <LoaderCircle size={14} className="animate-spin" /> : 'أكّد الإلغاء'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setCancelling(true)} className="flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold text-rose-600">
+                  <Ban size={15} /> إلغاء الطلب
+                </button>
+              ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

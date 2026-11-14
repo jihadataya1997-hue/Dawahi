@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        navy: { DEFAULT: '#1E0E4F', 50: '#F1EEFA', 100: '#DED7F2', 700: '#2D1A72', 900: '#130836' },
-        brand: { DEFAULT: '#4B1FE0', 50: '#F1EEFF', 100: '#DDD5FF', 600: '#3A12C6' },
+        navy: { DEFAULT: 'rgb(var(--c-navy) / <alpha-value>)', 50: 'rgb(var(--c-navy-50) / <alpha-value>)', 100: '#DED7F2', 700: '#2D1A72', 900: '#130836' },
+        brand: { DEFAULT: '#4B1FE0', 50: 'rgb(var(--c-brand-50) / <alpha-value>)', 100: '#DDD5FF', 600: '#3A12C6' },
         lime: { DEFAULT: '#C8F531', 50: '#F7FDE3', 600: '#A8D411' },
       },
       fontFamily: {

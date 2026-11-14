@@ -18,6 +18,7 @@
 //  - القبول: تحديث مشروط (الطلب لسا "جديد" وبلا شب + العرض لسا معلّق وما انتهى
 //    + حمولة الشب أقل من الحد) — إذا أي شرط فشل، القبول بيرفض بدل ما يتكرر.
 // ─────────────────────────────────────────────────────────────
+import { hasCredit, walletConfig } from './wallet.mjs'
 import { db, getSettings } from './db.mjs'
 import { distanceKm, log, now } from './lib.mjs'
 import { notify } from './push.mjs'
@@ -71,9 +72,11 @@ function pickCourier(order, max) {
 
   const here = { lat: order.lat, lng: order.lng }
   const scored = []
+  const wallet = walletConfig()
   for (const c of candidates) {
     const load = courierLoad(c.id)
     if (load >= max) continue
+    if (!hasCredit(c.id, load, wallet)) continue // رصيده خلص
     let nearestKm = null
     if (load > 0) {
       const drops = db.prepare(`SELECT lat, lng FROM orders WHERE courier_id = ? AND status IN ${OPEN}`).all(c.id)

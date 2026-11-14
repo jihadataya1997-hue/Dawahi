@@ -388,6 +388,25 @@ const MIGRATIONS = [
   ALTER TABLE couriers ADD COLUMN last_seen_at TEXT;
   ALTER TABLE staff ADD COLUMN last_seen_at TEXT;
   `,
+  `
+  -- الحسابات: رصيد مسبق لكل عامل توصيل، وعمولة التطبيق بتنخصم منه مع كل طلب واصل
+  ALTER TABLE couriers ADD COLUMN balance INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE courier_ledger (
+    id          INTEGER PRIMARY KEY,
+    courier_id  INTEGER NOT NULL REFERENCES couriers(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL CHECK (kind IN ('topup','commission','adjust')),
+    amount      INTEGER NOT NULL,           -- موجب = للعامل، سالب = عليه
+    order_id    INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+    note        TEXT NOT NULL DEFAULT '',
+    actor       TEXT NOT NULL DEFAULT '',
+    balance_after INTEGER NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE INDEX courier_ledger_courier ON courier_ledger(courier_id, created_at);
+  CREATE INDEX courier_ledger_created ON courier_ledger(created_at);
+  CREATE UNIQUE INDEX courier_ledger_order_commission ON courier_ledger(order_id) WHERE kind = 'commission';
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('commission_per_order', '50'), ('wallet_enabled', '0');
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

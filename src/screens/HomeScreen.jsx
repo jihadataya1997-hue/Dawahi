@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Zap, Bell, BookOpen, ChevronLeft, Flame, Fuel, MapPin, PencilLine, Pill, ShoppingCart, Truck, UtensilsCrossed } from 'lucide-react'
+import { Zap, Bell, BookOpen, ChevronLeft, Flame, Fuel, MapPin, PencilLine, Pill, RotateCcw, ShoppingCart, Truck, UtensilsCrossed } from 'lucide-react'
 import CourierCard from '../components/CourierCard'
 import BannerCarousel from '../components/BannerCarousel'
 import { useLang } from '../i18n/LanguageProvider'
@@ -11,7 +11,7 @@ import { OPEN_STATUSES, useOrders } from '../orders/OrdersProvider'
  * الصفحة الرئيسية — ترتيب واضح:
  * ١) الشريط العلوي + زر الطلب الرئيسي  ٢) الطلب الحالي (إن وجد)  ٣) الإعلانات  ٤) الخدمات  ٥) لماذا ZAPP
  */
-export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onService, onBanner, onOpenOrders, restaurants }) {
+export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onService, onBanner, onOpenOrders, onReorder, restaurants }) {
   const { t, lang, toggleLang } = useLang()
   const { areaName, services, pricing, money, peak, home = {} } = useAppConfig()
   const show = (k) => home[k] !== false // كل قسم ظاهر إلا إذا الإدارة خفته
@@ -27,9 +27,7 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
     paused(q.id)
       ? ar ? 'متوقف مؤقتاً' : 'Paused for now'
       : q.id === 'gas'
-        ? pricing.gasPrice
-          ? `${money(pricing.gasPrice)} ${ar ? 'للجرة' : 'each'}`
-          : ar ? 'تبديل لحد البيت' : 'Swap to your door'
+        ? ar ? 'منبدّلها ومنطلّعها لعندك' : 'We swap it to your door'
         : ar ? q.sub : q.enSub
 
   return (
@@ -92,6 +90,38 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
             </span>
           )}
         </button>
+
+        {/* اطلب نفس الطلب مرة تانية (بكبسة) */}
+        {(() => {
+          const seen = new Set()
+          const again = orders
+            .filter((o) => o.status === 'delivered' && o.kind === 'custom' && o.details?.items && !o.details?.cart)
+            .filter((o) => !seen.has(o.details.items) && seen.add(o.details.items))
+            .slice(0, 3)
+          if (!again.length) return null
+          return (
+            <section>
+              <h2 className="mb-2 text-sm font-black text-navy/70">{ar ? 'اطلب نفس الشي مرة تانية' : 'Order again'}</h2>
+              <div className="scrollbar-hide -mx-4 flex gap-2 overflow-x-auto px-4">
+                {again.map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => onReorder?.(o)}
+                    className="flex w-56 shrink-0 items-center gap-2.5 rounded-2xl bg-white p-3 text-start shadow-soft active:scale-[0.98]"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-lime text-navy">
+                      <RotateCcw size={16} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-2 text-xs font-bold leading-snug">{o.details.items}</span>
+                      {o.details.storeName && <span className="block truncate text-[10px] text-navy/45">{o.details.storeName}</span>}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )
+        })()}
 
         {/* ٣) الإعلانات الكبيرة: أول شي بيشوفه الزبون بعد صندوق الطلب */}
         {show('banners') && <BannerCarousel onAction={onBanner} placement="top" />}

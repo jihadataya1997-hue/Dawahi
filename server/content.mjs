@@ -9,7 +9,7 @@ import { notify } from './push.mjs'
 const SERVICE_IDS = ['restaurants', 'supermarket', 'gas', 'diesel', 'pharmacy', 'library']
 const THEMES = ['orange', 'navy', 'green', 'sky', 'rose', 'purple']
 const ACTIONS = ['none', 'order', 'gas', 'url']
-const CATEGORIES = ['any', 'restaurants', 'supermarket', 'pharmacy', 'library', 'diesel', 'other']
+const CATEGORIES = ['any', 'restaurants', 'supermarket', 'pharmacy', 'library', 'diesel', 'gas', 'other']
 const MAX_IMAGE = 1.5 * 1024 * 1024
 
 const toBanner = (b) => ({

@@ -1,7 +1,8 @@
 // واجهة تطبيق شب التوصيل — كل المسارات تحت /api/courier/
 import { awardPoints } from './promo.mjs'
+import { chargeCommission, courierWallet } from './wallet.mjs'
 import { courierLocation, markSeen } from './live.mjs'
-import { supervisorRoute } from './supervisor.mjs'
+import { supervisorRoute, supFeed } from './supervisor.mjs'
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -95,6 +96,7 @@ export async function courierRoute(req, res, url) {
   if (m === 'GET' && pathname === '/api/courier/me') {
     return send(res, 200, {
       courier: { id: me.id, name: me.name, phone: me.phone, online: !!me.online, supervisor: !!me.is_supervisor },
+      wallet: courierWallet(me.id),
       push: hasSubscription('courier', me.id),
       load: courierLoad(me.id),
       max: getSettings().max_orders_per_courier,
@@ -126,6 +128,7 @@ export async function courierRoute(req, res, url) {
       .all(me.id, now())
     return send(res, 200, {
       serverTime: now(),
+      ...(me.is_supervisor ? { sup: supFeed() } : {}),
       offers: rows.map((r) => {
         const o = toOrder(r)
         // قبل القبول: ما منعطي رقم الزبون ولا عنوانه التفصيلي
@@ -230,6 +233,7 @@ export async function courierRoute(req, res, url) {
     })
     if (to === 'delivered') nudge() // صار عندو مكان لطلب جديد
     if (to === 'delivered') awardPoints(id)
+    if (to === 'delivered') chargeCommission(id)
     if (to === 'delivered')
       notify('admin', 0, { title: `✅ تم توصيل D-${1000 + id}`, body: `بواسطة ${me.name}`, url: '/admin', tag: `order-${id}` })
     return send(res, 200, { order: forCourier(db.prepare(`${Q} WHERE o.id = ?`).get(id)) })

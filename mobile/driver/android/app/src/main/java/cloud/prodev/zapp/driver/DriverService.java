@@ -55,6 +55,11 @@ public class DriverService extends Service {
     private static final String PREFS = "zapp_driver";
     private static final String CH_ONLINE = "zapp_online";
     private static final String CH_OFFERS = "zapp_offers_ring";
+    private static final String CH_SUP = "zapp_supervisor";
+    private final Set<String> seenSup = new HashSet<>();
+    private final Set<String> seenLate = new HashSet<>();
+    private boolean supPrimed = false;
+    private boolean supervisorOffline = false;
     private static final int ID_ONLINE = 1001;
     private static final int ID_OFFER = 1002;
     private static final long POLL_SEC = 4;
@@ -196,12 +201,19 @@ public class DriverService extends Service {
             pollOffers(base, token);
             failures = 0;
             // كل دقيقة: إذا صار "غير متاح" (من التطبيق أو تلقائياً بعد تجاهل عروض) منوقف الخدمة
-            if (++ticks % 15 == 0) {
+            if (++ticks % 15 == 1) {
                 JSONObject me = new JSONObject(request("GET", base + "/api/courier/me", token, null)).optJSONObject("courier");
-                if (me != null && !me.optBoolean("online", true)) {
+                boolean sup = me != null && me.optBoolean("supervisor", false);
+                if (me != null && !me.optBoolean("online", true) && !sup) {
                     saveConfig(this, null, null, false);
                     main.post(this::stopSelf);
                     return;
+                }
+                boolean off = me != null && !me.optBoolean("online", true);
+                if (off != supervisorOffline) {
+                    supervisorOffline = off;
+                    NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                    if (nm != null) nm.notify(ID_ONLINE, onlineNotification());
                 }
             }
         } catch (Unauthorized u) {
@@ -245,9 +257,53 @@ public class DriverService extends Service {
         }
         seenOffers.clear();
         seenOffers.addAll(current);
+        JSONArray sup = new JSONObject(res).optJSONArray("sup");
+        if (sup != null) handleSupervisor(sup);
         final JSONObject offer = fresh;
         if (offer != null && !appVisible) main.post(() -> ring(offer));
         if (current.isEmpty()) main.post(this::stopRing);
+    }
+
+    /* ───────── وضع المشرف: إشعار بكل طلب جديد وبالطلبات يلي ضلت بلا عامل ───────── */
+    private void handleSupervisor(JSONArray list) {
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject o = list.optJSONObject(i);
+            if (o == null) continue;
+            String id = o.optString("id");
+            String number = o.optString("number");
+            String summary = o.optString("summary");
+            // أول مرة بعد التشغيل: منعتبر الموجود مشاف (ما منغرّق المشرف بإشعارات قديمة)
+            if (!seenSup.contains(id)) {
+                seenSup.add(id);
+                if (supPrimed) supNotify(id.hashCode(), "🔔 طلب جديد " + number, summary);
+            }
+            if (o.optBoolean("waiting", false) && !seenLate.contains(id)) {
+                seenLate.add(id);
+                if (supPrimed) supNotify(id.hashCode() + 7, "⚠️ " + number + " بدون عامل توصيل", "صرلو أكتر من 5 دقايق وما حدا قبله. افتح وضع المشرف وحوّله.");
+            }
+        }
+        supPrimed = true;
+        if (seenSup.size() > 500) seenSup.clear();
+        if (seenLate.size() > 500) seenLate.clear();
+    }
+
+    private void supNotify(int id, String title, String text) {
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        Notification n = new NotificationCompat.Builder(this, CH_SUP)
+            .setSmallIcon(R.drawable.ic_stat_zapp)
+            .setColor(0xFF4B1FE0)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setAutoCancel(true)
+            .setContentIntent(openAppIntent())
+            .build();
+        try {
+            nm.notify(2000 + Math.abs(id % 100000), n);
+        } catch (Exception ignored) {}
     }
 
     private static class Unauthorized extends Exception {}
@@ -401,8 +457,8 @@ public class DriverService extends Service {
         return new NotificationCompat.Builder(this, CH_ONLINE)
             .setSmallIcon(R.drawable.ic_stat_zapp)
             .setColor(0xFF4B1FE0)
-            .setContentTitle("أنت متاح لاستقبال الطلبات")
-            .setContentText("بيرنّ الموبايل أول ما يجيك طلب، حتى والتطبيق مسكّر")
+            .setContentTitle(supervisorOffline ? "وضع المشرف شغّال" : "أنت متاح لاستقبال الطلبات")
+            .setContentText(supervisorOffline ? "بيوصلك إشعار بكل طلب جديد، حتى والتطبيق مسكّر" : "بيرنّ الموبايل أول ما يجيك طلب، حتى والتطبيق مسكّر")
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(openAppIntent())
@@ -425,6 +481,10 @@ public class DriverService extends Service {
         offers.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         offers.setBypassDnd(true);
         nm.createNotificationChannel(offers);
+        NotificationChannel supCh = new NotificationChannel(CH_SUP, "المشرف: طلبات جديدة", NotificationManager.IMPORTANCE_HIGH);
+        supCh.setDescription("إشعار بكل طلب جديد وبالطلبات يلي ضلت بلا عامل توصيل");
+        supCh.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        nm.createNotificationChannel(supCh);
     }
 
     @Override

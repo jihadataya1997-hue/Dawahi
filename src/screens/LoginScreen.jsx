@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { ChevronLeft, KeyRound, LoaderCircle, Phone, UserRound } from 'lucide-react'
 import { useAppConfig } from '../config/AppConfigProvider'
 import { errorText } from '../i18n/errorText'
-import { LogoMark } from '../components/Logo'
 import { useLang } from '../i18n/LanguageProvider'
 import { isValidSyrianMobile, useAuth } from '../auth/AuthProvider'
 
@@ -35,22 +34,33 @@ export default function LoginScreen() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col bg-brand">
-      {/* الجزء العلوي */}
-      <div className="speed-bg pt-safe relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 pb-10 text-center">
-        <div className="pointer-events-none absolute -end-20 -top-20 h-64 w-64 rounded-full bg-lime/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -start-16 h-56 w-56 rounded-full bg-white/5" />
-        <button
-          onClick={toggleLang}
-          className="absolute end-4 top-4 mt-[env(safe-area-inset-top)] rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white active:scale-95"
+    <div className="mx-auto flex h-full max-w-md flex-col overflow-y-auto bg-brand">
+      {/* الرأس: نفس بوستر الضاحية بالواجهة */}
+      <div className="pt-safe relative shrink-0 overflow-hidden px-6 pb-9 text-white">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -start-6 top-12 select-none whitespace-pre text-[86px] font-black leading-[0.95] text-transparent opacity-[0.2]"
+          style={{ WebkitTextStroke: '1.5px #fff' }}
         >
-          {lang === 'ar' ? 'English' : 'عربي'}
-        </button>
-        <img src="/wordmark.webp" alt="ZAPP Delivery" className="relative w-[78%] max-w-xs" />
+          {lang === 'ar' ? 'ضاحية\nقدسيا' : 'Qudsaya\nSuburb'}
+        </span>
+        <div className="relative flex items-center justify-between pt-4">
+          <img src="/wordmark.webp" alt="ZAPP Delivery" className="h-10 w-auto" />
+          <button onClick={toggleLang} className="rounded-full bg-white/15 px-4 py-2 text-xs font-bold active:scale-95">
+            {lang === 'ar' ? 'English' : 'عربي'}
+          </button>
+        </div>
+        <div className="relative mt-9">
+          <p className="text-sm font-bold text-white/75">{lang === 'ar' ? 'التوصيل لكل بيت بـ' : 'Delivery to every home in'}</p>
+          <h1 className="text-[34px] font-black leading-tight">{lang === 'ar' ? 'ضاحية قدسيا' : 'Qudsaya Suburb'}</h1>
+          <span className="mt-1 inline-block -rotate-2 rounded-xl bg-lime px-3 pb-1 text-[28px] font-black leading-tight text-navy">
+            {lang === 'ar' ? 'بإيدك.' : 'in your hand.'}
+          </span>
+        </div>
       </div>
 
       {/* نموذج الدخول */}
-      <form onSubmit={submit} className="pb-safe rounded-t-[2rem] bg-white px-6 pb-8 pt-8 animate-sheet-up">
+      <form onSubmit={submit} className="pb-safe flex-1 rounded-t-[2rem] bg-white px-6 pb-8 pt-7 animate-sheet-up">
         <h2 className="text-xl font-extrabold">{t('auth.welcome')}</h2>
         <p className="mt-1 text-sm text-navy/60">{t('auth.sub')}</p>
 

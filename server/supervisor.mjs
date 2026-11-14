@@ -1,7 +1,8 @@
 // وضع المشرف داخل تطبيق السائقين: يشوف السائقين والطلبات، يحوّل الطلبات، ويعمل السائق متاح/غير متاح
 // (إلغاء الطلبات بيضل للإدارة بس)
 import { db } from './db.mjs'
-import { HttpError, bad, now, readJson, send, log } from './lib.mjs'
+import { HttpError, bad, now, readJson, send, log, toOrder } from './lib.mjs'
+import { releasePerks } from './promo.mjs'
 import { notify } from './push.mjs'
 import { cancelOffers, nudge } from './dispatch.mjs'
 import { liveSnapshot } from './live.mjs'
@@ -18,6 +19,54 @@ export async function supervisorRoute(req, res, url, me) {
     const snap = liveSnapshot()
     // المشرف ما بيحتاج أرقام المبيعات
     return send(res, 200, { at: snap.at, couriers: snap.couriers, active: snap.active, waitingAlertMin: ALERT_AFTER_MIN })
+  }
+
+  // تفاصيل الطلب الكاملة (مع رقم الزبون وعنوانه) لحتى ينسخها أو يبعتها
+  let dm = /^\/api\/courier\/sup\/orders\/(\d{1,12})$/.exec(pathname)
+  if (dm && m === 'GET') {
+    const row = db
+      .prepare('SELECT o.*, c.name AS customer_name, c.phone AS customer_phone FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.id = ?')
+      .get(Number(dm[1]))
+    if (!row) throw new HttpError(404, 'NOT_FOUND', 'Order not found')
+    const events = db.prepare('SELECT status, actor, created_at FROM order_events WHERE order_id = ? ORDER BY id').all(row.id)
+    return send(res, 200, {
+      order: { ...toOrder(row, events), customer: { name: row.customer_name, phone: row.customer_phone }, courierPhone: row.courier_phone || '' },
+    })
+  }
+
+  // إلغاء طلب
+  dm = /^\/api\/courier\/sup\/orders\/(\d{1,12})\/cancel$/.exec(pathname)
+  if (dm && m === 'POST') {
+    const id = Number(dm[1])
+    const body = await readJson(req)
+    const reason = String(body.reason || '').trim().slice(0, 200)
+    const row = db.prepare('SELECT * FROM orders WHERE id = ?').get(id)
+    if (!row) throw new HttpError(404, 'NOT_FOUND', 'Order not found')
+    if (!['new', 'assigned', 'buying', 'on_the_way'].includes(row.status)) throw new HttpError(409, 'TOO_LATE', 'Order is already finished')
+    const ts = now()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      const r = db.prepare(`UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = ?`).run(ts, id, row.status)
+      if (r.changes !== 1) throw new HttpError(409, 'CHANGED', 'Order was changed, refresh')
+      db.prepare('INSERT INTO order_events (order_id, status, actor, created_at) VALUES (?, ?, ?, ?)').run(id, 'cancelled', `supervisor:${me.id}`, ts)
+      releasePerks(id)
+      db.exec('COMMIT')
+    } catch (err) {
+      db.exec('ROLLBACK')
+      throw err
+    }
+    cancelOffers(id)
+    log('info', 'order cancelled by supervisor', { orderId: id, supervisorId: me.id, reason })
+    notify('customer', row.customer_id, {
+      title: `ZAPP: انلغى الطلب ${num(id)}`,
+      body: reason ? `السبب: ${reason}` : 'تواصل معنا إذا عندك أي سؤال',
+      url: '/',
+      tag: `order-${id}`,
+    })
+    if (row.courier_id) notify('courier', row.courier_id, { title: `❌ انلغى ${num(id)}`, body: `المشرف ${me.name} لغى هالطلب`, url: '/driver', tag: `order-${id}` })
+    notify('admin', 0, { title: `❌ ${num(id)} انلغى`, body: `ألغاه المشرف ${me.name}${reason ? `: ${reason}` : ''}`, url: '/admin', tag: `order-${id}` })
+    nudge()
+    return send(res, 200, { ok: true })
   }
 
   // تحويل طلب لسائق تاني (قبل ما يبلّش يشتري)
@@ -100,4 +149,34 @@ export function startSupervisorAlerts() {
       log('error', 'supervisor alerts failed', { err: err.message })
     }
   }, 60_000).unref()
+}
+
+// إشعار لكل المشرفين بكل طلب جديد (للمتصفح؛ تطبيق الأندرويد بيعرف من supFeed)
+export function notifySupervisors(row, customerName) {
+  try {
+    const sups = db.prepare('SELECT id FROM couriers WHERE is_supervisor = 1 AND active = 1').all()
+    const d = JSON.parse(row.details || '{}')
+    const what = row.kind === 'gas' ? `غاز (${d.qty} جرة)` : String(d.items || 'طلب مرفق بصورة').slice(0, 80)
+    for (const s of sups) notify('courier', s.id, { title: `🔔 طلب جديد ${num(row.id)}`, body: `${customerName}: ${what}`, url: '/driver', tag: `sup-new-${row.id}` })
+  } catch (err) {
+    log('error', 'notify supervisors failed', { err: err.message })
+  }
+}
+
+/** للخدمة بالخلفية (أندرويد): الطلبات الجديدة آخر نص ساعة + يلي ضلت بلا عامل */
+export function supFeed() {
+  const since = new Date(Date.now() - 30 * 60_000).toISOString()
+  const late = new Date(Date.now() - ALERT_AFTER_MIN * 60_000).toISOString()
+  return db
+    .prepare(`SELECT id, kind, details, created_at, status, courier_id FROM orders WHERE created_at >= ? AND status != 'cancelled' ORDER BY id`)
+    .all(since)
+    .map((r) => {
+      const d = JSON.parse(r.details || '{}')
+      return {
+        id: r.id,
+        number: num(r.id),
+        summary: r.kind === 'gas' ? `غاز (${d.qty} جرة)` : String(d.items || 'طلب مرفق بصورة').slice(0, 80),
+        waiting: r.status === 'new' && !r.courier_id && r.created_at <= late,
+      }
+    })
 }

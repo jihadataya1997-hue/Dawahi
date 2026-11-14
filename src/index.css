@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ألوان قابلة للتبديل (الوضع الليلي) */
+:root {
+  --c-navy: 30 14 79;
+  --c-navy-50: 241 238 250;
+  --c-brand-50: 241 238 255;
+}
+
 @layer base {
   html,
   body,
@@ -110,4 +117,66 @@ html.app-shell #root {
 }
 .leaflet-tooltip.dawahi-label::before {
   display: none;
+}
+
+/* الخرائط ما لازم تطلع فوق النوافذ (تفاصيل الطلب وغيرها) */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+}
+
+/* ───── الوضع الليلي: تطبيق الزبون والسائق بيمشوا حسب إعداد الموبايل ─────
+   الكحلي بيصير لون الكتابة الفاتح، والأسطح البيضاء بتصير بنفسجي غامق */
+@media (prefers-color-scheme: dark) {
+  html[data-theme='auto'] {
+    --c-navy: 236 232 252;
+    --c-navy-50: 45 33 92;
+    --c-brand-50: 58 36 140;
+    color-scheme: dark;
+  }
+  html[data-theme='auto'],
+  html[data-theme='auto'] body,
+  html[data-theme='auto'] #root {
+    background-color: #120a2e;
+  }
+  html[data-theme='auto'] .bg-white,
+  html[data-theme='auto'] .bg-\[\#F5F7FA\],
+  html[data-theme='auto'] .bg-\[\#F6F5FB\],
+  html[data-theme='auto'] .bg-\[\#F3F5F9\] {
+    background-color: #1d1442;
+  }
+  html[data-theme='auto'] .border-\[\#F6F5FB\] {
+    border-color: #1d1442;
+  }
+  /* الأسطح الكحلية (رؤوس، أزرار) بتضل غامقة */
+  html[data-theme='auto'] .bg-navy {
+    background-color: #2c1c72;
+  }
+  html[data-theme='auto'] .bg-navy\/60,
+  html[data-theme='auto'] .bg-navy\/50,
+  html[data-theme='auto'] .bg-navy\/40 {
+    background-color: rgb(4 2 14 / 0.7);
+  }
+  /* جزر الأخضر الفاتح: الكتابة عليها بتضل كحلية */
+  html[data-theme='auto'] .bg-lime,
+  html[data-theme='auto'] .bg-lime\/20 {
+    --c-navy: 30 14 79;
+  }
+  html[data-theme='auto'] .text-brand {
+    color: #a993ff;
+  }
+  html[data-theme='auto'] .bg-rose-50 { background-color: rgb(244 63 94 / 0.16); }
+  html[data-theme='auto'] .bg-emerald-50 { background-color: rgb(16 185 129 / 0.16); }
+  html[data-theme='auto'] .bg-amber-50 { background-color: rgb(245 158 11 / 0.16); }
+  html[data-theme='auto'] .bg-sky-50 { background-color: rgb(14 165 233 / 0.16); }
+  html[data-theme='auto'] .bg-emerald-100 { background-color: rgb(16 185 129 / 0.22); }
+  html[data-theme='auto'] .bg-amber-100 { background-color: rgb(245 158 11 / 0.22); }
+  html[data-theme='auto'] .bg-rose-100 { background-color: rgb(244 63 94 / 0.22); }
+  html[data-theme='auto'] .text-rose-600,
+  html[data-theme='auto'] .text-rose-700 { color: #fb7190; }
+  html[data-theme='auto'] .text-emerald-600,
+  html[data-theme='auto'] .text-emerald-700 { color: #34d399; }
+  html[data-theme='auto'] .text-amber-600,
+  html[data-theme='auto'] .text-amber-700 { color: #fbbf24; }
+  html[data-theme='auto'] .shadow-soft { box-shadow: 0 4px 20px -8px rgb(0 0 0 / 0.5); }
 }

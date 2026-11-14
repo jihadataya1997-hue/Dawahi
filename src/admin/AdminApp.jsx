@@ -1,4 +1,5 @@
 import Promos from './Promos'
+import Accounts from './Accounts'
 import Stores from './Stores'
 import CourierProfile from './CourierProfile'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
@@ -36,6 +37,7 @@ import {
   X,
   Gift,
   UtensilsCrossed,
+  Wallet,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import { disablePush, enablePush, pushState, registerSW } from '../push'
@@ -209,6 +211,7 @@ const ALL_NAV = [
   { id: 'content', label: 'محتوى التطبيق', Icon: PanelsTopLeft, perm: 'content.manage' },
   { id: 'control', label: 'التحكم بالتطبيق', Icon: SlidersHorizontal, perm: ['content.manage', 'pricing.manage'] },
   { id: 'prices', label: 'الأسعار والتوزيع', Icon: Tag, perm: 'pricing.manage' },
+  { id: 'accounts', label: 'الحسابات', Icon: Wallet, perm: 'accounts.manage' },
   { id: 'promos', label: 'كودات الحسم والنقاط', Icon: Gift, perm: 'pricing.manage' },
   { id: 'team', label: 'الفريق والصلاحيات', Icon: ShieldCheck, perm: 'staff.manage' },
   { id: 'backups', label: 'النسخ الاحتياطي', Icon: Database, perm: 'backups.manage' },
@@ -347,6 +350,7 @@ function Shell({ me, onLogout }) {
           {section === 'couriers' && <Couriers />}
           {section === 'customers' && <Customers />}
           {section === 'promos' && <Promos />}
+          {section === 'accounts' && <Accounts />}
           {section === 'stores' && <Stores />}
           {section === 'banners' && <Banners />}
           {section === 'announce' && <Announcements />}

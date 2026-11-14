@@ -11,6 +11,7 @@ import { contentAdminRoute } from './content.mjs'
 import { markSeen } from './live.mjs'
 import { adminStoresRoute } from './stores.mjs'
 import { courierProfileRoute } from './courierProfile.mjs'
+import { adminWalletRoute, chargeCommission } from './wallet.mjs'
 import { adminPromoRoute, awardPoints, releasePerks } from './promo.mjs'
 import { liveSnapshot } from './live.mjs'
 
@@ -70,6 +71,7 @@ export const PERMISSIONS = {
   'customers.manage': 'إيقاف الزبائن',
   'content.manage': 'الإعلانات والإشعارات ومحتوى التطبيق',
   'pricing.manage': 'الأسعار والتوزيع التلقائي',
+  'accounts.manage': 'الحسابات ورصيد عمال التوصيل',
   'backups.manage': 'النسخ الاحتياطي',
   'staff.manage': 'إدارة الفريق والصلاحيات',
 }
@@ -389,6 +391,7 @@ export async function adminRoute(req, res, url) {
     if (to === 'assigned' && courierId) db.prepare('UPDATE couriers SET last_assigned_at = ? WHERE id = ?').run(ts, courierId)
     if (to === 'new' || to === 'delivered' || to === 'cancelled') nudge()
     if (to === 'delivered') awardPoints(id)
+    if (to === 'delivered') chargeCommission(id)
     if (to === 'cancelled') releasePerks(id)
     const num = `D-${1000 + id}`
     if (to === 'assigned' && courierId) {
@@ -571,6 +574,7 @@ export async function adminRoute(req, res, url) {
   if (await adminPromoRoute(req, res, url, need)) return
   if (await adminStoresRoute(req, res, url, need)) return
   if (await courierProfileRoute(req, res, url, need)) return
+  if (await adminWalletRoute(req, res, url, need, me)) return
 
   throw new HttpError(404, 'NOT_FOUND', 'Not found')
 }

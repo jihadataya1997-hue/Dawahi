@@ -1,6 +1,6 @@
 // سيرفر ضواحي — Node.js بدون مكتبات خارجية
 // تشغيل: node server/server.mjs   (المنفذ PORT، مكان البيانات DATA_DIR)
-import { startSupervisorAlerts } from './supervisor.mjs'
+import { startSupervisorAlerts, notifySupervisors } from './supervisor.mjs'
 import { createServer } from 'node:http'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -29,7 +29,7 @@ const MAX_PHOTO = 2.5 * 1024 * 1024
 const SERVICE_CENTER = { lat: 33.5335, lng: 36.2235 }
 const SERVICE_RADIUS_KM = 25
 
-const CATEGORIES = ['any', 'restaurants', 'supermarket', 'pharmacy', 'library', 'diesel', 'other']
+const CATEGORIES = ['any', 'restaurants', 'supermarket', 'pharmacy', 'library', 'diesel', 'gas', 'other']
 const FINAL = ['delivered', 'cancelled']
 
 /* ───────── الحسابات والجلسات ───────── */
@@ -199,6 +199,7 @@ async function createOrder(req, res, user) {
     url: '/admin',
     tag: `order-${row.id}`,
   })
+  notifySupervisors(row, user.name)
   send(res, 201, { order: toOrder(row) })
   // توزيع فوري على أنسب شب
   setImmediate(() => {
