@@ -48,6 +48,7 @@ const DISPATCH_KEYS = {
   autoDispatch: ['auto_dispatch', 0, 1],
   offerTimeoutSec: ['offer_timeout_sec', 15, 600],
   maxOrdersPerCourier: ['max_orders_per_courier', 1, 10],
+  maxMissedOffers: ['max_missed_offers', 0, 20],
 }
 
 // كلمة سر المالك: إذا غيّرها من اللوحة بتنحفظ مشفّرة بالقاعدة، وإلا منستعمل الأصلية من السيرفر

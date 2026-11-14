@@ -1492,10 +1492,22 @@ function DispatchSettings() {
             className="mt-1 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-end font-en font-bold outline-none focus:border-brand focus:bg-white"
           />
         </label>
+        <label className="col-span-2 block">
+          <span className="text-xs font-bold">العامل بيصير "غير متاح" تلقائياً إذا ما ردّ على كم طلب ورا بعض؟ (0 = أبداً)</span>
+          <input
+            inputMode="numeric"
+            dir="ltr"
+            value={v.maxMissedOffers ?? 3}
+            onChange={(e) => setV({ ...v, maxMissedOffers: e.target.value.replace(/\D/g, '') })}
+            className="mt-1 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-end font-en font-bold outline-none focus:border-brand focus:bg-white"
+          />
+        </label>
       </div>
       {error && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600">{error}</p>}
       <button
-        onClick={() => save({ offerTimeoutSec: Number(v.offerTimeoutSec), maxOrdersPerCourier: Number(v.maxOrdersPerCourier) })}
+        onClick={() =>
+          save({ offerTimeoutSec: Number(v.offerTimeoutSec), maxOrdersPerCourier: Number(v.maxOrdersPerCourier), maxMissedOffers: Number(v.maxMissedOffers ?? 3) })
+        }
         disabled={busy}
         className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-navy py-3 text-sm font-bold text-white disabled:opacity-60"
       >

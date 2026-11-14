@@ -60,6 +60,7 @@ public class DriverService extends Service {
     private final Set<String> seenLate = new HashSet<>();
     private boolean supPrimed = false;
     private boolean supervisorOffline = false;
+    private boolean wasOnline = false;
     private static final int ID_ONLINE = 1001;
     private static final int ID_OFFER = 1002;
     private static final long POLL_SEC = 4;
@@ -204,6 +205,10 @@ public class DriverService extends Service {
             if (++ticks % 15 == 1) {
                 JSONObject me = new JSONObject(request("GET", base + "/api/courier/me", token, null)).optJSONObject("courier");
                 boolean sup = me != null && me.optBoolean("supervisor", false);
+                boolean nowOnline = me == null || me.optBoolean("online", true);
+                // انوقف استقباله للطلبات وهو مسكّر التطبيق (من الإدارة أو لأنه ما ردّ على كذا طلب) → منخبّره
+                if (wasOnline && !nowOnline && !appVisible) offlineNotice();
+                wasOnline = nowOnline;
                 if (me != null && !me.optBoolean("online", true) && !sup) {
                     saveConfig(this, null, null, false);
                     main.post(this::stopSelf);
@@ -285,6 +290,24 @@ public class DriverService extends Service {
         supPrimed = true;
         if (seenSup.size() > 500) seenSup.clear();
         if (seenLate.size() > 500) seenLate.clear();
+    }
+
+    private void offlineNotice() {
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        Notification n = new NotificationCompat.Builder(this, CH_SUP)
+            .setSmallIcon(R.drawable.ic_stat_zapp)
+            .setColor(0xFF4B1FE0)
+            .setContentTitle("⏸ توقّف استقبال الطلبات")
+            .setContentText("صرت غير متاح (يمكن ما رديت على كذا طلب). افتح التطبيق وشغّل \"متاح\" لترجع توصلك طلبات.")
+            .setStyle(new NotificationCompat.BigTextStyle().bigText("صرت غير متاح (يمكن ما رديت على كذا طلب، أو الإدارة وقّفتك). افتح التطبيق وشغّل \"متاح\" لترجع توصلك طلبات."))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(openAppIntent())
+            .build();
+        try {
+            nm.notify(1004, n);
+        } catch (Exception ignored) {}
     }
 
     private void supNotify(int id, String title, String text) {

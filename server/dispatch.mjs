@@ -38,6 +38,7 @@ function cfg() {
     enabled: s.auto_dispatch === 1,
     timeoutMs: Math.max(15, s.offer_timeout_sec || 60) * 1000,
     max: Math.min(Math.max(1, s.max_orders_per_courier || 3), 10),
+    maxMissed: s.max_missed_offers ?? MAX_MISSED,
   }
 }
 
@@ -229,7 +230,8 @@ export function tick() {
         if (r.changes !== 1) return false
         db.prepare(`UPDATE couriers SET missed_offers = missed_offers + 1 WHERE id = ?`).run(e.courier_id)
         const c = db.prepare(`SELECT missed_offers FROM couriers WHERE id = ?`).get(e.courier_id)
-        if (c.missed_offers >= MAX_MISSED) {
+        const limit = cfg().maxMissed
+        if (limit > 0 && c.missed_offers >= limit) {
           db.prepare(`UPDATE couriers SET online = 0, missed_offers = 0 WHERE id = ?`).run(e.courier_id)
           return 'offline'
         }
@@ -241,7 +243,7 @@ export function tick() {
         log('info', 'courier set offline after missed offers', { courierId: e.courier_id })
         notify('courier', e.courier_id, {
           title: 'تم إيقاف استقبال الطلبات مؤقتاً',
-          body: `لم ترد على ${MAX_MISSED} طلبات متتالية. افتح التطبيق وفعّل "متاح" عندما تكون جاهزاً.`,
+          body: `ما رديت على ${cfg().maxMissed} طلبات ورا بعض. افتح التطبيق وشغّل "متاح" لما تكون جاهز.`,
           url: '/driver',
           tag: 'offline',
         })

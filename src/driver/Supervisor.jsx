@@ -165,7 +165,7 @@ export default function Supervisor() {
                   <span className={`rounded-full px-1.5 text-[10px] ${STATE[c.state].chip}`}>{STATE[c.state].label}</span>
                 </span>
                 <span className="block truncate text-[11px] text-navy/50">
-                  {c.appOpen ? 'فاتح التطبيق هلق' : c.lastSeen ? `آخر ظهور ${ago(c.lastSeen)}` : 'ما فتح التطبيق بعد'}
+                  {c.appOpen ? 'التطبيق شغّال' : c.lastSeen ? `التطبيق مسكّر · آخر ظهور ${ago(c.lastSeen)}` : 'ما فتح التطبيق بعد'}
                   {c.orders ? ` · معه ${c.orders} طلب` : ''}
                 </span>
               </span>

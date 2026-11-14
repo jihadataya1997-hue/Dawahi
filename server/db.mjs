@@ -407,6 +407,10 @@ const MIGRATIONS = [
   CREATE UNIQUE INDEX courier_ledger_order_commission ON courier_ledger(order_id) WHERE kind = 'commission';
   INSERT OR IGNORE INTO settings (key, value) VALUES ('commission_per_order', '50'), ('wallet_enabled', '0');
   `,
+  `
+  -- كم عرض متتالي بلا رد قبل ما يصير العامل "غير متاح" تلقائياً (0 = أبداً)
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('max_missed_offers', '3');
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

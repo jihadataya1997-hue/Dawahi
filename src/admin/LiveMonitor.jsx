@@ -18,7 +18,7 @@ const STATUS = {
 const COURIER = {
   free: { label: 'متاح', fill: '#C8F531', ink: '#1E0E4F', chip: 'bg-lime-50 text-[#5B7A00]' },
   busy: { label: 'مشغول', fill: '#4B1FE0', ink: '#fff', chip: 'bg-brand-50 text-brand' },
-  offline: { label: 'غير متصل', fill: '#9AA0B4', ink: '#fff', chip: 'bg-navy/5 text-navy/50' },
+  offline: { label: 'غير متاح', fill: '#9AA0B4', ink: '#fff', chip: 'bg-navy/5 text-navy/50' },
 }
 
 const esc = (s) => String(s).replace(/[<>&"]/g, '')
@@ -120,7 +120,7 @@ export default function LiveMonitor({ onOpenOrder }) {
         <Kpi Icon={Smartphone} hero label="فاتحين التطبيق هلق" value={fmtNum(data.online.customers)}
           sub={data.online.downloadPage ? `${fmtNum(data.online.downloadPage)} على صفحة التحميل` : 'زبائن متصلون الآن'} />
         <Kpi Icon={Bike} label="عمال التوصيل" value={`${fmtNum(free)} متاح`}
-          sub={`${fmtNum(busyN)} مشغول · ${fmtNum(data.couriers.length - free - busyN)} غير متصل`} />
+          sub={`${fmtNum(busyN)} مشغول · ${fmtNum(data.couriers.length - free - busyN)} غير متاح`} />
         <Kpi Icon={Radio} label="طلبات نشطة الآن" value={fmtNum(data.active.length)}
           sub={waiting ? `${fmtNum(waiting)} بانتظار عامل` : 'كلها مع عمال'} alert={waiting > 0} />
         <Kpi Icon={ClipboardList} label="طلبات اليوم" value={fmtNum(data.today.orders)}
@@ -402,7 +402,7 @@ function Fleet({ couriers, now, onFocus }) {
                     {c.supervisor && <span className="rounded bg-lime px-1.5 text-[10px] text-navy">مشرف</span>}
                   </span>
                   <span className="block text-[11px] text-navy/45">
-                    {c.appOpen ? 'فاتح التطبيق هلق' : c.lastSeen ? `آخر ظهور ${ago(c.lastSeen, now)}` : 'ما فتح التطبيق بعد'}
+                    {c.appOpen ? 'التطبيق شغّال' : c.lastSeen ? `التطبيق مسكّر · آخر ظهور ${ago(c.lastSeen, now)}` : 'ما فتح التطبيق بعد'}
                     {c.location ? ` · آخر موقع ${ago(c.location.at, now)}` : ''}
                   </span>
                 </span>
