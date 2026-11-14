@@ -265,7 +265,7 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
                   if (step === 1 && !order.location) return setError(t('map.required'))
                   step < 2 ? setStep(step + 1) : confirm()
                 }}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_#FF8A00] transition active:scale-[0.98]"
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_#FF6F08] transition active:scale-[0.98]"
               >
                 {step < 2 ? g('next') : g('confirm')}
                 <ChevronLeft size={18} className="ltr:rotate-180" />

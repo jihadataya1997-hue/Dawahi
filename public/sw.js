@@ -1,5 +1,5 @@
 // Service Worker لضواحي: يفتح التطبيق بدون نت + يستقبل التنبيهات والتطبيق مسكّر
-const CACHE = 'dawahi-v3'
+const CACHE = 'zapp-v4'
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/index.html', '/manifest.webmanifest', '/icon-192.png'])))
@@ -36,12 +36,12 @@ self.addEventListener('push', (e) => {
   try {
     data = e.data ? e.data.json() : {}
   } catch {
-    data = { title: 'ضواحي', body: e.data ? e.data.text() : '' }
+    data = { title: 'ZAPP', body: e.data ? e.data.text() : '' }
   }
   const url = data.url || '/'
   const isDriver = url.startsWith('/driver')
   e.waitUntil(
-    self.registration.showNotification(data.title || 'ضواحي', {
+    self.registration.showNotification(data.title || 'ZAPP', {
       body: data.body || '',
       icon: isDriver ? '/driver-192.png' : '/icon-192.png',
       badge: '/badge-96.png',

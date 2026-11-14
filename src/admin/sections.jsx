@@ -342,7 +342,7 @@ function BannerEditor({ initial, onClose, onSaved }) {
         </div>
 
         <label className="mt-4 flex items-center gap-2 text-sm font-bold">
-          <input type="checkbox" checked={b.active} onChange={(e) => set({ active: e.target.checked })} className="h-4 w-4 accent-[#FF8A00]" />
+          <input type="checkbox" checked={b.active} onChange={(e) => set({ active: e.target.checked })} className="h-4 w-4 accent-[#FF6F08]" />
           الإعلان ظاهر للزبائن
         </label>
         <Err>{error}</Err>
@@ -693,7 +693,7 @@ export function AppContent() {
             <li key={s.id} className={`rounded-2xl border p-3 ${s.enabled ? 'border-navy/10' : 'border-dashed border-navy/15 opacity-60'}`}>
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-2 text-sm font-bold">
-                  <input type="checkbox" checked={s.enabled} onChange={(e) => setSvc(i, { enabled: e.target.checked })} className="h-4 w-4 accent-[#FF8A00]" />
+                  <input type="checkbox" checked={s.enabled} onChange={(e) => setSvc(i, { enabled: e.target.checked })} className="h-4 w-4 accent-[#FF6F08]" />
                   {SERVICE_NAMES[s.id]}
                 </label>
                 <div className="ms-auto flex gap-1">
@@ -963,7 +963,7 @@ export function Team() {
                           permissions: e.target.checked ? [...editingRole.permissions, key] : editingRole.permissions.filter((p) => p !== key),
                         })
                       }
-                      className="h-4 w-4 accent-[#FF8A00]"
+                      className="h-4 w-4 accent-[#FF6F08]"
                     />
                     {label}
                   </label>

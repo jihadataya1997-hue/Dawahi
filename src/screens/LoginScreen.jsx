@@ -40,9 +40,7 @@ export default function LoginScreen() {
         >
           {lang === 'ar' ? 'English' : 'عربي'}
         </button>
-        <LogoMark className="relative h-20 w-20 drop-shadow-xl" />
-        <h1 className="relative mt-5 text-3xl font-extrabold text-white">{lang === 'ar' ? 'ضواحي' : 'Dawahi'}</h1>
-        <p className="relative mt-1 text-xs font-bold tracking-widest text-brand">{lang === 'ar' ? 'DAWAHI' : 'ضواحي'}</p>
+        <img src="/wordmark.webp" alt="ZAPP Delivery" className="relative w-[78%] max-w-xs" />
       </div>
 
       {/* نموذج الدخول */}
@@ -93,7 +91,7 @@ export default function LoginScreen() {
         <button
           type="submit"
           disabled={busy}
-          className="mt-6 disabled:opacity-70 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_#FF8A00] active:scale-[0.98]"
+          className="mt-6 disabled:opacity-70 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_#FF6F08] active:scale-[0.98]"
         >
           {busy ? <LoaderCircle size={18} className="animate-spin" /> : t('auth.login')}
           {!busy && <ChevronLeft size={18} className="ltr:rotate-180" />}

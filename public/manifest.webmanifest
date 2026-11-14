@@ -1,14 +1,14 @@
 {
   "id": "/",
-  "name": "ضواحي - Dawahi",
-  "short_name": "ضواحي",
+  "name": "ZAPP Delivery",
+  "short_name": "ZAPP",
   "description": "خدمات ضاحية قدسيا في تطبيق واحد",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#F5F7FA",
-  "theme_color": "#1E2E4A",
+  "theme_color": "#0B1B35",
   "lang": "ar",
   "dir": "rtl",
   "icons": [

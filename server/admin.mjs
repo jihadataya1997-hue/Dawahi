@@ -363,7 +363,7 @@ export async function adminRoute(req, res, url) {
       notify('courier', row.courier_id, { title: `❌ ${num}`, body: to === 'cancelled' ? 'تم إلغاء الطلب' : 'أُعيد الطلب إلى الإدارة', url: '/driver', tag: `order-${id}` })
     }
     const customerMsg = { assigned: 'عامل التوصيل استلم طلبك', buying: 'عامل التوصيل يشتري أغراضك الآن', on_the_way: 'طلبك في الطريق إليك', delivered: 'تم توصيل طلبك، شكراً لك', cancelled: 'تم إلغاء طلبك' }[to]
-    if (customerMsg) notify('customer', row.customer_id, { title: `ضواحي: الطلب ${num}`, body: customerMsg, url: '/', tag: `order-${id}` })
+    if (customerMsg) notify('customer', row.customer_id, { title: `ZAPP: الطلب ${num}`, body: customerMsg, url: '/', tag: `order-${id}` })
     const updated = db.prepare(`${ORDER_WITH_CUSTOMER} WHERE o.id = ?`).get(id)
     return send(res, 200, { order: withCustomer(updated) })
   }
@@ -443,7 +443,7 @@ export async function adminRoute(req, res, url) {
   }
   if (m === 'GET' && pathname === '/api/admin/push') return send(res, 200, { enabled: hasSubscription('admin', me.staffId ?? 0) })
   if (m === 'POST' && pathname === '/api/admin/push/test') {
-    const n = notify('admin', 0, { title: 'ضواحي: تجربة الإشعارات ✅', body: 'سيصلك إشعار مثل هذا مع كل طلب جديد.', url: '/admin', tag: 'test' })
+    const n = notify('admin', 0, { title: 'ZAPP: تجربة الإشعارات ✅', body: 'سيصلك إشعار مثل هذا مع كل طلب جديد.', url: '/admin', tag: 'test' })
     return send(res, 200, { devices: n })
   }
 

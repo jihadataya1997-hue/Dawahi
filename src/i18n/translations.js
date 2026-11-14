@@ -1,7 +1,7 @@
 // كل نصوص التطبيق بمكان واحد — لإضافة لغة جديدة أضف مفتاحاً جديداً هنا
 export const translations = {
   ar: {
-    appName: 'ضواحي',
+    appName: 'ZAPP',
     location: 'ضاحية قدسيا',
     deliverTo: 'التوصيل إلى',
     searchPlaceholder: 'ماذا تحتاج اليوم؟',
@@ -39,7 +39,7 @@ export const translations = {
       close: 'إغلاق',
     },
     auth: {
-      welcome: 'أهلاً بك في ضواحي',
+      welcome: 'أهلاً بك في ZAPP',
       sub: 'كل ما تحتاجه في ضاحية قدسيا يصل إلى باب بيتك',
       nameLabel: 'الاسم الكامل',
       namePh: 'مثال: محمد أحمد',
@@ -191,7 +191,7 @@ export const translations = {
     },
   },
   en: {
-    appName: 'Dawahi',
+    appName: 'ZAPP',
     location: 'Qudsaya Suburb',
     deliverTo: 'Deliver to',
     searchPlaceholder: 'What can we get you today?',
@@ -200,7 +200,7 @@ export const translations = {
     services: 'Services',
     promos: [
       
-      { title: 'Free gas delivery', sub: 'On your first Dawahi gas order', badge: 'Exclusive' },
+      { title: 'Free gas delivery', sub: 'On your first ZAPP gas order', badge: 'Exclusive' },
       { title: '24/7 on-duty pharmacies', sub: 'Medicine to your door, anytime', badge: 'Always' },
     ],
     svc: {
@@ -233,7 +233,7 @@ export const translations = {
       close: 'Close',
     },
     auth: {
-      welcome: 'Welcome to Dawahi',
+      welcome: 'Welcome to ZAPP',
       sub: 'Everything you need in Qudsaya Suburb, to your door',
       nameLabel: 'Full name',
       namePh: 'e.g. Mohammad Ahmad',

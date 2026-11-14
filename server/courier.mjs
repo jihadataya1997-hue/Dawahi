@@ -162,7 +162,7 @@ export async function courierRoute(req, res, url) {
 
   if (m === 'POST' && pathname === '/api/courier/push/test') {
     const n = notify('courier', me.id, {
-      title: 'ضواحي: تجربة الإشعارات ✅',
+      title: 'ZAPP: تجربة الإشعارات ✅',
       body: 'الإشعارات تعمل. سيصلك إشعار مثل هذا مع كل طلب جديد.',
       url: '/driver',
       tag: 'test',
@@ -213,7 +213,7 @@ export async function courierRoute(req, res, url) {
     }
     log('info', 'order status changed by courier', { orderId: id, courierId: me.id, from: row.status, to })
     notify('customer', row.customer_id, {
-      title: `ضواحي: الطلب D-${1000 + id}`,
+      title: `ZAPP: الطلب D-${1000 + id}`,
       body: STATUS_AR[to],
       url: '/',
       tag: `order-${id}`,

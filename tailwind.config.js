@@ -4,16 +4,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        navy: { DEFAULT: '#1E2E4A', 50: '#EEF1F6', 100: '#D9DFEA', 700: '#2A3D60', 900: '#141F33' },
-        brand: { DEFAULT: '#FF8A00', 50: '#FFF4E5', 100: '#FFE4C2', 600: '#E67A00' },
+        navy: { DEFAULT: '#0B1B35', 50: '#EEF1F6', 100: '#D9DFEA', 700: '#142748', 900: '#07122A' },
+        brand: { DEFAULT: '#FF6F08', 50: '#FFF1E6', 100: '#FFDCC2', 600: '#F65401' },
       },
       fontFamily: {
         ar: ['Cairo', 'Tajawal', 'system-ui', 'sans-serif'],
         en: ['Inter', 'system-ui', 'sans-serif'],
+        brand: ['"Exo 2"', 'Inter', 'sans-serif'],
       },
       boxShadow: {
-        soft: '0 4px 20px -6px rgba(30,46,74,0.15)',
-        float: '0 10px 30px -8px rgba(30,46,74,0.35)',
+        soft: '0 4px 20px -6px rgba(11,27,53,0.15)',
+        float: '0 10px 30px -8px rgba(11,27,53,0.35)',
       },
       keyframes: {
         'sheet-up': { from: { transform: 'translateY(100%)' }, to: { transform: 'translateY(0)' } },

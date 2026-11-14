@@ -1,5 +1,5 @@
 // ترتيب نقاط التوصيل: أقصر طريق يمر على كل الطلبات (حتى 3 طلبات → نجرّب كل الاحتمالات)
-export const STOP_COLORS = ['#FF8A00', '#1F6FD1', '#8B5CF6', '#13805C', '#D63C64']
+export const STOP_COLORS = ['#FF6F08', '#1F6FD1', '#8B5CF6', '#13805C', '#D63C64']
 
 export function km(a, b) {
   const R = 6371

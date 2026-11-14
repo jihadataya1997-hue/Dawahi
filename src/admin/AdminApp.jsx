@@ -127,7 +127,7 @@ function Login({ onDone }) {
         <div className="flex items-center gap-3">
           <LogoMark className="h-12 w-12" />
           <div>
-            <h1 className="text-lg font-extrabold">لوحة تحكم ضواحي</h1>
+            <h1 className="text-lg font-extrabold">لوحة إدارة ZAPP</h1>
             <p className="text-xs text-navy/50">للإدارة فقط</p>
           </div>
         </div>
@@ -243,7 +243,7 @@ function Shell({ me, onLogout }) {
       if (lastWaiting.current !== null && s.waiting > lastWaiting.current) beep()
       lastWaiting.current = s.waiting
       setStats(s)
-      document.title = s.waiting ? `(${s.waiting}) طلب جديد | ضواحي` : 'لوحة إدارة ضواحي'
+      document.title = s.waiting ? `(${s.waiting}) طلب جديد | ZAPP` : 'لوحة إدارة ZAPP'
     } catch {}
   }, [me])
   useEffect(() => {
@@ -1169,7 +1169,7 @@ function Couriers() {
 
   const share = (c) =>
     `https://wa.me/963${c.phone.slice(1)}?text=${encodeURIComponent(
-      `أهلاً ${c.name}،\nهذه بيانات حسابك في تطبيق عمال التوصيل لدى ضواحي:\nالرابط: https://dawahi.prodev.cloud/driver\nالرقم: ${c.phone}\nالرمز: ${c.pin}\n\nافتح الرابط في Chrome، وثبّت التطبيق، ثم فعّل الإشعارات.`
+      `أهلاً ${c.name}،\nهذه بيانات حسابك في تطبيق عمال التوصيل لدى ZAPP:\nالرابط: https://dawahi.prodev.cloud/driver\nالرقم: ${c.phone}\nالرمز: ${c.pin}\n\nافتح الرابط في Chrome، وثبّت التطبيق، ثم فعّل الإشعارات.`
     )}`
 
   return (

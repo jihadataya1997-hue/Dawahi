@@ -185,7 +185,7 @@ export function acceptOffer(offerId, courier) {
   if (result.error) return result
   const o = db.prepare('SELECT customer_id FROM orders WHERE id = ?').get(result.orderId)
   log('info', 'offer accepted', { orderId: result.orderId, courierId: courier.id })
-  notify('customer', o.customer_id, { title: `ضواحي: الطلب ${num(result.orderId)}`, body: `${courier.name} استلم طلبك وسيتواصل معك قريباً`, url: '/', tag: `order-${result.orderId}` })
+  notify('customer', o.customer_id, { title: `ZAPP: الطلب ${num(result.orderId)}`, body: `${courier.name} استلم طلبك وسيتواصل معك قريباً`, url: '/', tag: `order-${result.orderId}` })
   return result
 }
 

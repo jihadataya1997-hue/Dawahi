@@ -4,7 +4,7 @@ import { useLang } from '../i18n/LanguageProvider'
 
 const styles = [
   { bg: 'from-brand to-[#FFB347]', Icon: UtensilsCrossed },
-  { bg: 'from-navy to-[#3A5583]', Icon: Flame },
+  { bg: 'from-navy to-[#1D3561]', Icon: Flame },
   { bg: 'from-emerald-500 to-teal-400', Icon: Pill },
 ]
 

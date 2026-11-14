@@ -16,14 +16,14 @@ export const colorFor = (orders, id) => {
 
 // اسم الزبون فوق الدبوس
 const label = (name, color) =>
-  `<div style="background:#fff;border:2px solid ${color};color:#1E2E4A;font:700 12px Cairo,sans-serif;padding:2px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(30,46,74,.25)">${name.replace(/[<>&"]/g, '')}</div>`
+  `<div style="background:#fff;border:2px solid ${color};color:#0B1B35;font:700 12px Cairo,sans-serif;padding:2px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(11,27,53,.25)">${name.replace(/[<>&"]/g, '')}</div>`
 
 const pin = (n, color, active) =>
   L.divIcon({
     className: '',
     iconSize: [40, 48],
     iconAnchor: [20, 46],
-    html: `<div style="position:relative;width:40px;height:48px;filter:drop-shadow(0 4px 6px rgba(30,46,74,.35));transform:scale(${active ? 1.18 : 1});transform-origin:bottom center;transition:transform .2s">
+    html: `<div style="position:relative;width:40px;height:48px;filter:drop-shadow(0 4px 6px rgba(11,27,53,.35));transform:scale(${active ? 1.18 : 1});transform-origin:bottom center;transition:transform .2s">
       <svg viewBox="0 0 40 48" width="40" height="48"><path d="M20 47C20 47 37 30 37 18A17 17 0 0 0 3 18c0 12 17 29 17 29z" fill="${color}" stroke="#fff" stroke-width="3"/></svg>
       <span style="position:absolute;top:7px;left:0;right:0;text-align:center;font:800 17px Cairo,sans-serif;color:#fff">${n}</span></div>`,
   })
@@ -118,7 +118,7 @@ export default function DriverMap({ orders, focusId }) {
       m.addTo(g)
       pts.push([o.location.lat, o.location.lng])
     })
-    if (!legs && pts.length > 1) L.polyline(pts, { color: '#1E2E4A', weight: 3, opacity: 0.5, dashArray: '8 8' }).addTo(g)
+    if (!legs && pts.length > 1) L.polyline(pts, { color: '#0B1B35', weight: 3, opacity: 0.5, dashArray: '8 8' }).addTo(g)
     if (me) {
       if (!meMarker.current) meMarker.current = L.marker([me.lat, me.lng], { icon: meIcon, zIndexOffset: 2000 })
       meMarker.current.setLatLng([me.lat, me.lng]).addTo(g)

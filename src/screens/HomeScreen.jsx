@@ -16,7 +16,7 @@ const ICONS = {
 
 /**
  * الصفحة الرئيسية — ترتيب واضح:
- * ١) الشريط العلوي + زر الطلب الرئيسي  ٢) الطلب الحالي (إن وجد)  ٣) الإعلانات  ٤) الخدمات  ٥) لماذا ضواحي
+ * ١) الشريط العلوي + زر الطلب الرئيسي  ٢) الطلب الحالي (إن وجد)  ٣) الإعلانات  ٤) الخدمات  ٥) لماذا ZAPP
  */
 export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onService, onBanner, onOpenOrders }) {
   const { t, lang, toggleLang } = useLang()
@@ -100,7 +100,7 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
           </section>
         )}
 
-        {/* ٥) لماذا ضواحي */}
+        {/* ٥) لماذا ZAPP */}
         <section className="grid grid-cols-3 gap-2 rounded-3xl bg-white p-3 shadow-soft">
           <Trust Icon={Wallet} title={lang === 'ar' ? 'الدفع عند الاستلام' : 'Pay on delivery'} />
           <Trust Icon={ShieldCheck} title={lang === 'ar' ? `توصيل ${money(pricing.deliveryFee)}` : `Delivery ${money(pricing.deliveryFee)}`} />
