@@ -16,6 +16,13 @@ export default function CustomerPushCard() {
         setState(st)
         // رمز الجهاز ممكن يتغيّر: منجدّده بصمت إذا الإذن موجود
         if (st === 'enabled') enableNativePush((token) => api('/push/native', { method: 'POST', body: { token } }), { prompt: false }).catch(() => {})
+        // تطبيق الأندرويد: منطلب الإذن مرة وحدة تلقائياً (متل أي تطبيق)
+        else if (st === 'off' && !localStorage.getItem('zapp.pushAsked')) {
+          localStorage.setItem('zapp.pushAsked', '1')
+          enableNativePush((token) => api('/push/native', { method: 'POST', body: { token } }))
+            .then(() => setState('enabled'))
+            .catch((e) => e.message === 'denied' && setState('denied'))
+        }
       })
     } else if (isNativeApp()) setState('unsupported')
     else pushState().then(setState).catch(() => {})

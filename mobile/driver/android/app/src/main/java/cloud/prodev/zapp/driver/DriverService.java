@@ -299,23 +299,43 @@ public class DriverService extends Service {
             if (!addr.isEmpty()) text += "\n" + addr;
         }
         PendingIntent open = openAppIntent();
-        Notification n = new NotificationCompat.Builder(this, CH_OFFERS)
+        String offerId = offer.optString("offerId");
+        PendingIntent acceptPi = actionIntent(OfferActionReceiver.ACCEPT, offerId, number, 11);
+        PendingIntent declinePi = actionIntent(OfferActionReceiver.DECLINE, offerId, number, 12);
+        NotificationCompat.Builder b = new NotificationCompat.Builder(this, CH_OFFERS)
             .setSmallIcon(R.drawable.ic_stat_zapp)
             .setColor(0xFF4B1FE0)
             .setContentTitle("🔔 طلب جديد " + number)
             .setContentText(text)
-            .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(open)
             .setFullScreenIntent(open, true)
-            .setAutoCancel(true)
             .setOngoing(true)
-            .setTimeoutAfter(RING_MAX_MS)
-            .build();
+            .setTimeoutAfter(RING_MAX_MS);
+        Notification n;
+        try {
+            // شكل "مكالمة واردة": بيضل ظاهر مع زرين قبول ورفض
+            androidx.core.app.Person caller = new androidx.core.app.Person.Builder().setName("ZAPP · " + number).setImportant(true).build();
+            b.setStyle(NotificationCompat.CallStyle.forIncomingCall(caller, declinePi, acceptPi).setIsVideo(false));
+            n = b.build();
+        } catch (Exception e) {
+            b.setStyle(new NotificationCompat.BigTextStyle().bigText(text));
+            b.addAction(0, "رفض", declinePi).addAction(0, "✅ قبول", acceptPi);
+            n = b.build();
+        }
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (nm != null) nm.notify(ID_OFFER, n);
+        if (nm != null) {
+            try {
+                nm.notify(ID_OFFER, n);
+            } catch (Exception e) {
+                // بعض الأجهزة بترفض شكل المكالمة → إشعار عادي بأزرار قبول ورفض
+                b.setStyle(new NotificationCompat.BigTextStyle().bigText(text));
+                b.addAction(0, "رفض", declinePi).addAction(0, "✅ قبول", acceptPi);
+                nm.notify(ID_OFFER, b.build());
+            }
+        }
 
         stopSound();
         try {
@@ -363,6 +383,14 @@ public class DriverService extends Service {
     }
 
     /* ───────── الإشعارات ───────── */
+    private PendingIntent actionIntent(String action, String offerId, String number, int req) {
+        Intent i = new Intent(this, OfferActionReceiver.class);
+        i.setAction(action);
+        i.putExtra("offerId", offerId);
+        i.putExtra("number", number);
+        return PendingIntent.getBroadcast(this, req, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
     private PendingIntent openAppIntent() {
         Intent i = new Intent(this, MainActivity.class);
         i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);

@@ -1,3 +1,5 @@
+import Promos from './Promos'
+import Stores from './Stores'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import {
   Bike,
@@ -31,6 +33,8 @@ import {
   Users,
   Zap,
   X,
+  Gift,
+  UtensilsCrossed,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import { disablePush, enablePush, pushState, registerSW } from '../push'
@@ -199,10 +203,12 @@ const ALL_NAV = [
   { id: 'couriers', label: 'عمال التوصيل', Icon: Bike, perm: 'couriers.manage' },
   { id: 'customers', label: 'الزبائن', Icon: Users, perm: 'customers.view' },
   { id: 'banners', label: 'الإعلانات', Icon: Image, perm: 'content.manage' },
+  { id: 'stores', label: 'المطاعم الشريكة', Icon: UtensilsCrossed, perm: 'content.manage' },
   { id: 'announce', label: 'الإشعارات العامة', Icon: Megaphone, perm: 'content.manage' },
   { id: 'content', label: 'محتوى التطبيق', Icon: PanelsTopLeft, perm: 'content.manage' },
   { id: 'control', label: 'التحكم بالتطبيق', Icon: SlidersHorizontal, perm: ['content.manage', 'pricing.manage'] },
   { id: 'prices', label: 'الأسعار والتوزيع', Icon: Tag, perm: 'pricing.manage' },
+  { id: 'promos', label: 'كودات الحسم والنقاط', Icon: Gift, perm: 'pricing.manage' },
   { id: 'team', label: 'الفريق والصلاحيات', Icon: ShieldCheck, perm: 'staff.manage' },
   { id: 'backups', label: 'النسخ الاحتياطي', Icon: Database, perm: 'backups.manage' },
   { id: 'account', label: 'حسابي وكلمة السر', Icon: KeyRound, perm: null },
@@ -339,6 +345,8 @@ function Shell({ me, onLogout }) {
           {section === 'orders' && <OrdersBoard onOpen={setSelected} />}
           {section === 'couriers' && <Couriers />}
           {section === 'customers' && <Customers />}
+          {section === 'promos' && <Promos />}
+          {section === 'stores' && <Stores />}
           {section === 'banners' && <Banners />}
           {section === 'announce' && <Announcements />}
           {section === 'content' && <AppContent />}
@@ -1204,8 +1212,12 @@ function Couriers() {
     }
   }
 
+  // تغيير رمز الدخول: الإدارة بتكتبه بإيدها، أو بتتركه فاضي ليتولّد رمز عشوائي
   const resetPin = (c) => {
-    const pin = String(Math.floor(1000 + Math.random() * 9000))
+    const typed = window.prompt(`رمز الدخول الجديد لـ ${c.name}\n(من 4 إلى 6 أرقام، أو اتركه فاضي لرمز عشوائي)`, '')
+    if (typed === null) return
+    const pin = typed.trim() ? typed.trim() : String(Math.floor(1000 + Math.random() * 9000))
+    if (!/^\d{4,6}$/.test(pin)) return setError('الرمز لازم يكون من 4 إلى 6 أرقام')
     patch(c, { pin }).then(() => setCreated({ name: c.name, phone: c.phone, pin }))
   }
 
@@ -1302,7 +1314,7 @@ function Couriers() {
                     </button>
                   )}
                   <button onClick={() => resetPin(c)} className="rounded-xl bg-navy-50 px-3 py-1.5 text-xs font-bold">
-                    رمز جديد
+                    تغيير الرمز
                   </button>
                   <button
                     onClick={() => patch(c, { active: !c.active })}

@@ -16,6 +16,8 @@ import {
 import { useLang } from '../i18n/LanguageProvider'
 import { useOrders } from '../orders/OrdersProvider'
 import { useAppConfig } from '../config/AppConfigProvider'
+import CustomerPushCard from './CustomerPushCard'
+import PromoBox from './PromoBox'
 import { newClientKey } from '../api'
 import { errorText } from '../i18n/errorText'
 import { Choice, Field, RowChoice, Stepper, Stepper2 } from './ui'
@@ -32,6 +34,7 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   const g = (k) => t(`gas.${k}`)
   const [step, setStep] = useState(0)
   const [order, setOrder] = useState(initial)
+  const [perk, setPerk] = useState({ promoCode: '', usePoints: false, discount: 0 })
   const [pickerOpen, setPickerOpen] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('idle') // idle | searching | found
@@ -48,6 +51,7 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   // إعادة ضبط عند الفتح + منع تمرير الصفحة خلف الـ Sheet
   useEffect(() => {
     if (open) {
+      setPerk({ promoCode: '', usePoints: false, discount: 0 })
       setStep(0)
       setOrder(defaultAddress ? { ...initial(), ...fromAddress(defaultAddress) } : initial())
       setError('')
@@ -64,6 +68,7 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   const stairsFloors = order.elevator ? 0 : order.floor
   const lines = [
     { label: peak ? `${g('deliveryFee')} · ${peak.label}` : g('deliveryFee'), amount: PRICING.deliveryFee },
+    perk.discount > 0 && { label: lang === 'ar' ? 'حسم التوصيل' : 'Delivery discount', amount: -perk.discount },
     { label: `${g('gasPrice')} × ${formatNumber(order.qty)}`, amount: PRICING.gasPrice * order.qty, approx: true, unknown: !PRICING.gasPrice },
     order.type === 'buy' && {
       label: `${g('cylinderPrice')} × ${formatNumber(order.qty)}`,
@@ -95,6 +100,8 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
         location: order.location,
         address: order.address,
         notes: order.notes,
+        promoCode: perk.promoCode || undefined,
+        usePoints: perk.usePoints || undefined,
       })
       setCreated(o)
       if (!order.addressId && order.saveAddress && order.location)
@@ -253,6 +260,7 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
 
               {step === 2 && (
                 <div className="space-y-4 animate-fade-in">
+                  <PromoBox fee={PRICING.deliveryFee} value={perk} onChange={setPerk} />
                   <div className="rounded-3xl border border-navy/10 p-4">
                     <h3 className="mb-3 text-sm font-extrabold">{g('invoice')}</h3>
                     <ul className="space-y-3 text-sm">
@@ -333,6 +341,10 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
                   </p>
                 )}
                 <p className="mt-1 text-sm text-navy/60">{g('foundSub')}</p>
+                {/* أهم لحظة لتفعيل التنبيهات: لحتى يعرف أول ما يقبل العامل طلبه */}
+                <div className="mt-4 w-full text-start">
+                  <CustomerPushCard />
+                </div>
                 <button
                   onClick={() => {
                     onConfirmed?.()

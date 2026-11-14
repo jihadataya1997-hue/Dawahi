@@ -8,6 +8,8 @@ import { hasSubscription, notify, removeSubscription, saveSubscription } from '.
 import { BACKUP_DIR, isBackupName, listBackups, runBackup } from './backup.mjs'
 import { cancelOffers, courierLoad, nudge } from './dispatch.mjs'
 import { contentAdminRoute } from './content.mjs'
+import { adminStoresRoute } from './stores.mjs'
+import { adminPromoRoute, awardPoints, releasePerks } from './promo.mjs'
 import { liveSnapshot } from './live.mjs'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
@@ -383,6 +385,8 @@ export async function adminRoute(req, res, url) {
     if (to !== 'new') cancelOffers(id)
     if (to === 'assigned' && courierId) db.prepare('UPDATE couriers SET last_assigned_at = ? WHERE id = ?').run(ts, courierId)
     if (to === 'new' || to === 'delivered' || to === 'cancelled') nudge()
+    if (to === 'delivered') awardPoints(id)
+    if (to === 'cancelled') releasePerks(id)
     const num = `D-${1000 + id}`
     if (to === 'assigned' && courierId) {
       notify('courier', courierId, {
@@ -560,6 +564,8 @@ export async function adminRoute(req, res, url) {
   }
 
   if (await contentAdminRoute(req, res, url, need)) return
+  if (await adminPromoRoute(req, res, url, need)) return
+  if (await adminStoresRoute(req, res, url, need)) return
 
   throw new HttpError(404, 'NOT_FOUND', 'Not found')
 }

@@ -66,6 +66,7 @@ public class ZappDriverPlugin extends Plugin {
         r.put("location", getPermissionState("location") == PermissionState.GRANTED);
         r.put("notifications", Build.VERSION.SDK_INT < 33 || getPermissionState("notifications") == PermissionState.GRANTED);
         r.put("batteryExempt", isBatteryExempt());
+        r.put("fullScreen", canFullScreen());
         call.resolve(r);
     }
 
@@ -83,6 +84,26 @@ public class ZappDriverPlugin extends Plugin {
     @PermissionCallback
     private void permsDone(PluginCall call) {
         status(call);
+    }
+
+    private boolean canFullScreen() {
+        if (Build.VERSION.SDK_INT < 34) return true;
+        android.app.NotificationManager nm = (android.app.NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+        return nm == null || nm.canUseFullScreenIntent();
+    }
+
+    /** أندرويد 14+: إذن "شاشة كاملة" حتى يطلع الطلب فوق شاشة القفل متل المكالمة */
+    @PluginMethod
+    public void fullScreenSettings(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= 34 && !canFullScreen()) {
+            try {
+                Intent i = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                i.setData(Uri.parse("package:" + getContext().getPackageName()));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(i);
+            } catch (Exception ignored) {}
+        }
+        call.resolve();
     }
 
     private boolean isBatteryExempt() {

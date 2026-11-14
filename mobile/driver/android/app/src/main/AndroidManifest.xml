@@ -32,6 +32,8 @@
             android:exported="false"
             android:foregroundServiceType="location|dataSync" />
 
+        <receiver android:name=".OfferActionReceiver" android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

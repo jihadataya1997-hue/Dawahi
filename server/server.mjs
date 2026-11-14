@@ -5,13 +5,15 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, getSettings, UPLOADS_DIR } from './db.mjs'
-import { HttpError, bad, sha256, now, isPhone, isFullName, str, distanceKm, clientIp, rateLimit, readJson, send, log } from './lib.mjs'
+import { HttpError, bad, sha256, now, isPhone, isFullName, str, distanceKm, clientIp, rateLimit, readJson, send, log, hashSecret, verifySecret } from './lib.mjs'
 import { adminRoute } from './admin.mjs'
 import { presenceRoute } from './live.mjs'
 import { addressesRoute } from './addresses.mjs'
 import { removeNativeToken, saveNativeToken } from './fcm.mjs'
 const NOISY = new Set(['/api/presence', '/api/courier/location', '/api/admin/live'])
 import { toOrder } from './lib.mjs'
+import { priceCart, publicStores } from './stores.mjs'
+import { applyPerks, recordPerks, releasePerks, customerPromoRoute } from './promo.mjs'
 import { scheduleBackups } from './backup.mjs'
 import { courierRoute } from './courier.mjs'
 import { assertOrderingOpen, currentDeliveryFee, listAnnouncements, publicApp, serveMedia } from './content.mjs'
@@ -36,17 +38,23 @@ function authenticate(req) {
   if (!token || token.length > 200) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
   const row = db
     .prepare(
-      `SELECT c.id, c.name, c.phone, c.blocked, s.token_hash FROM sessions s
+      `SELECT c.id, c.name, c.phone, c.blocked, c.must_set_password, c.password_hash, s.token_hash FROM sessions s
        JOIN customers c ON c.id = s.customer_id WHERE s.token_hash = ?`
     )
     .get(sha256(token))
   if (!row) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
   if (row.blocked) throw new HttpError(403, 'BLOCKED', 'This account is suspended')
   db.prepare('UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?').run(now(), row.token_hash)
-  return { id: row.id, name: row.name, phone: row.phone, tokenHash: row.token_hash }
+  return { id: row.id, name: row.name, phone: row.phone, must_set_password: row.must_set_password, password_hash: row.password_hash, tokenHash: row.token_hash }
 }
 
-const publicUser = (u) => ({ id: u.id, name: u.name, phone: u.phone })
+const publicUser = (u) => ({ id: u.id, name: u.name, phone: u.phone, mustSetPassword: !!u.must_set_password || u.password_hash === null })
+const isCustomerPassword = (p) => typeof p === 'string' && p.length >= 6 && p.length <= 100
+function newSession(customerId) {
+  const token = randomBytes(32).toString('base64url')
+  db.prepare('INSERT INTO sessions (token_hash, customer_id) VALUES (?, ?)').run(sha256(token), customerId)
+  return token
+}
 
 /* ───────── الطلبات ───────── */
 
@@ -98,6 +106,25 @@ function validateOrder(body, user) {
     peakExtra: fee.extra,
   }
 
+  // طلب من مطعم شريك: الأصناف والأسعار من القائمة
+  if (kind === 'custom' && body.storeId) {
+    const c = priceCart(body.storeId, body.cart)
+    const extra = str(body.items, 500, 'items')
+    return {
+      ...base,
+      category: 'restaurants',
+      details: {
+        items: extra ? `${c.text}\n— ${extra}` : c.text,
+        storeMode: 'specific',
+        storeName: c.storeName,
+        storeId: c.storeId,
+        cart: c.lines,
+        itemsTotal: c.total,
+        ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}),
+      },
+    }
+  }
+
   if (kind === 'custom') {
     const category = CATEGORIES.includes(body.category) ? body.category : 'any'
     const items = str(body.items, 2000, 'items')
@@ -139,6 +166,13 @@ async function createOrder(req, res, user) {
   db.exec('BEGIN IMMEDIATE')
   let row
   try {
+    // كود حسم أو نقاط → بتنزل من أجرة التوصيل
+    const perks = applyPerks(o, body, user.id)
+    if (perks.perk) {
+      o.details.perk = perks.perk
+      if (o.kind === 'gas') o.details.estimate -= o.deliveryFee - perks.fee
+      o.deliveryFee = perks.fee
+    }
     const r = db
       .prepare(
         `INSERT INTO orders (customer_id, client_key, kind, category, details, lat, lng, address, floor,
@@ -149,6 +183,7 @@ async function createOrder(req, res, user) {
         o.contactPhone, o.notes, photo, o.deliveryFee, ts, ts)
     db.prepare(`INSERT INTO order_events (order_id, status, actor, created_at) VALUES (?, 'new', ?, ?)`).run(
       r.lastInsertRowid, `customer:${user.id}`, ts)
+    recordPerks(Number(r.lastInsertRowid), user.id, perks)
     row = db.prepare('SELECT * FROM orders WHERE id = ?').get(r.lastInsertRowid)
     db.exec('COMMIT')
   } catch (err) {
@@ -202,6 +237,7 @@ function cancelOrder(res, user, id) {
     db.prepare(`UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = 'new'`).run(ts, row.id)
     db.prepare(`INSERT INTO order_events (order_id, status, actor, created_at) VALUES (?, 'cancelled', ?, ?)`).run(
       row.id, `customer:${user.id}`, ts)
+    releasePerks(row.id)
     db.exec('COMMIT')
   } catch (err) {
     db.exec('ROLLBACK')
@@ -246,26 +282,45 @@ async function route(req, res, url) {
     })
   }
 
-  if (m === 'POST' && pathname === '/api/auth/login') {
-    rateLimit(`login:${clientIp(req)}`, 10, 10 * 60 * 1000)
+  // حساب جديد: الاسم الكامل + الرقم + كلمة سر. الرقم ما بيتسجّل مرتين
+  if (m === 'POST' && pathname === '/api/auth/register') {
+    rateLimit(`register:${clientIp(req)}`, 8, 60 * 60 * 1000)
     const body = await readJson(req)
     const name = str(body.name, 60, 'name', { required: true }).replace(/\s+/g, ' ')
     if (!isFullName(name)) throw bad('FULL_NAME', 'Please enter your full name (first and last name)', 'name')
     const phone = String(body.phone || '').replace(/\s/g, '')
     if (!isPhone(phone)) throw bad('INVALID_PHONE', 'Phone must start with 09 and be 10 digits', 'phone')
-    if (db.prepare('SELECT blocked FROM customers WHERE phone = ?').get(phone)?.blocked)
-      throw new HttpError(403, 'BLOCKED', 'This account is suspended')
-    // ⚠️ مؤقتاً بدون رمز تحقق — الخطوة القادمة: رمز عبر واتساب/SMS قبل إصدار الجلسة
+    if (!isCustomerPassword(body.password)) throw bad('WEAK_PASSWORD', 'Password must be at least 6 characters', 'password')
+    if (db.prepare('SELECT 1 FROM customers WHERE phone = ?').get(phone))
+      throw new HttpError(409, 'PHONE_TAKEN', 'This phone is already registered, please sign in')
     const ts = now()
-    db.prepare(
-      `INSERT INTO customers (phone, name, created_at, updated_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT(phone) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`
-    ).run(phone, name, ts, ts)
-    const customer = db.prepare('SELECT id, name, phone FROM customers WHERE phone = ?').get(phone)
-    const token = randomBytes(32).toString('base64url')
-    db.prepare('INSERT INTO sessions (token_hash, customer_id) VALUES (?, ?)').run(sha256(token), customer.id)
-    log('info', 'login', { customerId: customer.id })
-    return send(res, 200, { token, user: publicUser(customer) })
+    const r = db
+      .prepare('INSERT INTO customers (phone, name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run(phone, name, hashSecret(body.password), ts, ts)
+    const customer = db.prepare('SELECT id, name, phone, must_set_password FROM customers WHERE id = ?').get(r.lastInsertRowid)
+    log('info', 'register', { customerId: customer.id })
+    return send(res, 200, { token: newSession(customer.id), user: publicUser(customer) })
+  }
+
+  // تسجيل الدخول: الرقم + كلمة السر
+  if (m === 'POST' && pathname === '/api/auth/login') {
+    rateLimit(`login:${clientIp(req)}`, 15, 10 * 60 * 1000)
+    const body = await readJson(req)
+    const phone = String(body.phone || '').replace(/\s/g, '')
+    if (!isPhone(phone)) throw bad('INVALID_PHONE', 'Phone must start with 09 and be 10 digits', 'phone')
+    rateLimit(`login-phone:${phone}`, 8, 15 * 60 * 1000)
+    const c = db.prepare('SELECT id, name, phone, blocked, password_hash, must_set_password FROM customers WHERE phone = ?').get(phone)
+    if (!c) throw new HttpError(404, 'NOT_REGISTERED', 'No account with this phone, please register')
+    if (c.blocked) throw new HttpError(403, 'BLOCKED', 'This account is suspended')
+    if (c.password_hash) {
+      if (!verifySecret(String(body.password || ''), c.password_hash)) throw new HttpError(400, 'WRONG_PASSWORD', 'Wrong password')
+    } else {
+      // حساب قديم من قبل كلمات السر: بيفوت هالمرة وبيطلب منه يحط كلمة سر فوراً
+      db.prepare('UPDATE customers SET must_set_password = 1 WHERE id = ?').run(c.id)
+      c.must_set_password = 1
+    }
+    log('info', 'login', { customerId: c.id })
+    return send(res, 200, { token: newSession(c.id), user: publicUser(c) })
   }
 
   // نبضة الحضور من التطبيقات (بدون تسجيل دخول)
@@ -288,6 +343,12 @@ async function route(req, res, url) {
   const user = authenticate(req)
 
   if (m === 'GET' && pathname === '/api/me') return send(res, 200, { user: publicUser(user) })
+
+  // المطاعم الشريكة المنشورة (فاضية لحين ما الإدارة تنشر مطعم)
+  if (m === 'GET' && pathname === '/api/stores') return send(res, 200, { stores: publicStores() })
+
+  // النقاط وفحص كود الحسم
+  if (await customerPromoRoute(req, res, url, user)) return
 
   // عناوين الزبون المحفوظة
   if (pathname === '/api/addresses' || pathname.startsWith('/api/addresses/')) return addressesRoute(req, res, url, user)
@@ -329,6 +390,19 @@ async function route(req, res, url) {
       removeNativeToken(token)
       return send(res, 204)
     }
+  }
+
+  // تغيير كلمة السر (أو وضعها أول مرة / بعد كلمة مؤقتة من الدعم)
+  if (m === 'POST' && pathname === '/api/auth/password') {
+    rateLimit(`pass:${user.id}`, 8, 15 * 60 * 1000)
+    const body = await readJson(req)
+    if (!isCustomerPassword(body.next)) throw bad('WEAK_PASSWORD', 'Password must be at least 6 characters', 'next')
+    if (!user.must_set_password && user.password_hash && !verifySecret(String(body.current || ''), user.password_hash))
+      throw new HttpError(400, 'WRONG_PASSWORD', 'Current password is wrong')
+    db.prepare('UPDATE customers SET password_hash = ?, must_set_password = 0, updated_at = ? WHERE id = ?').run(hashSecret(body.next), now(), user.id)
+    // باقي الأجهزة بتطلع من الحساب
+    db.prepare('DELETE FROM sessions WHERE customer_id = ? AND token_hash != ?').run(user.id, user.tokenHash)
+    return send(res, 200, { user: publicUser({ ...user, must_set_password: 0, password_hash: 'set' }) })
   }
 
   if (m === 'POST' && pathname === '/api/auth/logout') {

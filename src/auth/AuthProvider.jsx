@@ -33,9 +33,22 @@ export function AuthProvider({ children }) {
     if (getToken()) api('/me').then((d) => (saveUser(d.user), setUser(d.user))).catch(() => {})
   }, [clear])
 
-  const login = useCallback(async ({ name, phone }) => {
-    const d = await api('/auth/login', { method: 'POST', body: { name: name.trim(), phone: phone.replace(/\s/g, '') } })
+  const login = useCallback(async ({ phone, password }) => {
+    const d = await api('/auth/login', { method: 'POST', body: { phone: phone.replace(/\s/g, ''), password } })
     setToken(d.token)
+    saveUser(d.user)
+    setUser(d.user)
+  }, [])
+
+  const register = useCallback(async ({ name, phone, password }) => {
+    const d = await api('/auth/register', { method: 'POST', body: { name: name.trim(), phone: phone.replace(/\s/g, ''), password } })
+    setToken(d.token)
+    saveUser(d.user)
+    setUser(d.user)
+  }, [])
+
+  const setPassword = useCallback(async ({ current, next }) => {
+    const d = await api('/auth/password', { method: 'POST', body: { current, next } })
     saveUser(d.user)
     setUser(d.user)
   }, [])
@@ -51,7 +64,7 @@ export function AuthProvider({ children }) {
     clear()
   }, [clear])
 
-  const value = useMemo(() => ({ user, login, logout, updateName }), [user, login, logout, updateName])
+  const value = useMemo(() => ({ user, login, register, setPassword, logout, updateName }), [user, login, register, setPassword, logout, updateName])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

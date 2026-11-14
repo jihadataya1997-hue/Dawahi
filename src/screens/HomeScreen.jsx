@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Zap, Bell, BookOpen, ChevronLeft, Flame, Fuel, MapPin, PencilLine, Pill, ShoppingCart, Truck, UtensilsCrossed } from 'lucide-react'
-import { LogoMark } from '../components/Logo'
 import BannerCarousel from '../components/BannerCarousel'
 import { useLang } from '../i18n/LanguageProvider'
 import { useAppConfig } from '../config/AppConfigProvider'
@@ -11,27 +10,43 @@ import { OPEN_STATUSES, useOrders } from '../orders/OrdersProvider'
  * الصفحة الرئيسية — ترتيب واضح:
  * ١) الشريط العلوي + زر الطلب الرئيسي  ٢) الطلب الحالي (إن وجد)  ٣) الإعلانات  ٤) الخدمات  ٥) لماذا ZAPP
  */
-export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onService, onBanner, onOpenOrders }) {
+export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onService, onBanner, onOpenOrders, restaurants }) {
   const { t, lang, toggleLang } = useLang()
-  const { areaName, services, pricing, money, peak, texts, home = {} } = useAppConfig()
+  const { areaName, services, pricing, money, peak, home = {} } = useAppConfig()
   const show = (k) => home[k] !== false // كل قسم ظاهر إلا إذا الإدارة خفته
   const ar = lang === 'ar'
   const { orders, loaded } = useOrders()
+  const area = ar ? areaName || 'ضاحية قدسيا' : 'Qudsaya Suburb'
   // اختصارات سريعة: كلها بتفتح نفس "اكتب طلبك" مع نوع المحل محدد (أو طلب الغاز)
   const quick = QUICK.filter((q) => services.some((s) => s.id === q.id))
-  // الغاز والمازوت (طلبات تقيلة) بصف لحالهن، وإذا واحد بس بياخد العرض كله
-  const heavyCount = quick.filter((q) => q.heavy).length
   const paused = (id) => services.find((s) => s.id === id)?.paused
+  const gas = quick.find((q) => q.id === 'gas')
+  const rest = quick.filter((q) => q.id !== 'gas')
+  const subOf = (q) =>
+    paused(q.id)
+      ? ar ? 'متوقف مؤقتاً' : 'Paused for now'
+      : q.id === 'gas'
+        ? pricing.gasPrice
+          ? `${money(pricing.gasPrice)} ${ar ? 'للجرة' : 'each'}`
+          : ar ? 'تبديل لحد البيت' : 'Swap to your door'
+        : ar ? q.sub : q.enSub
 
   return (
     <div className="pb-6">
-      {/* ١) الرأس: الشعار + الموقع + صندوق الطلب */}
-      <header className="pt-safe rounded-b-[2rem] bg-brand px-4 pb-6 text-white">
-        <div className="flex items-center gap-2">
-          <LogoMark className="h-9 w-9" />
-          <span className="font-brand text-[22px] font-black italic tracking-tight text-lime">ZAPP</span>
+      {/* ١) الرأس "بوستر الضاحية": اسم المنطقة كبير مفرّغ بالخلفية */}
+      <header className="pt-safe relative overflow-hidden bg-brand px-5 pb-24 text-white">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -start-6 top-10 select-none whitespace-pre text-[92px] font-black leading-[0.95] text-transparent opacity-[0.22]"
+          style={{ WebkitTextStroke: '1.5px #fff' }}
+        >
+          {ar ? (areaName || 'ضاحية قدسيا').split(' ').join('\n') : 'Qudsaya\nSuburb'}
+        </span>
+
+        <div className="relative flex items-center gap-2 pt-3">
+          <img src="/wordmark.webp" alt="ZAPP Delivery" className="h-9 w-auto" />
           <span className="flex-1" />
-          <button onClick={toggleLang} aria-label="Language" className="flex h-10 items-center rounded-full bg-white/15 px-3 font-en text-xs font-bold active:scale-95">
+          <button onClick={toggleLang} aria-label="Language" className="flex h-10 min-w-10 items-center justify-center rounded-full bg-white/15 px-3 font-en text-xs font-bold active:scale-95">
             {ar ? 'EN' : 'ع'}
           </button>
           <button onClick={onBell} aria-label={t('inbox.title')} className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/15 active:scale-95">
@@ -44,110 +59,117 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
           </button>
         </div>
 
-        <p className="mt-5 flex items-center gap-1.5 text-xs text-white/75">
-          <MapPin size={14} className="shrink-0 text-lime" />
-          {t('deliverTo')} <b className="font-bold text-white">{areaName}</b>
-        </p>
-        <h1 className="mt-1.5 text-[26px] font-black leading-tight">{ar ? texts.heroTitle || 'شو بدك نجيبلك اليوم؟' : 'What can we get you today?'}</h1>
-        <p className="mt-1 text-sm text-white/75">
-          {ar ? texts.heroSub || 'اكتب طلبك من أي محل، وعامل التوصيل بيشتريه وبيوصله لباب بيتك.' : 'Write your order from any shop, and a courier buys and brings it to your door.'}
-        </p>
+        <div className="relative mt-12">
+          <p className="flex items-center gap-1.5 text-sm font-bold text-white/80">
+            <MapPin size={15} className="shrink-0 text-lime" />
+            {ar ? 'التوصيل لكل بيت بـ' : 'Delivery to every home in'}
+          </p>
+          <h1 className="mt-1 text-[40px] font-black leading-[1.05] tracking-tight">{area}</h1>
+          <p className="mt-2 inline-block -rotate-2 rounded-xl bg-lime px-3 pb-1 text-[36px] font-black leading-tight text-navy">
+            {ar ? 'بإيدك.' : 'in your hand.'}
+          </p>
+        </div>
+      </header>
 
-        {/* صندوق الطلب: هو الشي الأساسي بالتطبيق */}
-        <button onClick={onOrder} className="mt-4 block w-full rounded-3xl bg-white p-4 text-start text-navy shadow-float active:scale-[0.99]">
+      <div className="relative z-10 -mt-16 space-y-6 px-4">
+        {/* ٢) صندوق الطلب: الشي الأساسي بالتطبيق، طالع فوق الرأس */}
+        <button onClick={onOrder} className="block w-full rounded-[1.75rem] bg-white p-3.5 text-start text-navy shadow-float active:scale-[0.99]">
           <span className="flex min-h-[3.25rem] items-start gap-2 rounded-2xl bg-navy-50 px-3.5 py-3 text-[15px] text-navy/45">
             <PencilLine size={18} className="mt-0.5 shrink-0 text-brand" />
             <TypingHint ar={ar} />
           </span>
-          <span className="btn-zap mt-3 flex items-center justify-center gap-2 bg-lime py-3.5 text-[15px] font-extrabold text-navy">
+          <span className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-navy py-4 text-[16px] font-black text-white">
             {ar ? 'اكتب طلبك' : 'Write your order'}
-            <ChevronLeft size={18} className="ltr:rotate-180" />
+            <Zap size={18} className="fill-lime text-lime" />
           </span>
+          {peak && (
+            <span className="mt-2.5 flex items-center justify-center gap-1.5 text-xs font-bold text-brand">
+              <Zap size={13} className="shrink-0" />
+              {ar
+                ? `${peak.label}: أجرة التوصيل ${money(pricing.deliveryFee)}${peak.until ? ` حتى ${peak.until}` : ''}`
+                : `Peak time: delivery ${money(pricing.deliveryFee)}${peak.until ? ` until ${peak.until}` : ''}`}
+            </span>
+          )}
         </button>
 
-        {peak && (
-          <p className="mt-3 flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2 text-xs font-bold">
-            <Zap size={15} className="shrink-0 text-lime" />
-            {ar
-              ? `${peak.label}: أجرة التوصيل ${money(pricing.deliveryFee)}${peak.until ? ` حتى ${peak.until}` : ''}`
-              : `Peak time: delivery ${money(pricing.deliveryFee)}${peak.until ? ` until ${peak.until}` : ''}`}
-          </p>
-        )}
-      </header>
+        {/* ٣) الإعلانات الكبيرة: أول شي بيشوفه الزبون بعد صندوق الطلب */}
+        {show('banners') && <BannerCarousel onAction={onBanner} placement="top" />}
 
-      <div className="space-y-7 px-4 pt-5">
-        {/* ٢) الطلب الحالي */}
+        {/* ٤) الطلب الحالي */}
         {activeOrder && <ActiveOrderCard order={activeOrder} onClick={onOpenOrders} />}
 
-        {/* ٣) العروض: مباشرة تحت صندوق الطلب لتنشاف بدون تمرير */}
-        {show('banners') && <BannerCarousel onAction={onBanner} />}
+        {/* ٥) المطاعم الشريكة: بتطلع لحالها أول ما الإدارة تنشر مطعم */}
+        {restaurants}
 
-        {/* ٣) اختصارات: نفس الخدمة، بس أسرع */}
+        {/* ٦) الخدمات: جرة الغاز كبيرة، والباقي حولها */}
         {show('shortcuts') && quick.length > 0 && (
           <section>
-            <h2 className="text-base font-extrabold">{ar ? 'أو ابدأ من هون' : 'Or start here'}</h2>
-            <p className="mb-3 text-xs text-navy/50">{ar ? 'منجيبلك من أي محل بالضاحية' : 'From any shop in the area'}</p>
+            <h2 className="mb-3 text-lg font-black">{ar ? 'منجيبلك من أي محل بالضاحية' : 'We bring it from any shop'}</h2>
             <div className="grid grid-cols-2 gap-2.5">
-              {quick.map(({ id, Icon, ar: la0, en, sub: sub0, heavy }) => {
-                const la = la0
-                const sub = sub0
-                return (
+              {gas && (
                 <button
-                  key={id}
-                  onClick={() => onService(id)}
-                  className={`relative flex items-center gap-3 rounded-2xl bg-white p-3 text-start shadow-soft active:scale-[0.98] ${
-                    heavy && heavyCount === 1 ? 'col-span-2' : ''
-                  } ${heavy ? 'ring-2 ring-lime' : ''
-                  } ${paused(id) ? 'opacity-55' : ''}`}
+                  onClick={() => onService('gas')}
+                  className={`relative flex flex-col justify-between overflow-hidden rounded-[1.5rem] bg-lime p-4 text-start text-navy active:scale-[0.98] ${rest.length >= 2 ? 'row-span-2 min-h-[11.5rem]' : 'col-span-2 min-h-[7rem]'} ${paused('gas') ? 'opacity-55' : ''}`}
                 >
-                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${heavy ? 'bg-lime text-navy' : 'bg-brand-50 text-brand'}`}>
-                    <Icon size={22} strokeWidth={2.2} />
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-navy text-lime">
+                    <Flame size={24} />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-extrabold">{ar ? la : en}</span>
-                    <span className="block truncate text-[11px] text-navy/50">
-                      {paused(id)
-                        ? ar ? 'متوقف مؤقتاً' : 'Paused for now'
-                        : id === 'gas'
-                          ? pricing.gasPrice
-                            ? `${money(pricing.gasPrice)} ${ar ? 'للجرة' : 'each'}`
-                            : ar ? 'تبديل أو شراء لحد البيت' : 'Swap or buy, to your door'
-                          : ar ? sub : ''}
-                    </span>
+                  <span>
+                    <span className="block text-2xl font-black leading-tight">{ar ? 'جرة غاز' : 'Gas cylinder'}</span>
+                    <span className="block text-xs font-bold text-navy/60">{subOf(gas)}</span>
                   </span>
                 </button>
-                )
-              })}
+              )}
+              {rest.map((q, i) => (
+                <button
+                  key={q.id}
+                  onClick={() => onService(q.id)}
+                  className={`flex min-h-[5.5rem] flex-col justify-between gap-2 rounded-[1.5rem] bg-white p-3.5 text-start shadow-soft active:scale-[0.98] ${
+                    i === rest.length - 1 && (rest.length - (gas && rest.length >= 2 ? 2 : 0)) % 2 === 1 ? 'col-span-2' : ''
+                  } ${paused(q.id) ? 'opacity-55' : ''}`}
+                >
+                  <q.Icon size={22} strokeWidth={2.2} className="text-brand" />
+                  <span>
+                    <span className="block text-[15px] font-black leading-tight">{ar ? q.ar : q.en}</span>
+                    <span className="block truncate text-[11px] text-navy/50">{subOf(q)}</span>
+                  </span>
+                </button>
+              ))}
             </div>
           </section>
         )}
 
-        {/* ٥) كيف بتمشي — للزبون الجديد بس (اللي ما طلب قبل) */}
-        {show('howItWorks') && loaded && orders.length === 0 && <section className="rounded-3xl bg-white p-4 shadow-soft">
-          <h2 className="text-base font-extrabold">{ar ? 'كيف بتمشي؟' : 'How it works'}</h2>
-          <ol className="mt-3 space-y-3">
-            {(ar
-              ? [
-                  ['اكتب طلبك وحدد بيتك', 'اكتب الأغراض أو صوّر الورقة، وإذا بدك حدد المحل.'],
-                  ['عامل التوصيل بيشتري وبيجيب', 'بيوصلك إشعار بكل خطوة لحتى يدق بابك.'],
-                  ['بتدفع عند الاستلام', `ثمن الأغراض متل سعر المحل + أجرة توصيل ${money(pricing.deliveryFee)}.`],
-                ]
-              : [
-                  ['Write your order', 'List items or snap a photo, and pick a shop if you like.'],
-                  ['A courier buys and brings it', 'You get a notification at every step.'],
-                  ['Pay on delivery', `Shop price + ${money(pricing.deliveryFee)} delivery.`],
-                ]
-            ).map(([title, sub], i) => (
-              <li key={i} className="flex gap-3">
-                <span className="num-zap flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand text-sm text-lime">{i + 1}</span>
-                <span>
-                  <span className="block text-sm font-extrabold">{title}</span>
-                  <span className="block text-xs leading-relaxed text-navy/55">{sub}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        </section>}
+        {/* ٧) مكان إعلان تاني بنص الصفحة */}
+        {show('banners') && <BannerCarousel onAction={onBanner} placement="mid" />}
+
+        {/* ٨) كيف بتمشي — للزبون الجديد بس (اللي ما طلب قبل) */}
+        {show('howItWorks') && loaded && orders.length === 0 && (
+          <section className="rounded-[1.75rem] bg-navy p-5 text-white">
+            <h2 className="text-lg font-black">{ar ? 'كيف بتمشي؟' : 'How it works'}</h2>
+            <ol className="mt-4 space-y-4">
+              {(ar
+                ? [
+                    ['اكتب طلبك وحدد بيتك', 'اكتب الأغراض أو صوّر الورقة، وإذا بدك حدد المحل.'],
+                    ['عامل التوصيل بيشتري وبيجيب', 'بيوصلك إشعار بكل خطوة لحتى يدق بابك.'],
+                    ['بتدفع عند الاستلام', `ثمن الأغراض متل سعر المحل + أجرة توصيل ${money(pricing.deliveryFee)}.`],
+                  ]
+                : [
+                    ['Write your order', 'List items or snap a photo, and pick a shop if you like.'],
+                    ['A courier buys and brings it', 'You get a notification at every step.'],
+                    ['Pay on delivery', `Shop price + ${money(pricing.deliveryFee)} delivery.`],
+                  ]
+              ).map(([title, sub], i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="num-zap flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-lime text-base text-navy">{i + 1}</span>
+                  <span>
+                    <span className="block text-sm font-extrabold">{title}</span>
+                    <span className="block text-xs leading-relaxed text-white/65">{sub}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       </div>
     </div>
   )
@@ -155,12 +177,12 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
 
 // الاختصارات (الأسماء من لوحة الإدارة بتتحكم بالإيقاف والإخفاء)
 const QUICK = [
-  { id: 'gas', Icon: Flame, ar: 'جرة غاز', en: 'Gas cylinder', heavy: true },
-  { id: 'diesel', Icon: Fuel, ar: 'مازوت', en: 'Diesel', sub: 'تعبئة لحد البيت', heavy: true },
-  { id: 'supermarket', Icon: ShoppingCart, ar: 'أغراض البيت', en: 'Groceries', sub: 'سوبرماركت، خضرة، فرن' },
-  { id: 'pharmacy', Icon: Pill, ar: 'دوا من الصيدلية', en: 'Pharmacy', sub: 'صوّر الوصفة وابعتها' },
-  { id: 'restaurants', Icon: UtensilsCrossed, ar: 'أكل من مطعم', en: 'Food', sub: 'من أي مطعم بتحدده' },
-  { id: 'library', Icon: BookOpen, ar: 'قرطاسية', en: 'Stationery', sub: 'دفاتر وأقلام وطباعة' },
+  { id: 'gas', Icon: Flame, ar: 'جرة غاز', en: 'Gas cylinder' },
+  { id: 'diesel', Icon: Fuel, ar: 'مازوت', en: 'Diesel', sub: 'تعبئة لحد البيت', enSub: 'Refill at home' },
+  { id: 'pharmacy', Icon: Pill, ar: 'صيدلية', en: 'Pharmacy', sub: 'صوّر الوصفة', enSub: 'Snap the prescription' },
+  { id: 'supermarket', Icon: ShoppingCart, ar: 'أغراض البيت', en: 'Groceries', sub: 'سوبرماركت، فرن', enSub: 'Market, bakery' },
+  { id: 'restaurants', Icon: UtensilsCrossed, ar: 'أكل من مطعم', en: 'Food', sub: 'أي مطعم', enSub: 'Any restaurant' },
+  { id: 'library', Icon: BookOpen, ar: 'قرطاسية', en: 'Stationery', sub: 'دفاتر وطباعة', enSub: 'Notebooks, printing' },
 ]
 
 // أمثلة بتنكتب لحالها جوّا صندوق الطلب لتوضّح الفكرة
@@ -199,7 +221,7 @@ function ActiveOrderCard({ order, onClick }) {
   const { t } = useLang()
   const step = OPEN_STATUSES.indexOf(order.status)
   return (
-    <button onClick={onClick} className="w-full rounded-3xl bg-white p-4 text-start shadow-soft ring-2 ring-brand/30 active:scale-[0.99]">
+    <button onClick={onClick} className="w-full rounded-[1.5rem] bg-white p-4 text-start shadow-soft ring-2 ring-brand/25 active:scale-[0.99]">
       <div className="flex items-center gap-3">
         <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-white">
           <Truck size={22} />

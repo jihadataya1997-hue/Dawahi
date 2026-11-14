@@ -76,5 +76,7 @@ export function notify(ownerType, ownerId, payload) {
   }
   // تطبيق الأندرويد (Firebase)
   const native = ownerType === 'admin' ? 0 : notifyNative(ownerType, ownerId, payload)
+  // للتشخيص: صاحب الحساب ما فعّل التنبيهات على أي جهاز
+  if (!subs.length && !native) log('info', 'push skipped: no devices', { ownerType, ownerId, tag: payload.tag })
   return subs.length + native
 }

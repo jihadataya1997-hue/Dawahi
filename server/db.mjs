@@ -302,6 +302,73 @@ const MIGRATIONS = [
   );
   CREATE INDEX native_push_owner ON native_push_tokens(owner_type, owner_id);
   `,
+  `
+  -- كلمة سر الزبون (لحين ربط رسائل التحقق). must_set = لازم يحط كلمة سر جديدة أول ما يفوت
+  ALTER TABLE customers ADD COLUMN password_hash TEXT;
+  ALTER TABLE customers ADD COLUMN must_set_password INTEGER NOT NULL DEFAULT 0 CHECK (must_set_password IN (0,1));
+  `,
+  `
+  -- مكان الإعلان: top = السلايدر تحت صندوق الطلب، mid = بنص الصفحة بين الخدمات
+  ALTER TABLE banners ADD COLUMN placement TEXT NOT NULL DEFAULT 'top' CHECK (placement IN ('top','mid'));
+  `,
+  `
+  -- كودات الحسم: free = توصيل مجاني، amount = حسم مبلغ من أجرة التوصيل، percent = نسبة من أجرة التوصيل
+  CREATE TABLE promo_codes (
+    id               INTEGER PRIMARY KEY,
+    code             TEXT NOT NULL UNIQUE COLLATE NOCASE CHECK (length(code) BETWEEN 3 AND 20),
+    kind             TEXT NOT NULL CHECK (kind IN ('free','amount','percent')),
+    value            INTEGER NOT NULL DEFAULT 0 CHECK (value >= 0),
+    first_order_only INTEGER NOT NULL DEFAULT 0 CHECK (first_order_only IN (0,1)),
+    max_uses         INTEGER NOT NULL DEFAULT 0 CHECK (max_uses >= 0),
+    per_customer     INTEGER NOT NULL DEFAULT 1 CHECK (per_customer >= 1),
+    expires_at       TEXT,
+    active           INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+    note             TEXT NOT NULL DEFAULT '',
+    created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE TABLE promo_redemptions (
+    id          INTEGER PRIMARY KEY,
+    code_id     INTEGER NOT NULL REFERENCES promo_codes(id) ON DELETE CASCADE,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    order_id    INTEGER NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
+    discount    INTEGER NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE INDEX promo_redemptions_code ON promo_redemptions(code_id);
+  CREATE INDEX promo_redemptions_customer ON promo_redemptions(customer_id);
+  -- النقاط: بتنزل للزبون مع كل طلب واصل، وبيستبدلها بتوصيل مجاني
+  ALTER TABLE customers ADD COLUMN points INTEGER NOT NULL DEFAULT 0 CHECK (points >= 0);
+  ALTER TABLE orders ADD COLUMN points_awarded INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE orders ADD COLUMN points_used INTEGER NOT NULL DEFAULT 0;
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('points_per_order', '1'), ('points_free_delivery', '10');
+  `,
+  `
+  -- المطاعم والمحلات الشريكة مع قوائم الأكل والأسعار (مخفية لحين النشر)
+  CREATE TABLE stores (
+    id           INTEGER PRIMARY KEY,
+    name         TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 60),
+    category     TEXT NOT NULL DEFAULT 'restaurants',
+    description  TEXT NOT NULL DEFAULT '',
+    logo         TEXT,
+    cover        TEXT,
+    published    INTEGER NOT NULL DEFAULT 0 CHECK (published IN (0,1)),
+    is_open      INTEGER NOT NULL DEFAULT 1 CHECK (is_open IN (0,1)),
+    sort         INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE TABLE menu_items (
+    id           INTEGER PRIMARY KEY,
+    store_id     INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    section      TEXT NOT NULL DEFAULT '',
+    name         TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80),
+    description  TEXT NOT NULL DEFAULT '',
+    price        INTEGER NOT NULL CHECK (price >= 0),
+    image        TEXT,
+    available    INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0,1)),
+    sort         INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX menu_items_store ON menu_items(store_id, sort);
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

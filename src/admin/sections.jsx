@@ -20,6 +20,7 @@ import {
   Send,
   Trash2,
   X,
+  KeyRound,
 } from 'lucide-react'
 import { adminApi, adminErrorText } from './adminApi'
 import { imageToDataUrl, inputCls } from './shared'
@@ -84,8 +85,41 @@ export function Customers() {
     }
   }
 
+  const [temp, setTemp] = useState(null)
+  const tempPassword = async (c) => {
+    if (!window.confirm(`إعطاء ${c.name} كلمة سر مؤقتة؟ رح يطلع من حسابه وبيفوت بالكلمة الجديدة وبيغيّرها.`)) return
+    setBusy(c.id)
+    try {
+      setTemp(await adminApi(`/customers/${c.id}/temp-password`, { method: 'POST' }))
+      await load(q)
+    } catch (err) {
+      setError(adminErrorText(err))
+    } finally {
+      setBusy(0)
+    }
+  }
+
   return (
     <Card>
+      {temp && (
+        <div className="mb-4 rounded-2xl border border-lime bg-lime/20 p-4 text-sm">
+          <p className="font-extrabold">كلمة السر المؤقتة لـ {temp.name}</p>
+          <p dir="ltr" className="mt-2 text-center font-en text-3xl font-black tracking-[0.3em]">{temp.temp}</p>
+          <div className="mt-3 flex gap-2">
+            <a
+              href={`https://wa.me/963${temp.phone.slice(1)}?text=${encodeURIComponent(`أهلاً ${temp.name}،\nكلمة السر المؤقتة لحسابك بتطبيق ZAPP: ${temp.temp}\nفوت بالرقم ${temp.phone} وهالكلمة، والتطبيق رح يطلب منك تحط كلمة سر جديدة.`)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 rounded-xl bg-emerald-600 py-2 text-center text-xs font-bold text-white"
+            >
+              ابعتها عالواتساب
+            </a>
+            <button onClick={() => setTemp(null)} className="rounded-xl bg-white px-4 py-2 text-xs font-bold">
+              تم
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-0 flex-1">
           <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-navy/40" />
@@ -116,6 +150,7 @@ export function Customers() {
                   <td className="py-3">
                     <p className="font-bold">
                       {c.name} {c.blocked && <span className="rounded bg-rose-100 px-1.5 text-[10px] text-rose-700">موقوف</span>}
+                      {!c.hasPassword && <span className="ms-1 rounded bg-amber-100 px-1.5 text-[10px] text-amber-700">بدون كلمة سر</span>}
                     </p>
                     <p dir="ltr" className="text-end font-en text-xs text-navy/50 rtl:text-start">
                       {c.phone}
@@ -141,6 +176,13 @@ export function Customers() {
                         <MessageCircle size={14} />
                       </a>
                       <button
+                        onClick={() => tempPassword(c)}
+                        disabled={busy === c.id}
+                        className="flex h-8 items-center gap-1 rounded-lg bg-navy-50 px-2.5 text-xs font-bold"
+                      >
+                        <KeyRound size={14} /> كلمة مؤقتة
+                      </button>
+                      <button
                         onClick={() => toggleBlock(c)}
                         disabled={busy === c.id}
                         className={`flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-bold ${c.blocked ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}
@@ -163,7 +205,7 @@ export function Customers() {
 /* ───────── الإعلانات ───────── */
 
 const THEMES = {
-  orange: { label: 'برتقالي', cls: 'bg-brand' },
+  orange: { label: 'بنفسجي ZAPP', cls: 'bg-brand' },
   navy: { label: 'كحلي', cls: 'bg-navy' },
   green: { label: 'أخضر', cls: 'bg-[#13805C]' },
   sky: { label: 'أزرق', cls: 'bg-[#1F6FD1]' },
@@ -202,7 +244,7 @@ function BannerPreview({ b }) {
 
 function BannerEditor({ initial, onClose, onSaved }) {
   const [b, setB] = useState(
-    initial || { title: '', subtitle: '', badge: '', theme: 'orange', action: 'order', actionValue: 'any', active: true, startsAt: null, endsAt: null }
+    initial || { title: '', subtitle: '', badge: '', theme: 'navy', placement: 'top', action: 'order', actionValue: 'any', active: true, startsAt: null, endsAt: null }
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -229,6 +271,7 @@ function BannerEditor({ initial, onClose, onSaved }) {
       subtitle: b.subtitle,
       badge: b.badge,
       theme: b.theme,
+      placement: b.placement || 'top',
       action: b.action,
       actionValue: b.action === 'none' || b.action === 'gas' ? '' : b.actionValue,
       active: b.active,
@@ -275,6 +318,23 @@ function BannerEditor({ initial, onClose, onSaved }) {
             </Field>
           </div>
 
+          <Field label="مكان الإعلان">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['top', 'فوق (تحت صندوق الطلب)'],
+                ['mid', 'بنص الصفحة'],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => set({ placement: id })}
+                  className={`rounded-xl px-3 py-2.5 text-xs font-bold ${(b.placement || 'top') === id ? 'bg-brand text-white' : 'bg-navy-50'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </Field>
           <Field label="اللون">
             <div className="flex flex-wrap gap-2">
               {Object.entries(THEMES).map(([id, t]) => (

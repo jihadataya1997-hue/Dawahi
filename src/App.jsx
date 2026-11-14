@@ -5,6 +5,9 @@ import HomeScreen from './screens/HomeScreen'
 import GasOrderSheet from './components/GasOrderSheet'
 import CustomOrderSheet from './components/CustomOrderSheet'
 import LoginScreen from './screens/LoginScreen'
+import SetPasswordScreen from './screens/SetPasswordScreen'
+import UpdateNotice from './components/UpdateNotice'
+import { RestaurantsRow, StoreSheet, useStores } from './stores/Restaurants'
 import OrdersScreen from './screens/OrdersScreen'
 import AccountScreen from './screens/AccountScreen'
 import { useAuth } from './auth/AuthProvider'
@@ -26,6 +29,7 @@ export default function App() {
   if (maintenance) return <MaintenanceScreen />
   // الزبون لازم يسجّل دخول أولاً
   if (!user) return <LoginScreen />
+  if (user.mustSetPassword) return <SetPasswordScreen />
   return <Main {...{ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder, inboxOpen, setInboxOpen }} />
 }
 
@@ -34,6 +38,8 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
   const { services } = useAppConfig()
   const { lang } = useLang()
   const [toast, setToast] = useState('')
+  const stores = useStores()
+  const [storeOpen, setStoreOpen] = useState(null)
   const clearToast = useCallback(() => setToast(''), [])
   // خدمة موقّفة مؤقتاً من الإدارة؟ منبيّن السبب بدل ما نفتح الطلب
   const pausedNote = (id) => {
@@ -49,6 +55,10 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
     if (note) return setToast(note)
     if (id === 'gas') setGasOpen(true)
     else setCustom({ category: id, text: '' })
+  }
+  const checkout = (cart) => {
+    setStoreOpen(null)
+    setCustom({ category: 'restaurants', text: '', cart })
   }
   // الضغط على إعلان
   const onBanner = (b) => {
@@ -75,6 +85,7 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
             onService={openService}
             onBanner={onBanner}
             onOpenOrders={() => setTab('orders')}
+            restaurants={<RestaurantsRow stores={stores} onOpen={setStoreOpen} />}
           />
         )}
         {tab === 'orders' && <OrdersScreen onStart={startOrder} />}
@@ -84,15 +95,19 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
       <BottomNav active={tab} onChange={setTab} />
 
       <PromoPopup onAction={onBanner} />
+      <UpdateNotice />
       <Toast text={toast} onDone={clearToast} />
 
       <GasOrderSheet open={gasOpen} onClose={() => setGasOpen(false)} />
+      <StoreSheet store={storeOpen} onClose={() => setStoreOpen(null)} onCheckout={checkout} />
       <InboxSheet open={inboxOpen} items={inbox.items} onClose={() => setInboxOpen(false)} />
       <CustomOrderSheet
         open={!!custom}
         initialCategory={custom?.category}
         initialText={custom?.text}
+        cart={custom?.cart}
         onClose={() => setCustom(null)}
+        onGas={() => (setCustom(null), setGasOpen(true))}
       />
     </div>
   )

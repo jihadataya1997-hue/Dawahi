@@ -1,4 +1,5 @@
 // واجهة تطبيق شب التوصيل — كل المسارات تحت /api/courier/
+import { awardPoints } from './promo.mjs'
 import { courierLocation } from './live.mjs'
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
@@ -223,6 +224,7 @@ export async function courierRoute(req, res, url) {
       tag: `order-${id}`,
     })
     if (to === 'delivered') nudge() // صار عندو مكان لطلب جديد
+    if (to === 'delivered') awardPoints(id)
     if (to === 'delivered')
       notify('admin', 0, { title: `✅ تم توصيل D-${1000 + id}`, body: `بواسطة ${me.name}`, url: '/admin', tag: `order-${id}` })
     return send(res, 200, { order: forCourier(db.prepare(`${Q} WHERE o.id = ?`).get(id)) })

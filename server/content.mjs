@@ -1,9 +1,9 @@
 // محتوى التطبيق: النصوص، الخدمات، الإعلانات، الإشعارات العامة، والزبائن
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomInt } from 'node:crypto'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, getContent, getSettings, MEDIA_DIR } from './db.mjs'
-import { HttpError, bad, now, str, isPhone, rateLimit, readJson, send, log } from './lib.mjs'
+import { HttpError, bad, now, str, isPhone, rateLimit, readJson, send, log, hashSecret } from './lib.mjs'
 import { notify } from './push.mjs'
 
 const SERVICE_IDS = ['restaurants', 'supermarket', 'gas', 'diesel', 'pharmacy', 'library']
@@ -19,6 +19,7 @@ const toBanner = (b) => ({
   badge: b.badge,
   image: b.image ? `/api/media/${b.image}` : null,
   theme: b.theme,
+  placement: b.placement || 'top',
   action: b.action,
   actionValue: b.action_value,
   sort: b.sort,
@@ -148,7 +149,7 @@ export function listAnnouncements(limit = 20) {
     .all(limit)
 }
 
-async function saveImage(dataUrl) {
+export async function saveImage(dataUrl) {
   const m = typeof dataUrl === 'string' && /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
   if (!m) throw bad('INVALID', 'Image must be JPEG, PNG or WebP', 'image')
   const buf = Buffer.from(m[2], 'base64')
@@ -166,6 +167,10 @@ function bannerFields(body, current = {}) {
   if (body.theme !== undefined) {
     if (!THEMES.includes(body.theme)) throw bad('INVALID', 'Unknown theme', 'theme')
     f.theme = body.theme
+  }
+  if (body.placement !== undefined) {
+    if (!['top', 'mid'].includes(body.placement)) throw bad('INVALID', 'Unknown placement', 'placement')
+    f.placement = body.placement
   }
   if (body.action !== undefined) {
     if (!ACTIONS.includes(body.action)) throw bad('INVALID', 'Unknown action', 'action')
@@ -441,7 +446,7 @@ export async function contentAdminRoute(req, res, url, need) {
     const like = `%${q.replace(/[%_]/g, '')}%`
     const rows = db
       .prepare(
-        `SELECT c.id, c.name, c.phone, c.blocked, c.created_at AS createdAt,
+        `SELECT c.id, c.name, c.phone, c.blocked, c.created_at AS createdAt, (c.password_hash IS NOT NULL) AS hasPassword,
            COUNT(o.id) AS orders,
            SUM(o.status = 'delivered') AS delivered,
            MAX(o.created_at) AS lastOrderAt,
@@ -452,9 +457,22 @@ export async function contentAdminRoute(req, res, url, need) {
       )
       .all(q, like, like)
     send(res, 200, {
-      customers: rows.map((r) => ({ ...r, blocked: !!r.blocked, push: !!r.push, delivered: r.delivered || 0 })),
+      customers: rows.map((r) => ({ ...r, blocked: !!r.blocked, push: !!r.push, hasPassword: !!r.hasPassword, delivered: r.delivered || 0 })),
       total: db.prepare('SELECT COUNT(*) AS n FROM customers').get().n,
     })
+    return true
+  }
+  // كلمة سر مؤقتة سهلة للزبون اللي نسي كلمته (بيغيّرها أول ما يفوت)
+  mm = /^\/api\/admin\/customers\/(\d{1,12})\/temp-password$/.exec(pathname)
+  if (mm && m === 'POST') {
+    const id = Number(mm[1])
+    const c = db.prepare('SELECT id, name, phone FROM customers WHERE id = ?').get(id)
+    if (!c) throw new HttpError(404, 'NOT_FOUND', 'Customer not found')
+    const temp = String(100000 + randomInt(900000))
+    db.prepare('UPDATE customers SET password_hash = ?, must_set_password = 1, updated_at = ? WHERE id = ?').run(hashSecret(temp), now(), id)
+    db.prepare('DELETE FROM sessions WHERE customer_id = ?').run(id)
+    log('info', 'customer temp password', { customerId: id })
+    send(res, 200, { temp, name: c.name, phone: c.phone })
     return true
   }
   mm = /^\/api\/admin\/customers\/(\d{1,12})$/.exec(pathname)

@@ -67,6 +67,8 @@ build() {
     node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent+=' ZappFCM';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
     log "firebase enabled for customer app"
   fi
+  # رقم النسخة بيوصل للموقع مع كل طلب، لحتى التطبيق يعرف إذا في نسخة أحدث لازم تنزل
+  node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent+=' ZappBuild/'+process.env.ZAPP_VERSION_CODE;require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
   npx cap sync android >/dev/null
   cd android
   chmod +x gradlew

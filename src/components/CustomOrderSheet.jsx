@@ -5,6 +5,7 @@ import {
   Camera,
   Check,
   ChevronLeft,
+  Flame,
   Fuel,
   Info,
   LoaderCircle,
@@ -24,6 +25,8 @@ import { Field, RowChoice, Stepper, Stepper2 } from './ui'
 import { useAuth } from '../auth/AuthProvider'
 import { useOrders } from '../orders/OrdersProvider'
 import { useAppConfig } from '../config/AppConfigProvider'
+import CustomerPushCard from './CustomerPushCard'
+import PromoBox from './PromoBox'
 import { compressImage, newClientKey } from '../api'
 import { errorText } from '../i18n/errorText'
 import LocationPicker, { LocationField, loadLastLocation, mapsLink } from './LocationPicker'
@@ -60,7 +63,7 @@ const blank = (category = 'any', items = '', phone = '') => ({
  * "اطلب أي شي" — الزبون يكتب طلبه بحرية، يحدد المحل إذا بدو،
  * وعامل التوصيل يشتري الأغراض ويوصلها. لا يحتاج محلات متعاقدة.
  */
-export default function CustomOrderSheet({ open, initialCategory, initialText, onClose, onConfirmed }) {
+export default function CustomOrderSheet({ open, initialCategory, initialText, cart, onClose, onConfirmed, onGas }) {
   const { t, lang, formatNumber } = useLang()
   const { user } = useAuth()
   const { createOrder } = useOrders()
@@ -68,11 +71,14 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
   const { addresses, defaultAddress, add: addAddress } = useAddresses()
   // الأقسام الموقّفة أو المخفية من الإدارة ما بتطلع بالاختيارات
   const cats = CATEGORIES.filter(({ id }) => id === 'any' || id === 'other' || services.some((s) => s.id === id && !s.paused))
+  const gasOn = !!onGas && services.some((s) => s.id === 'gas' && !s.paused)
+  const dieselOn = services.some((s) => s.id === 'diesel' && !s.paused)
   const [clientKey, setClientKey] = useState('')
   const [created, setCreated] = useState(null)
   const c = (k) => t(`custom.${k}`)
   const [step, setStep] = useState(0)
   const [order, setOrder] = useState(blank())
+  const [perk, setPerk] = useState({ promoCode: '', usePoints: false, discount: 0 })
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -84,9 +90,12 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
 
   useEffect(() => {
     if (open) {
+      setPerk({ promoCode: '', usePoints: false, discount: 0 })
       setStep(0)
       // العنوان الافتراضي المحفوظ بيتعبّى لحاله
-      const b = blank(initialCategory || 'any', initialText || '', user?.phone || '')
+      const b = cart
+        ? { ...blank('restaurants', '', user?.phone || ''), storeMode: 'specific', storeName: cart.storeName }
+        : blank(initialCategory || 'any', initialText || '', user?.phone || '')
       setOrder(defaultAddress ? { ...b, ...fromAddress(defaultAddress) } : b)
       setStatus('idle')
       setError('')
@@ -94,7 +103,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
       setClientKey(newClientKey()) // مفتاح ثابت لهذا الطلب يمنع تكراره عند إعادة المحاولة
     }
     document.body.style.overflow = open ? 'hidden' : ''
-  }, [open, initialCategory, initialText, user])
+  }, [open, initialCategory, initialText, cart, user])
 
   if (!open) return null
 
@@ -111,7 +120,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
   }
 
   const next = () => {
-    if (step === 0 && !order.items.trim() && !order.photo) return setError(c('required'))
+    if (step === 0 && !cart && !order.items.trim() && !order.photo) return setError(c('required'))
     if (step === 1 && !order.location) return setError(t('map.required'))
     if (step === 1 && order.phone.replace(/\s/g, '').length < 10) return setError(c('addressRequired'))
     if (step < 2) return setStep(step + 1)
@@ -134,6 +143,9 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
         floor: order.floor,
         contactPhone: order.phone,
         notes: order.notes,
+        promoCode: perk.promoCode || undefined,
+        usePoints: perk.usePoints || undefined,
+        ...(cart ? { storeId: cart.storeId, cart: cart.lines.map((l) => ({ itemId: l.id, qty: l.qty })) } : {}),
       })
       setCreated(o)
       setStatus('found')
@@ -182,8 +194,71 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
             <Stepper step={step} labels={c('steps')} />
 
             <div className="scrollbar-hide flex-1 overflow-y-auto px-5 pb-4">
-              {step === 0 && (
+              {step === 0 && cart && (
+                <div className="space-y-5 animate-fade-in">
+                  <div className="rounded-3xl bg-navy-50 p-4">
+                    <p className="flex items-center gap-2 text-sm font-black">
+                      <UtensilsCrossed size={17} className="text-brand" /> {cart.storeName}
+                    </p>
+                    <ul className="mt-3 space-y-2 text-sm">
+                      {cart.lines.map((l) => (
+                        <li key={l.id} className="flex items-center justify-between gap-3">
+                          <span>
+                            <b className="num-zap me-1 text-brand">{formatNumber(l.qty)}×</b> {l.name}
+                          </span>
+                          <span className="shrink-0 font-bold">{money(l.price * l.qty)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-3 flex items-center justify-between border-t border-dashed border-navy/15 pt-3 text-sm font-black">
+                      <span>{lang === 'ar' ? 'مجموع الأكل' : 'Food total'}</span>
+                      <span className="text-brand">{money(cart.total)}</span>
+                    </div>
+                  </div>
+                  <Field label={lang === 'ar' ? 'ملاحظة للمطعم (اختياري)' : 'Note for the restaurant (optional)'}>
+                    <textarea
+                      rows={2}
+                      value={order.items}
+                      onChange={(e) => set({ items: e.target.value })}
+                      placeholder={lang === 'ar' ? 'مثلاً: بدون بصل، زيادة ثوم' : 'e.g. no onions'}
+                      className="w-full resize-none rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none focus:border-brand focus:bg-white"
+                    />
+                  </Field>
+                </div>
+              )}
+
+              {step === 0 && !cart && (
                 <div className="space-y-6 animate-fade-in">
+                  {/* اختصارات سريعة: تبديل جرة غاز (بتفتح طلب الغاز) وتعبئة مازوت */}
+                  {(gasOn || dieselOn) && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {gasOn && (
+                        <button
+                          onClick={() => onGas?.()}
+                          className="flex items-center gap-2 rounded-2xl bg-lime px-3 py-3 text-start text-navy active:scale-[0.98]"
+                        >
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-navy text-lime"><Flame size={18} /></span>
+                          <span className="text-sm font-black leading-tight">{lang === 'ar' ? 'تبديل جرة غاز' : 'Swap gas cylinder'}</span>
+                        </button>
+                      )}
+                      {dieselOn && (
+                        <button
+                          onClick={() =>
+                            set({
+                              category: 'diesel',
+                              items: order.items.trim() ? order.items : lang === 'ar' ? 'تعبئة مازوت: ___ ليتر' : 'Diesel refill: ___ liters',
+                            })
+                          }
+                          className={`flex items-center gap-2 rounded-2xl px-3 py-3 text-start active:scale-[0.98] ${
+                            order.category === 'diesel' ? 'bg-brand text-white' : 'bg-navy text-white'
+                          }`}
+                        >
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15"><Fuel size={18} /></span>
+                          <span className="text-sm font-black leading-tight">{lang === 'ar' ? 'تعبئة مازوت' : 'Diesel refill'}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <Field label={c('catQ')}>
                     <div className="scrollbar-hide -mx-5 flex gap-2 overflow-x-auto px-5">
                       {cats.map(({ id, Icon }) => {
@@ -381,11 +456,16 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
                     </ol>
                   </div>
 
+                  <PromoBox fee={pricing.deliveryFee} value={perk} onChange={setPerk} />
+
                   {/* الفاتورة */}
                   <div className="rounded-3xl border border-navy/10 p-4 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="text-navy/70">{c('deliveryFee')}</span>
-                      <span className="font-bold">{money(pricing.deliveryFee)}</span>
+                      <span className="font-bold">
+                        {perk.discount > 0 && <s className="me-2 text-xs font-normal text-navy/40">{money(pricing.deliveryFee)}</s>}
+                        {money(Math.max(0, pricing.deliveryFee - perk.discount))}
+                      </span>
                     </div>
                     {peak && (
                       <p className="mt-1 text-[11px] font-bold text-brand">
@@ -394,8 +474,14 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
                     )}
                     <div className="mt-3 flex items-center justify-between">
                       <span className="text-navy/70">{c('itemsCost')}</span>
-                      <span className="font-bold text-brand">{c('itemsCostVal')}</span>
+                      <span className="font-bold text-brand">{cart ? money(cart.total) : c('itemsCostVal')}</span>
                     </div>
+                    {cart && (
+                      <div className="mt-3 flex items-center justify-between border-t border-dashed border-navy/15 pt-3">
+                        <span className="font-extrabold">{lang === 'ar' ? 'المجموع' : 'Total'}</span>
+                        <span className="text-lg font-black text-brand">{money(cart.total + Math.max(0, pricing.deliveryFee - perk.discount))}</span>
+                      </div>
+                    )}
                   </div>
 
                   <p className="flex items-start gap-2 rounded-2xl bg-brand-50 p-3 text-xs leading-relaxed text-navy/80">
@@ -454,6 +540,10 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
                   </p>
                 )}
                 <p className="mt-1 text-sm text-navy/60">{c('foundSub')}</p>
+                {/* أهم لحظة لتفعيل التنبيهات: لحتى يعرف أول ما يقبل العامل طلبه */}
+                <div className="mt-4 w-full text-start">
+                  <CustomerPushCard />
+                </div>
                 <button
                   onClick={() => {
                     onConfirmed?.()

@@ -1,3 +1,4 @@
+import UpdateNotice from '../components/UpdateNotice'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   BellOff,
@@ -338,6 +339,7 @@ function Home({ onLogout }) {
       <main className="space-y-4 p-4">
         {tab !== 'map' && (
           <>
+            <UpdateNotice driver />
             {zapp ? <NativeSetupCard zapp={zapp} /> : <NotificationsCard />}
             {!zapp && <DriverApkCard />}
             {!zapp && <InstallCard />}
@@ -571,10 +573,13 @@ function NativeSetupCard({ zapp }) {
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [check])
-  if (!st || (st.location && st.notifications && st.batteryExempt)) return null
+  if (!st || (st.location && st.notifications && st.batteryExempt && st.fullScreen !== false)) return null
   const steps = [
     { ok: st.notifications && st.location, label: 'اسمح بالإشعارات والموقع', run: () => zapp.ensurePermissions().then(setSt) },
     { ok: st.batteryExempt, label: 'اسمح للتطبيق يشتغل بالخلفية (البطارية)', run: () => zapp.batteryExemption().then(() => setTimeout(check, 1500)) },
+    ...(st.fullScreen === false
+      ? [{ ok: false, label: 'اسمح يطلع الطلب على شاشة القفل', run: () => zapp.fullScreenSettings().then(() => setTimeout(check, 1500)) }]
+      : []),
   ]
   return (
     <div className="rounded-3xl bg-amber-400 p-4 text-navy">
