@@ -1,4 +1,4 @@
-import { Bell, BookOpen, ChevronLeft, Flame, Fuel, MapPin, PencilLine, Pill, ShieldCheck, ShoppingCart, Truck, UtensilsCrossed, Wallet, BellRing } from 'lucide-react'
+import { Zap, Bell, BookOpen, ChevronLeft, Flame, Fuel, MapPin, PencilLine, Pill, ShieldCheck, ShoppingCart, Truck, UtensilsCrossed, Wallet, BellRing } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import BannerCarousel from '../components/BannerCarousel'
 import { useLang } from '../i18n/LanguageProvider'
@@ -20,7 +20,7 @@ const ICONS = {
  */
 export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onService, onBanner, onOpenOrders }) {
   const { t, lang, toggleLang } = useLang()
-  const { areaName, texts, services, pricing, money } = useAppConfig()
+  const { areaName, texts, services, pricing, money, peak } = useAppConfig()
   const list = services.filter((s) => s.enabled !== false && ICONS[s.id])
   const heroTitle = lang === 'ar' && texts.heroTitle ? texts.heroTitle : t('hero.title')
 
@@ -54,6 +54,17 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
           <MapPin size={14} className="shrink-0 text-lime" />
           {t('deliverTo')} <b className="font-bold text-white">{areaName}</b>
         </p>
+
+        {peak && (
+          <p className="mt-3 flex items-center gap-2 rounded-2xl bg-lime px-3 py-2 text-xs font-bold text-navy">
+            <Zap size={15} className="shrink-0" />
+            <span>
+              {lang === 'ar'
+                ? `${peak.label}: أجرة التوصيل ${money(pricing.deliveryFee)}${peak.until ? ` حتى ${peak.until}` : ''}`
+                : `Peak time: delivery ${money(pricing.deliveryFee)}${peak.until ? ` until ${peak.until}` : ''}`}
+            </span>
+          </p>
+        )}
 
         {/* زر الطلب الرئيسي */}
         <button
@@ -89,9 +100,14 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
                   <button
                     key={s.id}
                     onClick={() => onService(s.id)}
-                    className="flex flex-col items-center gap-2 rounded-3xl bg-white px-2 py-4 shadow-soft active:scale-95"
+                    className={`relative flex flex-col items-center gap-2 rounded-3xl bg-white px-2 py-4 shadow-soft active:scale-95 ${s.paused ? 'opacity-60' : ''}`}
                   >
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand">
+                    {s.paused && (
+                      <span className="absolute -top-2 rounded-full bg-navy px-2 py-0.5 text-[10px] font-bold text-lime">
+                        {lang === 'ar' ? 'متوقف مؤقتاً' : 'Paused'}
+                      </span>
+                    )}
+                    <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${s.paused ? 'bg-navy/5 text-navy/40' : 'bg-brand-50 text-brand'}`}>
                       <Icon size={24} strokeWidth={2.2} />
                     </span>
                     <span className="text-[13px] font-bold">{lang === 'ar' && s.label ? s.label : t(`svc.${s.id}`)}</span>

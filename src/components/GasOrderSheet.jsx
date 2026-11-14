@@ -34,7 +34,7 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('idle') // idle | searching | found
   const { createOrder } = useOrders()
-  const { pricing: PRICING, money } = useAppConfig()
+  const { pricing: PRICING, money, peak } = useAppConfig()
   const [clientKey, setClientKey] = useState('')
   const [created, setCreated] = useState(null)
   const set = (patch) => {
@@ -60,7 +60,7 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   // حساب الفاتورة
   const stairsFloors = order.elevator ? 0 : order.floor
   const lines = [
-    { label: g('deliveryFee'), amount: PRICING.deliveryFee },
+    { label: peak ? `${g('deliveryFee')} · ${peak.label}` : g('deliveryFee'), amount: PRICING.deliveryFee },
     { label: `${g('gasPrice')} × ${formatNumber(order.qty)}`, amount: PRICING.gasPrice * order.qty, approx: true },
     order.type === 'buy' && {
       label: `${g('cylinderPrice')} × ${formatNumber(order.qty)}`,

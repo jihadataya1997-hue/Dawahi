@@ -56,10 +56,12 @@ const blank = (category = 'any', items = '', phone = '') => ({
  * وعامل التوصيل يشتري الأغراض ويوصلها. لا يحتاج محلات متعاقدة.
  */
 export default function CustomOrderSheet({ open, initialCategory, initialText, onClose, onConfirmed }) {
-  const { t, formatNumber } = useLang()
+  const { t, lang, formatNumber } = useLang()
   const { user } = useAuth()
   const { createOrder } = useOrders()
-  const { pricing, money } = useAppConfig()
+  const { pricing, money, services, peak } = useAppConfig()
+  // الأقسام الموقّفة أو المخفية من الإدارة ما بتطلع بالاختيارات
+  const cats = CATEGORIES.filter(({ id }) => id === 'any' || id === 'other' || services.some((s) => s.id === id && !s.paused))
   const [clientKey, setClientKey] = useState('')
   const [created, setCreated] = useState(null)
   const c = (k) => t(`custom.${k}`)
@@ -167,7 +169,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
                 <div className="space-y-6 animate-fade-in">
                   <Field label={c('catQ')}>
                     <div className="scrollbar-hide -mx-5 flex gap-2 overflow-x-auto px-5">
-                      {CATEGORIES.map(({ id, Icon }) => {
+                      {cats.map(({ id, Icon }) => {
                         const on = order.category === id
                         return (
                           <button
@@ -358,6 +360,11 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
                       <span className="text-navy/70">{c('deliveryFee')}</span>
                       <span className="font-bold">{money(pricing.deliveryFee)}</span>
                     </div>
+                    {peak && (
+                      <p className="mt-1 text-[11px] font-bold text-brand">
+                        {lang === 'ar' ? `تشمل زيادة ${peak.label} (${money(peak.extra)})` : `Includes peak surcharge (${money(peak.extra)})`}
+                      </p>
+                    )}
                     <div className="mt-3 flex items-center justify-between">
                       <span className="text-navy/70">{c('itemsCost')}</span>
                       <span className="font-bold text-brand">{c('itemsCostVal')}</span>

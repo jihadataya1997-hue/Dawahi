@@ -39,17 +39,91 @@ function activeBanners() {
     .map(toBanner)
 }
 
+/* ───────── التحكم الديناميكي بالتطبيق: صيانة، ذروة، نافذة منبثقة ───────── */
+const DEFAULT_CONTROLS = {
+  maintenance: { enabled: false, title: 'التطبيق قيد الصيانة', message: 'نعمل على تحسين الخدمة، ونعود خلال وقت قصير.' },
+  peak: { manual: false, extra: 50, label: 'أوقات الذروة', schedule: [] },
+  popup: { enabled: false, id: 0, title: '', body: '', image: null, buttonText: '', action: 'none', actionValue: '', frequency: 'once' },
+}
+const POPUP_FREQ = ['once', 'daily', 'always']
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+
+export function getControls() {
+  let saved = {}
+  try {
+    saved = JSON.parse(getContent().controls || '{}')
+  } catch {}
+  return {
+    maintenance: { ...DEFAULT_CONTROLS.maintenance, ...saved.maintenance },
+    peak: { ...DEFAULT_CONTROLS.peak, ...saved.peak },
+    popup: { ...DEFAULT_CONTROLS.popup, ...saved.popup },
+  }
+}
+
+/** هل نحن الآن بوقت ذروة؟ (يدوي، أو حسب الجدول بتوقيت دمشق) */
+export function peakState(peak = getControls().peak) {
+  if (peak.manual) return { active: true, manual: true }
+  const d = new Date(Date.now() + 3 * 3600 * 1000)
+  const day = d.getUTCDay()
+  const hm = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+  for (const w of peak.schedule || []) {
+    if (!w.days?.includes(day)) continue
+    // فترة عادية (13:00-15:00) أو بتقطع نص الليل (22:00-02:00)
+    const inside = w.from <= w.to ? hm >= w.from && hm < w.to : hm >= w.from || hm < w.to
+    if (inside) return { active: true, manual: false, until: w.to }
+  }
+  return { active: false }
+}
+
+/** أجرة التوصيل الفعلية الآن (الأساسية + زيادة الذروة) */
+export function currentDeliveryFee(s = getSettings(), controls = getControls()) {
+  const p = peakState(controls.peak)
+  return { fee: s.delivery_fee + (p.active ? controls.peak.extra : 0), base: s.delivery_fee, peak: p, extra: p.active ? controls.peak.extra : 0 }
+}
+
+/** حالة كل خدمة: on شغّالة، paused متوقفة مؤقتاً (تظهر باهتة)، hidden مخفية */
+export const serviceState = (svc) => (!svc ? 'on' : svc.enabled === false ? 'hidden' : svc.paused ? 'paused' : 'on')
+
+/** يمنع الطلب إذا التطبيق بالصيانة أو الخدمة متوقفة */
+export function assertOrderingOpen(category) {
+  const ctl = getControls()
+  if (ctl.maintenance.enabled) throw new HttpError(503, 'MAINTENANCE', ctl.maintenance.message || 'The app is under maintenance')
+  const svc = getContent().services.find((x) => x.id === category)
+  const st = serviceState(svc)
+  if (st !== 'on') throw new HttpError(409, 'SERVICE_PAUSED', svc?.pauseNote || 'This service is paused for now')
+}
+
 /** إعدادات التطبيق العامة (بدون تسجيل دخول) */
 export function publicApp() {
   const c = getContent()
   const s = getSettings()
+  const ctl = getControls()
+  const fee = currentDeliveryFee(s, ctl)
+  const popup = ctl.popup
   return {
     texts: { areaName: c.area_name, heroTitle: c.hero_title, heroSub: c.hero_sub, supportPhone: c.support_phone },
     currency: c.currency_label,
-    services: c.services.filter((x) => x.enabled),
+    services: c.services
+      .filter((x) => serviceState(x) !== 'hidden')
+      .map((x) => ({ ...x, paused: serviceState(x) === 'paused', pauseNote: x.pauseNote || '' })),
     banners: activeBanners(),
+    maintenance: ctl.maintenance.enabled ? { title: ctl.maintenance.title, message: ctl.maintenance.message } : null,
+    peak: fee.peak.active ? { extra: fee.extra, label: ctl.peak.label, until: fee.peak.until || null } : null,
+    popup: popup.enabled && popup.title
+      ? {
+          id: popup.id,
+          title: popup.title,
+          body: popup.body,
+          image: popup.image ? `/api/media/${popup.image}` : null,
+          buttonText: popup.buttonText,
+          action: popup.action,
+          actionValue: popup.actionValue,
+          frequency: popup.frequency,
+        }
+      : null,
     pricing: {
-      deliveryFee: s.delivery_fee,
+      deliveryFee: fee.fee,
+      baseDeliveryFee: fee.base,
       gasPrice: s.gas_price,
       emptyCylinder: s.empty_cylinder_price,
       stairsPerFloor: s.stairs_fee_per_floor,
@@ -120,6 +194,16 @@ function bannerFields(body, current = {}) {
   return f
 }
 
+function controlsView() {
+  const ctl = getControls()
+  const fee = currentDeliveryFee(getSettings(), ctl)
+  return {
+    controls: { ...ctl, popup: { ...ctl.popup, image: ctl.popup.image ? `/api/media/${ctl.popup.image}` : null } },
+    services: getContent().services.map((x) => ({ id: x.id, label: x.label, state: serviceState(x), pauseNote: x.pauseNote || '' })),
+    fee: { now: fee.fee, base: fee.base, peakActive: fee.peak.active, until: fee.peak.until || null },
+  }
+}
+
 function adminContentView() {
   const c = getContent()
   return {
@@ -137,6 +221,7 @@ export async function contentAdminRoute(req, res, url, need) {
   const { pathname } = url
   const m = req.method
   if (/^\/api\/admin\/(content|banners|announcements)/.test(pathname)) need('content.manage')
+  if (pathname === '/api/admin/controls' && req.method === 'GET') need('orders.view')
   if (pathname.startsWith('/api/admin/customers')) need(m === 'GET' ? 'customers.view' : 'customers.manage')
 
   // نصوص التطبيق + الخدمات + العملة + رقم الدعم
@@ -163,12 +248,99 @@ export async function contentAdminRoute(req, res, url, need) {
         const clean = b.services.map((s) => {
           if (!SERVICE_IDS.includes(s.id) || seen.has(s.id)) throw bad('INVALID', 'Unknown service', 'services')
           seen.add(s.id)
-          return { id: s.id, enabled: !!s.enabled, label: str(s.label, 20, 'label', { required: true }), sub: str(s.sub, 24, 'sub') }
+          const prev = getContent().services.find((x) => x.id === s.id) || {}
+          return {
+            id: s.id,
+            enabled: !!s.enabled,
+            label: str(s.label, 20, 'label', { required: true }),
+            sub: str(s.sub, 24, 'sub'),
+            // حالة الإيقاف المؤقت تتعدل من شاشة "التحكم بالتطبيق"، ومنحافظ عليها هون
+            paused: s.paused !== undefined ? !!s.paused : !!prev.paused,
+            pauseNote: s.pauseNote !== undefined ? str(s.pauseNote, 120, 'pauseNote') : prev.pauseNote || '',
+          }
         })
         set('services', JSON.stringify(clean))
       }
       log('info', 'content updated', { keys: Object.keys(b) })
       send(res, 200, { content: adminContentView() })
+      return true
+    }
+  }
+
+  // التحكم بالتطبيق: الصيانة، الأقسام، الذروة، النافذة المنبثقة
+  if (pathname === '/api/admin/controls') {
+    if (m === 'GET') {
+      send(res, 200, controlsView())
+      return true
+    }
+    if (m === 'PUT') {
+      const b = await readJson(req)
+      const ctl = getControls()
+      const set = (k, v) => db.prepare('INSERT INTO content (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(k, v)
+
+      if (b.maintenance !== undefined) {
+        need('content.manage')
+        ctl.maintenance = {
+          enabled: !!b.maintenance.enabled,
+          title: str(b.maintenance.title, 60, 'title') || DEFAULT_CONTROLS.maintenance.title,
+          message: str(b.maintenance.message, 300, 'message') || DEFAULT_CONTROLS.maintenance.message,
+        }
+      }
+      if (b.peak !== undefined) {
+        need('pricing.manage')
+        const extra = Number(b.peak.extra)
+        if (!Number.isInteger(extra) || extra < 0 || extra > 1000000) throw bad('INVALID', 'Invalid peak amount', 'extra')
+        if (!Array.isArray(b.peak.schedule) || b.peak.schedule.length > 20) throw bad('INVALID', 'Invalid schedule', 'schedule')
+        const schedule = b.peak.schedule.map((w) => {
+          const days = [...new Set((w.days || []).map(Number))].filter((d) => Number.isInteger(d) && d >= 0 && d <= 6).sort()
+          if (!days.length) throw bad('INVALID', 'Pick at least one day', 'schedule')
+          if (!TIME_RE.test(w.from) || !TIME_RE.test(w.to) || w.from === w.to) throw bad('INVALID', 'Invalid time', 'schedule')
+          return { days, from: w.from, to: w.to }
+        })
+        ctl.peak = { manual: !!b.peak.manual, extra, label: str(b.peak.label, 30, 'label') || 'أوقات الذروة', schedule }
+      }
+      if (b.popup !== undefined) {
+        need('content.manage')
+        const p = b.popup
+        const action = ACTIONS.includes(p.action) ? p.action : 'none'
+        const actionValue = str(p.actionValue, 300, 'actionValue')
+        if (action === 'url' && !/^https:\/\/\S+$/.test(actionValue)) throw bad('INVALID', 'Link must start with https://', 'actionValue')
+        let image = ctl.popup.image
+        if (p.image === null) image = null
+        else if (typeof p.image === 'string' && p.image.startsWith('data:')) image = await saveImage(p.image)
+        if (image !== ctl.popup.image && ctl.popup.image) await rm(join(MEDIA_DIR, ctl.popup.image), { force: true })
+        const enabled = !!p.enabled
+        if (enabled && !str(p.title, 80, 'title')) throw bad('INVALID', 'Title is required', 'title')
+        ctl.popup = {
+          enabled,
+          // رقم جديد كل ما انحفظت نافذة مفعّلة → بتطلع للزبائن من جديد
+          id: p.showAgain || (enabled && !ctl.popup.enabled) ? Date.now() : ctl.popup.id || Date.now(),
+          title: str(p.title, 80, 'title'),
+          body: str(p.body, 400, 'body'),
+          image,
+          buttonText: str(p.buttonText, 30, 'buttonText'),
+          action,
+          actionValue,
+          frequency: POPUP_FREQ.includes(p.frequency) ? p.frequency : 'once',
+        }
+      }
+      if (b.services !== undefined) {
+        need('content.manage')
+        if (!Array.isArray(b.services)) throw bad('INVALID', 'services must be a list', 'services')
+        const list = getContent().services
+        for (const u of b.services) {
+          const svc = list.find((x) => x.id === u.id)
+          if (!svc) throw bad('INVALID', 'Unknown service', 'services')
+          const st = ['on', 'paused', 'hidden'].includes(u.state) ? u.state : 'on'
+          svc.enabled = st !== 'hidden'
+          svc.paused = st === 'paused'
+          svc.pauseNote = str(u.pauseNote, 120, 'pauseNote')
+        }
+        set('services', JSON.stringify(list))
+      }
+      set('controls', JSON.stringify(ctl))
+      log('info', 'app controls updated', { keys: Object.keys(b), maintenance: ctl.maintenance.enabled })
+      send(res, 200, controlsView())
       return true
     }
   }

@@ -17,6 +17,9 @@ const DEFAULTS = {
     { id: 'library', enabled: true },
   ],
   banners: [],
+  maintenance: null,
+  peak: null,
+  popup: null,
   pricing: { deliveryFee: 150, gasPrice: 1500, emptyCylinder: 3500, stairsPerFloor: 20 },
 }
 
@@ -46,7 +49,8 @@ export function AppConfigProvider({ children }) {
 
   useEffect(() => {
     refresh()
-    const id = setInterval(refresh, 5 * 60 * 1000)
+    // كل دقيقة: حتى توصل الصيانة والإيقاف المؤقت والذروة بسرعة
+    const id = setInterval(() => document.visibilityState === 'visible' && refresh(), 60 * 1000)
     const onVis = () => document.visibilityState === 'visible' && refresh()
     document.addEventListener('visibilitychange', onVis)
     return () => {

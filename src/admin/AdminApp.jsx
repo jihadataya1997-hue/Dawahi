@@ -26,6 +26,7 @@ import {
   Tag,
   UserPlus,
   Radar,
+  SlidersHorizontal,
   Users,
   Zap,
   X,
@@ -35,6 +36,7 @@ import { disablePush, enablePush, pushState, registerSW } from '../push'
 import { currency, money } from './shared'
 import { AppContent, Announcements, Banners, Customers, Team } from './sections'
 import LiveMonitor from './LiveMonitor'
+import AppControlPanel from './AppControlPanel'
 
 // المستخدم الحالي وصلاحياته
 export const MeContext = createContext({ perms: [] })
@@ -197,6 +199,7 @@ const ALL_NAV = [
   { id: 'banners', label: 'الإعلانات', Icon: Image, perm: 'content.manage' },
   { id: 'announce', label: 'الإشعارات العامة', Icon: Megaphone, perm: 'content.manage' },
   { id: 'content', label: 'محتوى التطبيق', Icon: PanelsTopLeft, perm: 'content.manage' },
+  { id: 'control', label: 'التحكم بالتطبيق', Icon: SlidersHorizontal, perm: ['content.manage', 'pricing.manage'] },
   { id: 'prices', label: 'الأسعار والتوزيع', Icon: Tag, perm: 'pricing.manage' },
   { id: 'team', label: 'الفريق والصلاحيات', Icon: ShieldCheck, perm: 'staff.manage' },
   { id: 'backups', label: 'النسخ الاحتياطي', Icon: Database, perm: 'backups.manage' },
@@ -224,7 +227,7 @@ function Dashboard({ onLogout }) {
 }
 
 function Shell({ me, onLogout }) {
-  const NAV = ALL_NAV.filter((n) => me.perms.includes(n.perm))
+  const NAV = ALL_NAV.filter((n) => [].concat(n.perm).some((p) => me.perms.includes(p)))
   const [section, setSection] = useState(() => (NAV.some((n) => `#${n.id}` === location.hash) ? location.hash.slice(1) : NAV[0]?.id || 'overview'))
   const [stats, setStats] = useState(null)
   const [selected, setSelected] = useState(null)
@@ -327,6 +330,7 @@ function Shell({ me, onLogout }) {
 
         <main className={`mx-auto p-4 pb-16 lg:p-8 ${section === 'live' ? 'max-w-[1400px]' : 'max-w-5xl'}`}>
           {section === 'live' && <LiveMonitor onOpenOrder={setSelected} />}
+          {section === 'control' && <AppControlPanel can={(p) => me.perms.includes(p)} />}
           {section === 'overview' && <Overview stats={stats} onGo={go} onOpenOrder={setSelected} />}
           {section === 'orders' && <OrdersBoard onOpen={setSelected} />}
           {section === 'couriers' && <Couriers />}

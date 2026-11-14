@@ -12,7 +12,7 @@ const NOISY = new Set(['/api/presence', '/api/courier/location', '/api/admin/liv
 import { toOrder } from './lib.mjs'
 import { scheduleBackups } from './backup.mjs'
 import { courierRoute } from './courier.mjs'
-import { listAnnouncements, publicApp, serveMedia } from './content.mjs'
+import { assertOrderingOpen, currentDeliveryFee, listAnnouncements, publicApp, serveMedia } from './content.mjs'
 import { cancelOffers, dispatchOrder, startDispatcher } from './dispatch.mjs'
 import { VAPID_PUBLIC_KEY, notify, removeSubscription, saveSubscription } from './push.mjs'
 
@@ -79,6 +79,10 @@ function validateOrder(body, user) {
   if (!isPhone(contactPhone)) throw bad('INVALID_PHONE', 'Phone must start with 09 and be 10 digits', 'contactPhone')
 
   const s = getSettings()
+  // التطبيق بالصيانة أو الخدمة متوقفة مؤقتاً؟
+  const category = kind === 'gas' ? 'gas' : CATEGORIES.includes(body.category) ? body.category : 'any'
+  assertOrderingOpen(category)
+  const fee = currentDeliveryFee(s)
   const base = {
     kind,
     clientKey,
@@ -88,7 +92,8 @@ function validateOrder(body, user) {
     contactPhone,
     address: str(body.address, 300, 'address'),
     notes: str(body.notes, 500, 'notes'),
-    deliveryFee: s.delivery_fee,
+    deliveryFee: fee.fee,
+    peakExtra: fee.extra,
   }
 
   if (kind === 'custom') {
@@ -97,7 +102,7 @@ function validateOrder(body, user) {
     if (!items && !body.photo) throw bad('ITEMS_REQUIRED', 'Write your order or attach a photo', 'items')
     const storeMode = body.storeMode === 'specific' ? 'specific' : 'any'
     const storeName = storeMode === 'specific' ? str(body.storeName, 120, 'storeName') : ''
-    return { ...base, category, details: { items, storeMode, storeName } }
+    return { ...base, category, details: { items, storeMode, storeName, ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}) } }
   }
 
   // gas
@@ -113,7 +118,7 @@ function validateOrder(body, user) {
     stairsFee: s.stairs_fee_per_floor * stairsFloors * qty,
   }
   const estimate = base.deliveryFee + prices.gasPrice * qty + prices.emptyCylinderPrice * qty + prices.stairsFee
-  return { ...base, category: 'gas', details: { qty, gasType, elevator, prices, estimate } }
+  return { ...base, category: 'gas', details: { qty, gasType, elevator, prices, estimate, ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}) } }
 }
 
 async function createOrder(req, res, user) {
