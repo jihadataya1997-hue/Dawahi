@@ -4,6 +4,7 @@ import App from './App'
 import { LanguageProvider } from './i18n/LanguageProvider'
 import { AuthProvider } from './auth/AuthProvider'
 import { OrdersProvider } from './orders/OrdersProvider'
+import { AddressesProvider } from './addresses/AddressesProvider'
 import { AppConfigProvider } from './config/AppConfigProvider'
 import { startPresence } from './presence'
 import './index.css'
@@ -31,9 +32,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <LanguageProvider>
       <AppConfigProvider>
         <AuthProvider>
-          <OrdersProvider>
-            <App />
-          </OrdersProvider>
+          <AddressesProvider>
+            <OrdersProvider>
+              <App />
+            </OrdersProvider>
+          </AddressesProvider>
         </AuthProvider>
       </AppConfigProvider>
     </LanguageProvider>

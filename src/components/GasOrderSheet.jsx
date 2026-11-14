@@ -20,10 +20,12 @@ import { newClientKey } from '../api'
 import { errorText } from '../i18n/errorText'
 import { Choice, Field, RowChoice, Stepper, Stepper2 } from './ui'
 import LocationPicker, { LocationField, loadLastLocation } from './LocationPicker'
+import { useAddresses } from '../addresses/AddressesProvider'
+import { AddressChooser, SaveAddressBox, fromAddress } from '../addresses/AddressChooser'
 
 // ⚙️ الأسعار تأتي من السيرفر (جدول settings) — تتغير من لوحة التحكم لاحقاً
 
-const initial = () => ({ qty: 1, type: 'swap', location: loadLastLocation(), floor: 0, elevator: true, notes: '' })
+const initial = () => ({ qty: 1, type: 'swap', location: loadLastLocation(), floor: 0, elevator: true, notes: '', address: '', addressId: null, saveAddress: true, saveLabel: 'البيت' })
 
 export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   const { t, lang, formatNumber } = useLang()
@@ -35,6 +37,7 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   const [status, setStatus] = useState('idle') // idle | searching | found
   const { createOrder } = useOrders()
   const { pricing: PRICING, money, peak } = useAppConfig()
+  const { addresses, defaultAddress, add: addAddress } = useAddresses()
   const [clientKey, setClientKey] = useState('')
   const [created, setCreated] = useState(null)
   const set = (patch) => {
@@ -46,7 +49,7 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   useEffect(() => {
     if (open) {
       setStep(0)
-      setOrder(initial())
+      setOrder(defaultAddress ? { ...initial(), ...fromAddress(defaultAddress) } : initial())
       setError('')
       setCreated(null)
       setClientKey(newClientKey())
@@ -90,9 +93,18 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
         elevator: order.elevator,
         floor: order.floor,
         location: order.location,
+        address: order.address,
         notes: order.notes,
       })
       setCreated(o)
+      if (!order.addressId && order.saveAddress && order.location)
+        addAddress({
+          label: order.saveLabel.trim() || (addresses.length ? `عنوان ${addresses.length + 1}` : 'البيت'),
+          location: order.location,
+          details: order.address,
+          floor: order.floor,
+          elevator: order.elevator,
+        }).catch(() => {})
       setStatus('found')
     } catch (err) {
       setStatus('idle')
@@ -174,7 +186,24 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
               {step === 1 && (
                 <div className="space-y-6 animate-fade-in">
                   <Field label={t('custom.addressQ')}>
-                    <LocationField value={order.location} onOpen={() => setPickerOpen(true)} />
+                    <AddressChooser
+                      selectedId={order.addressId}
+                      onSelect={(a) => set(fromAddress(a))}
+                      onNew={() => set({ addressId: null, location: loadLastLocation(), address: '', floor: 0, elevator: true, saveLabel: addresses.length ? '' : 'البيت' })}
+                    />
+                    {(!addresses.length || order.addressId === null) && (
+                      <div className={addresses.length ? 'mt-3 space-y-3' : 'space-y-3'}>
+                        <LocationField value={order.location} onOpen={() => setPickerOpen(true)} />
+                        <textarea
+                          rows={2}
+                          value={order.address}
+                          onChange={(e) => set({ address: e.target.value })}
+                          placeholder={t('custom.addressPh')}
+                          className="w-full resize-none rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none transition focus:border-brand focus:bg-white"
+                        />
+                        <SaveAddressBox save={order.saveAddress} label={order.saveLabel} onChange={set} />
+                      </div>
+                    )}
                   </Field>
                   <Field label={g('floorQ')}>
                     <div className="flex items-center justify-between rounded-2xl bg-navy-50 p-2">

@@ -3,6 +3,7 @@ import { Check, Globe, LogOut, MapPin, MessageCircle, Pencil, Phone } from 'luci
 import { useLang } from '../i18n/LanguageProvider'
 import { useAuth } from '../auth/AuthProvider'
 import { useAppConfig } from '../config/AppConfigProvider'
+import MyAddresses from '../addresses/MyAddresses'
 
 export default function AccountScreen() {
   const { t, lang, toggleLang } = useLang()
@@ -58,7 +59,9 @@ export default function AccountScreen() {
         </div>
       </header>
 
-      <ul className="mx-4 -mt-4 divide-y divide-navy/5 overflow-hidden rounded-3xl bg-white shadow-soft">
+      <MyAddresses />
+
+      <ul className="mx-4 mt-4 divide-y divide-navy/5 overflow-hidden rounded-3xl bg-white shadow-soft">
         <Row Icon={Globe} label={t('account.language')} value={lang === 'ar' ? 'العربية' : 'English'} onClick={toggleLang} />
         <Row Icon={MapPin} label={t('account.area')} value={areaName} />
         {support && (

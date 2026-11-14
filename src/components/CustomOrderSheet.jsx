@@ -27,6 +27,8 @@ import { useAppConfig } from '../config/AppConfigProvider'
 import { compressImage, newClientKey } from '../api'
 import { errorText } from '../i18n/errorText'
 import LocationPicker, { LocationField, loadLastLocation, mapsLink } from './LocationPicker'
+import { useAddresses } from '../addresses/AddressesProvider'
+import { AddressChooser, SaveAddressBox, fromAddress } from '../addresses/AddressChooser'
 
 const CATEGORIES = [
   { id: 'any', Icon: ShoppingBag },
@@ -49,6 +51,9 @@ const blank = (category = 'any', items = '', phone = '') => ({
   floor: 0,
   phone,
   notes: '',
+  addressId: null, // عنوان محفوظ مختار، أو null = عنوان جديد
+  saveAddress: true,
+  saveLabel: 'البيت',
 })
 
 /**
@@ -60,6 +65,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
   const { user } = useAuth()
   const { createOrder } = useOrders()
   const { pricing, money, services, peak } = useAppConfig()
+  const { addresses, defaultAddress, add: addAddress } = useAddresses()
   // الأقسام الموقّفة أو المخفية من الإدارة ما بتطلع بالاختيارات
   const cats = CATEGORIES.filter(({ id }) => id === 'any' || id === 'other' || services.some((s) => s.id === id && !s.paused))
   const [clientKey, setClientKey] = useState('')
@@ -79,7 +85,9 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
   useEffect(() => {
     if (open) {
       setStep(0)
-      setOrder(blank(initialCategory || 'any', initialText || '', user?.phone || ''))
+      // العنوان الافتراضي المحفوظ بيتعبّى لحاله
+      const b = blank(initialCategory || 'any', initialText || '', user?.phone || '')
+      setOrder(defaultAddress ? { ...b, ...fromAddress(defaultAddress) } : b)
       setStatus('idle')
       setError('')
       setCreated(null)
@@ -129,6 +137,15 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
       })
       setCreated(o)
       setStatus('found')
+      // أول مرة بيحدد عنوان جديد → منحفظه لطلباته الجاية
+      if (!order.addressId && order.saveAddress && order.location)
+        addAddress({
+          label: order.saveLabel.trim() || (addresses.length ? `عنوان ${addresses.length + 1}` : 'البيت'),
+          location: order.location,
+          details: order.address,
+          floor: order.floor,
+          elevator: true,
+        }).catch(() => {})
     } catch (err) {
       setStatus('idle')
       setError(errorText(t, err))
@@ -252,14 +269,24 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, o
               {step === 1 && (
                 <div className="space-y-6 animate-fade-in">
                   <Field label={c('addressQ')}>
-                    <LocationField value={order.location} onOpen={() => setPickerOpen(true)} />
-                    <textarea
-                      rows={2}
-                      value={order.address}
-                      onChange={(e) => set({ address: e.target.value })}
-                      placeholder={c('addressPh')}
-                      className="mt-3 w-full resize-none rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none transition focus:border-brand focus:bg-white"
+                    <AddressChooser
+                      selectedId={order.addressId}
+                      onSelect={(a) => set(fromAddress(a))}
+                      onNew={() => set({ addressId: null, location: loadLastLocation(), address: '', floor: 0, saveLabel: addresses.length ? '' : 'البيت' })}
                     />
+                    {(!addresses.length || order.addressId === null) && (
+                      <div className={addresses.length ? 'mt-3 space-y-3' : 'space-y-3'}>
+                        <LocationField value={order.location} onOpen={() => setPickerOpen(true)} />
+                        <textarea
+                          rows={2}
+                          value={order.address}
+                          onChange={(e) => set({ address: e.target.value })}
+                          placeholder={c('addressPh')}
+                          className="w-full resize-none rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none transition focus:border-brand focus:bg-white"
+                        />
+                        <SaveAddressBox save={order.saveAddress} label={order.saveLabel} onChange={set} />
+                      </div>
+                    )}
                   </Field>
 
                   <Field label={c('floorQ')}>

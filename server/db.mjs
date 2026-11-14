@@ -274,6 +274,23 @@ const MIGRATIONS = [
   UPDATE content SET value = 'اكتب طلبك من أي محل، وعامل التوصيل بيشتريه وبيوصله لباب بيتك.'
     WHERE key = 'hero_sub' AND value = 'اكتب طلبك، وعامل التوصيل يشتريه ويوصله إلى باب بيتك';
   `,
+  `
+  -- عناوين الزبون المحفوظة
+  CREATE TABLE customer_addresses (
+    id          INTEGER PRIMARY KEY,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    label       TEXT NOT NULL CHECK (length(trim(label)) BETWEEN 1 AND 30),
+    lat         REAL NOT NULL CHECK (lat BETWEEN -90 AND 90),
+    lng         REAL NOT NULL CHECK (lng BETWEEN -180 AND 180),
+    details     TEXT NOT NULL DEFAULT '',
+    floor       INTEGER NOT NULL DEFAULT 0 CHECK (floor BETWEEN 0 AND 30),
+    elevator    INTEGER NOT NULL DEFAULT 1 CHECK (elevator IN (0,1)),
+    is_default  INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0,1)),
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+  CREATE INDEX customer_addresses_customer ON customer_addresses(customer_id, is_default DESC, updated_at DESC);
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

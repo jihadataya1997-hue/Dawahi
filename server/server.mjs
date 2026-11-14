@@ -8,6 +8,7 @@ import { db, getSettings, UPLOADS_DIR } from './db.mjs'
 import { HttpError, bad, sha256, now, isPhone, isFullName, str, distanceKm, clientIp, rateLimit, readJson, send, log } from './lib.mjs'
 import { adminRoute } from './admin.mjs'
 import { presenceRoute } from './live.mjs'
+import { addressesRoute } from './addresses.mjs'
 const NOISY = new Set(['/api/presence', '/api/courier/location', '/api/admin/live'])
 import { toOrder } from './lib.mjs'
 import { scheduleBackups } from './backup.mjs'
@@ -286,6 +287,9 @@ async function route(req, res, url) {
   const user = authenticate(req)
 
   if (m === 'GET' && pathname === '/api/me') return send(res, 200, { user: publicUser(user) })
+
+  // عناوين الزبون المحفوظة
+  if (pathname === '/api/addresses' || pathname.startsWith('/api/addresses/')) return addressesRoute(req, res, url, user)
 
   // صندوق الإشعارات العامة داخل التطبيق
   if (m === 'GET' && pathname === '/api/announcements') return send(res, 200, { announcements: listAnnouncements() })
