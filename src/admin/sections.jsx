@@ -792,8 +792,11 @@ export function Team() {
   const [roles, setRoles] = useState(null)
   const [perms, setPerms] = useState({})
   const [error, setError] = useState('')
-  const [form, setForm] = useState({ name: '', phone: '', password: '', roleId: '' })
+  const [form, setForm] = useState({ name: '', phone: '', username: '', password: '', roleId: '' })
   const [busy, setBusy] = useState('')
+  const [requireMfa, setRequireMfa] = useState(false)
+  const [userFor, setUserFor] = useState(null)
+  const [newUser, setNewUser] = useState('')
   const [editingRole, setEditingRole] = useState(null) // {id?, name, permissions}
   const [pwFor, setPwFor] = useState(null)
   const [newPw, setNewPw] = useState('')
@@ -802,6 +805,7 @@ export function Team() {
     try {
       const [s, r] = await Promise.all([adminApi('/staff'), adminApi('/roles')])
       setStaff(s.staff)
+      setRequireMfa(!!s.requireMfa)
       setRoles(r.roles)
       setPerms(r.permissions)
       setForm((f) => (f.roleId ? f : { ...f, roleId: String(r.roles[0]?.id || '') }))
@@ -831,7 +835,7 @@ export function Team() {
   const addStaff = (e) => {
     e.preventDefault()
     run('add', () => adminApi('/staff', { method: 'POST', body: { ...form, roleId: Number(form.roleId) } })).then(
-      (ok) => ok && setForm({ name: '', phone: '', password: '', roleId: form.roleId })
+      (ok) => ok && setForm({ name: '', phone: '', username: '', password: '', roleId: form.roleId })
     )
   }
   const saveRole = () =>
@@ -848,12 +852,29 @@ export function Team() {
       <Err>{error}</Err>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
+          <button
+            onClick={() => run('mfa-policy', () => adminApi('/staff-mfa-policy', { method: 'PUT', body: { required: !requireMfa } }))}
+            disabled={busy === 'mfa-policy'}
+            className="flex w-full items-center gap-3 text-start"
+          >
+            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg ${requireMfa ? 'bg-emerald-50' : 'bg-navy-50'}`}>🔐</span>
+            <span className="min-w-0 flex-1">
+              <b className="block">التحقق بخطوتين إجباري لكل الفريق</b>
+              <span className="block text-xs text-navy/50">
+                لما يكون شغّال، أي عضو ما فعّل التحقق بخطوتين ما بيقدر يستعمل اللوحة لحتى يفعّله (بيطلعله الشرح أول ما يفوت).
+              </span>
+            </span>
+            <span className={`relative h-7 w-12 shrink-0 rounded-full ${requireMfa ? 'bg-emerald-500' : 'bg-navy/15'}`}>
+              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${requireMfa ? 'start-6' : 'start-1'}`} />
+            </span>
+          </button>
+        </Card>
+        <Card>
           <h2 className="flex items-center gap-2 font-extrabold">
             <UserPlus size={18} className="text-brand" /> إضافة حساب للفريق
           </h2>
           <p className="mt-1 text-xs text-navy/50">
-            يدخل صاحب الحساب إلى لوحة الإدارة برقم موبايله وكلمة السر، ويرى فقط الأقسام المسموحة لدوره. يمكن للمشرف أن يكون عامل توصيل أيضاً بحساب
-            منفصل في تطبيق العمال.
+            صاحب الحساب بيفوت على لوحة الإدارة باسم المستخدم وكلمة السر (وبعدين رمز التطبيق إذا فعّل التحقق بخطوتين)، وبيشوف بس الأقسام المسموحة لدوره.
           </p>
           <form onSubmit={addStaff} className="mt-4 space-y-3">
             <div className="grid grid-cols-2 gap-2">
@@ -867,6 +888,14 @@ export function Team() {
                 className={`${inputCls} text-end font-en`}
               />
             </div>
+            <input
+              dir="ltr"
+              autoCapitalize="none"
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value.trim() })}
+              placeholder="اسم المستخدم (إنكليزي، مثلاً: sami.z)"
+              className={`${inputCls} font-en`}
+            />
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="text"
@@ -883,7 +912,7 @@ export function Team() {
                 ))}
               </select>
             </div>
-            <SaveButton busy={busy === 'add'} disabled={!form.name || form.phone.length !== 10 || form.password.length < 8}>
+            <SaveButton busy={busy === 'add'} disabled={!form.name || form.phone.length !== 10 || form.username.length < 3 || form.password.length < 8}>
               إضافة الحساب
             </SaveButton>
           </form>
@@ -903,7 +932,7 @@ export function Team() {
                         {m.name} {m.isCourier && <span className="rounded bg-sky-100 px-1.5 text-[10px] text-sky-700">عامل توصيل أيضاً</span>}
                       </p>
                       <p className="text-[11px] text-navy/50">
-                        <span dir="ltr" className="font-en">{m.phone}</span>
+                        <span dir="ltr" className="font-en font-bold text-navy/70">@{m.username}</span> · <span dir="ltr" className="font-en">{m.phone}</span>
                         {m.lastLoginAt ? `، آخر دخول ${fmtDate(m.lastLoginAt)}` : '، لم يدخل بعد'}
                         {m.mfa && <span className="ms-1 rounded bg-emerald-100 px-1.5 text-[10px] font-bold text-emerald-700">🔐 تحقق بخطوتين</span>}
                       </p>
@@ -921,6 +950,25 @@ export function Team() {
                     </select>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
+                    {userFor === m.id ? (
+                      <>
+                        <input dir="ltr" value={newUser} onChange={(e) => setNewUser(e.target.value.trim())} placeholder="اسم مستخدم جديد" className={`${inputCls} max-w-[180px] py-1.5 font-en`} />
+                        <button
+                          onClick={() => run(`u${m.id}`, () => adminApi(`/staff/${m.id}`, { method: 'PATCH', body: { username: newUser } })).then((ok) => ok && setUserFor(null))}
+                          disabled={newUser.length < 3}
+                          className="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                        >
+                          حفظ
+                        </button>
+                        <button onClick={() => setUserFor(null)} className="rounded-lg bg-navy-50 px-3 py-1.5 text-xs font-bold">
+                          تراجع
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => (setUserFor(m.id), setNewUser(m.username || ''))} className="rounded-lg bg-navy-50 px-3 py-1.5 text-xs font-bold">
+                        تغيير اسم المستخدم
+                      </button>
+                    )}
                     {m.mfa && (
                       <button
                         onClick={() =>

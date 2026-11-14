@@ -425,6 +425,13 @@ const MIGRATIONS = [
   );
   INSERT OR IGNORE INTO secrets (key, value) VALUES ('owner_username', 'admin');
   `,
+  `
+  -- اسم مستخدم لكل عضو بالفريق (بدل رقم الموبايل) + خيار "التحقق بخطوتين إجباري للفريق"
+  ALTER TABLE staff ADD COLUMN username TEXT;
+  UPDATE staff SET username = phone WHERE username IS NULL;
+  CREATE UNIQUE INDEX staff_username ON staff(username COLLATE NOCASE);
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('require_staff_mfa', '0');
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

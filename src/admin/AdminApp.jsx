@@ -285,6 +285,20 @@ function Dashboard({ onLogout }) {
         <LoaderCircle size={32} className="animate-spin" />
       </div>
     )
+  // التحقق بخطوتين إجباري للفريق: أول شي لازم يفعّله
+  if (me.mustSetupMfa)
+    return (
+      <div className="min-h-full bg-[#F5F7FA] p-4 sm:p-8">
+        <div className="mx-auto mb-4 max-w-md rounded-3xl bg-navy p-5 text-white">
+          <h1 className="text-lg font-extrabold">فعّل التحقق بخطوتين لتكمل</h1>
+          <p className="mt-1 text-sm text-white/75">المالك طالب من كل الفريق يفعّلوا التحقق بخطوتين لحماية اللوحة. فعّله تحت وبعدين بتفوت عادي.</p>
+        </div>
+        <MyAccount me={me} onMfaEnabled={() => adminApi('/me').then((d) => setMe(d.me))} mfaOnly />
+        <button onClick={onLogout} className="mx-auto mt-4 block text-xs font-bold text-navy/50">
+          تسجيل الخروج
+        </button>
+      </div>
+    )
   return (
     <MeContext.Provider value={me}>
       <Shell me={me} onLogout={onLogout} />

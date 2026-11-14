@@ -80,6 +80,17 @@ export const PERMISSIONS = {
 }
 const ALL_PERMS = Object.keys(PERMISSIONS)
 
+const USERNAME_RE = /^[A-Za-z0-9._-]{3,30}$/
+function checkUsername(u, staffId = null) {
+  if (!USERNAME_RE.test(u) || /^\d+$/.test(u)) throw bad('INVALID_USERNAME', 'Username must be 3-30 English letters or numbers', 'username')
+  const owner = db.prepare("SELECT value FROM secrets WHERE key = 'owner_username'").get()?.value || 'admin'
+  const taken =
+    (staffId !== 'owner' && owner.toLowerCase() === u.toLowerCase()) ||
+    db.prepare('SELECT 1 FROM staff WHERE username = ? COLLATE NOCASE AND id IS NOT ?').get(u, staffId === 'owner' ? null : staffId)
+  if (taken) throw new HttpError(409, 'USERNAME_TAKEN', 'Username already used')
+}
+const requireStaffMfa = () => db.prepare("SELECT value FROM settings WHERE key = 'require_staff_mfa'").get()?.value === '1'
+
 const mfaTickets = new Map()
 const mfaPending = new Map()
 setInterval(() => {
@@ -162,8 +173,7 @@ export async function adminRoute(req, res, url) {
       }
       subject = 'owner'
     } else {
-      const phone = user.replace(/\s/g, '')
-      const st = db.prepare('SELECT id, password_hash, active FROM staff WHERE phone = ?').get(phone)
+      const st = db.prepare('SELECT id, password_hash, active FROM staff WHERE username = ? COLLATE NOCASE').get(user)
       if (!st || !st.active || !verifySecret(body.password, st.password_hash)) {
         log('warn', 'staff login failed', { ip: clientIp(req) })
         throw new HttpError(401, 'WRONG_PASSWORD', 'Wrong username or password')
@@ -204,9 +214,13 @@ export async function adminRoute(req, res, url) {
   }
   const actor = me.isOwner ? 'admin' : `staff:${me.staffId}`
 
+  // التحقق بخطوتين إجباري للفريق: العضو يلي ما فعّله ما بيقدر يعمل شي غير تفعيله
+  const mustSetupMfa = !me.isOwner && requireStaffMfa() && !getMfa(`staff:${me.staffId}`)
   if (m === 'GET' && pathname === '/api/admin/me') {
-    return send(res, 200, { me: { name: me.name, role: me.role, isOwner: me.isOwner, perms: me.perms }, permissions: PERMISSIONS })
+    return send(res, 200, { me: { name: me.name, role: me.role, isOwner: me.isOwner, perms: me.perms, mustSetupMfa }, permissions: PERMISSIONS })
   }
+  if (mustSetupMfa && !['/api/admin/security', '/api/admin/mfa/setup', '/api/admin/mfa/enable', '/api/admin/logout', '/api/admin/password'].includes(pathname))
+    throw new HttpError(403, 'MFA_SETUP_REQUIRED', 'Enable two-step verification first')
 
   // تغيير كلمة السر (المالك أو أي موظف لحسابه هو)
   if (m === 'POST' && pathname === '/api/admin/password') {
@@ -240,10 +254,11 @@ export async function adminRoute(req, res, url) {
     const row = getMfa(subject)
     const username = me.isOwner
       ? db.prepare("SELECT value FROM secrets WHERE key = 'owner_username'").get()?.value || 'admin'
-      : db.prepare('SELECT phone FROM staff WHERE id = ?').get(me.staffId)?.phone
+      : db.prepare('SELECT username FROM staff WHERE id = ?').get(me.staffId)?.username
     return send(res, 200, {
       username,
       canChangeUsername: me.isOwner,
+      mfaRequired: !me.isOwner && requireStaffMfa(),
       mfa: row ? { enabled: true, since: row.enabled_at, recoveryLeft: JSON.parse(row.recovery).length } : { enabled: false },
     })
   }
@@ -252,8 +267,7 @@ export async function adminRoute(req, res, url) {
     rateLimit(`admin-user:${sessionHash}`, 6, 15 * 60 * 1000)
     const body = await readJson(req)
     const u = String(body.username || '').trim()
-    if (!/^[A-Za-z0-9._-]{3,30}$/.test(u)) throw bad('INVALID_USERNAME', 'Username must be 3-30 English letters or numbers', 'username')
-    if (/^\d+$/.test(u)) throw bad('INVALID_USERNAME', 'Username cannot be only numbers', 'username')
+    checkUsername(u, 'owner')
     if (!checkPassword(body.password)) throw new HttpError(400, 'WRONG_CURRENT', 'Password is wrong')
     db.prepare("INSERT OR REPLACE INTO secrets (key, value) VALUES ('owner_username', ?)").run(u)
     log('info', 'owner username changed')
@@ -289,6 +303,14 @@ export async function adminRoute(req, res, url) {
     log('warn', 'admin mfa disabled', { subject })
     return send(res, 200, { ok: true })
   }
+  if (m === 'PUT' && pathname === '/api/admin/staff-mfa-policy') {
+    if (!me.isOwner) throw new HttpError(403, 'FORBIDDEN', 'Owner only')
+    const body = await readJson(req)
+    db.prepare("INSERT INTO settings (key, value) VALUES ('require_staff_mfa', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(body.required ? '1' : '0')
+    log('info', 'staff mfa policy', { required: !!body.required })
+    return send(res, 200, { requireMfa: !!body.required })
+  }
+
   // المالك بيقدر يلغي التحقق بخطوتين لموظف ضيّع موبايله
   let smm = /^\/api\/admin\/staff\/(\d{1,9})\/mfa$/.exec(pathname)
   if (smm && m === 'DELETE') {
@@ -346,13 +368,16 @@ export async function adminRoute(req, res, url) {
     if (m === 'GET') {
       const rows = db
         .prepare(
-          `SELECT s.id, s.name, s.phone, s.active, s.role_id AS roleId, r.name AS role, s.last_login_at AS lastLoginAt,
+          `SELECT s.id, s.name, s.phone, s.username, s.active, s.role_id AS roleId, r.name AS role, s.last_login_at AS lastLoginAt,
              EXISTS (SELECT 1 FROM couriers c WHERE c.phone = s.phone AND c.active = 1) AS isCourier,
              EXISTS (SELECT 1 FROM admin_mfa a WHERE a.subject = 'staff:' || s.id) AS mfa
            FROM staff s JOIN roles r ON r.id = s.role_id ORDER BY s.active DESC, s.name`
         )
         .all()
-      return send(res, 200, { staff: rows.map((r) => ({ ...r, active: !!r.active, isCourier: !!r.isCourier, mfa: !!r.mfa })) })
+      return send(res, 200, {
+        requireMfa: requireStaffMfa(),
+        staff: rows.map((r) => ({ ...r, active: !!r.active, isCourier: !!r.isCourier, mfa: !!r.mfa })),
+      })
     }
     if (m === 'POST') {
       const body = await readJson(req)
@@ -362,9 +387,11 @@ export async function adminRoute(req, res, url) {
       if (!isPassword(body.password)) throw bad('WEAK_PASSWORD', 'Password must be at least 8 characters', 'password')
       if (!db.prepare('SELECT 1 FROM roles WHERE id = ?').get(Number(body.roleId))) throw bad('INVALID', 'Unknown role', 'roleId')
       if (db.prepare('SELECT 1 FROM staff WHERE phone = ?').get(phone)) throw new HttpError(409, 'PHONE_TAKEN', 'Phone already used')
+      const username = String(body.username || '').trim()
+      checkUsername(username)
       const r = db
-        .prepare('INSERT INTO staff (name, phone, password_hash, role_id) VALUES (?, ?, ?, ?)')
-        .run(name, phone, hashSecret(body.password), Number(body.roleId))
+        .prepare('INSERT INTO staff (name, phone, username, password_hash, role_id) VALUES (?, ?, ?, ?, ?)')
+        .run(name, phone, username, hashSecret(body.password), Number(body.roleId))
       log('info', 'staff created', { staffId: Number(r.lastInsertRowid) })
       return send(res, 201, { id: Number(r.lastInsertRowid) })
     }
@@ -376,6 +403,11 @@ export async function adminRoute(req, res, url) {
     if (!db.prepare('SELECT 1 FROM staff WHERE id = ?').get(id)) throw new HttpError(404, 'NOT_FOUND', 'Staff not found')
     const body = await readJson(req)
     if (body.name !== undefined) db.prepare('UPDATE staff SET name = ? WHERE id = ?').run(str(body.name, 60, 'name', { required: true }), id)
+    if (body.username !== undefined) {
+      const u = String(body.username || '').trim()
+      checkUsername(u, id)
+      db.prepare('UPDATE staff SET username = ? WHERE id = ?').run(u, id)
+    }
     if (body.roleId !== undefined) {
       if (!db.prepare('SELECT 1 FROM roles WHERE id = ?').get(Number(body.roleId))) throw bad('INVALID', 'Unknown role', 'roleId')
       db.prepare('UPDATE staff SET role_id = ? WHERE id = ?').run(Number(body.roleId), id)

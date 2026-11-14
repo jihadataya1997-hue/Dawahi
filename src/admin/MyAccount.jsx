@@ -25,7 +25,7 @@ function PassInput({ value, onChange, placeholder, autoComplete }) {
   )
 }
 
-export default function MyAccount({ me }) {
+export default function MyAccount({ me, mfaOnly = false, onMfaEnabled }) {
   const [f, setF] = useState({ current: '', next: '', again: '' })
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
@@ -51,6 +51,12 @@ export default function MyAccount({ me }) {
     }
   }
 
+  if (mfaOnly)
+    return (
+      <div className="mx-auto max-w-md space-y-4">
+        <Security mfaOnly onMfaEnabled={onMfaEnabled} />
+      </div>
+    )
   return (
     <div className="mx-auto max-w-md space-y-4">
       <div className="rounded-3xl bg-white p-5 shadow-soft">
@@ -105,7 +111,7 @@ export default function MyAccount({ me }) {
 }
 
 /* ───────── اسم المستخدم + التحقق بخطوتين ───────── */
-function Security() {
+function Security({ mfaOnly = false, onMfaEnabled }) {
   const [sec, setSec] = useState(null)
   const [error, setError] = useState('')
   const load = () => adminApi('/security').then(setSec).catch((e) => setError(adminErrorText(e)))
@@ -113,9 +119,25 @@ function Security() {
   if (!sec) return error ? <p className="text-center text-xs text-rose-600">{error}</p> : null
   return (
     <>
-      {sec.canChangeUsername && <UsernameCard current={sec.username} onSaved={load} />}
-      <MfaCard sec={sec} onChanged={load} />
+      {!mfaOnly && (sec.canChangeUsername ? <UsernameCard current={sec.username} onSaved={load} /> : <StaffUsername username={sec.username} />)}
+      <MfaCard sec={sec} onChanged={load} onEnabled={onMfaEnabled} />
     </>
+  )
+}
+
+function StaffUsername({ username }) {
+  return (
+    <div className="flex items-center gap-3 rounded-3xl bg-white p-5 shadow-soft">
+      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-brand">
+        <AtSign size={20} />
+      </span>
+      <div>
+        <h2 className="font-extrabold">اسم المستخدم</h2>
+        <p className="text-xs text-navy/50">
+          <b dir="ltr" className="font-en">{username}</b> · المالك بيقدر يغيّره
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -135,7 +157,13 @@ function UsernameCard({ current, onSaved }) {
       onSaved()
     } catch (err) {
       setMsg(
-        err.code === 'WRONG_CURRENT' ? 'كلمة السر غلط' : err.code === 'INVALID_USERNAME' ? 'من 3 لـ 30 حرف إنكليزي أو أرقام (مو أرقام بس)' : adminErrorText(err)
+        err.code === 'WRONG_CURRENT'
+          ? 'كلمة السر غلط'
+          : err.code === 'INVALID_USERNAME'
+            ? 'من 3 لـ 30 حرف إنكليزي أو أرقام (مو أرقام بس)'
+            : err.code === 'USERNAME_TAKEN'
+              ? 'هالاسم مأخوذ'
+              : adminErrorText(err)
       )
     } finally {
       setBusy(false)
@@ -164,7 +192,7 @@ function UsernameCard({ current, onSaved }) {
   )
 }
 
-function MfaCard({ sec, onChanged }) {
+function MfaCard({ sec, onChanged, onEnabled }) {
   const [setup, setSetup] = useState(null) // { secret, uri, qr }
   const [code, setCode] = useState('')
   const [codes, setCodes] = useState(null) // الرموز الاحتياطية بعد التفعيل
@@ -257,7 +285,7 @@ function MfaCard({ sec, onChanged }) {
             <button onClick={copyCodes} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-2 text-xs font-bold">
               <Copy size={14} /> {copied ? '✓ انتسخوا' : 'نسخ'}
             </button>
-            <button onClick={() => setCodes(null)} className="flex-1 rounded-xl bg-amber-600 py-2 text-xs font-bold text-white">
+            <button onClick={() => (setCodes(null), onEnabled?.())} className="flex-1 rounded-xl bg-amber-600 py-2 text-xs font-bold text-white">
               حفظتهن
             </button>
           </div>
