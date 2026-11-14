@@ -50,6 +50,9 @@ const DISPATCH_KEYS = {
   offerTimeoutSec: ['offer_timeout_sec', 15, 600],
   maxOrdersPerCourier: ['max_orders_per_courier', 1, 10],
   maxMissedOffers: ['max_missed_offers', 0, 20],
+  remindAssignedMin: ['remind_assigned_min', 0, 240],
+  remindBuyingMin: ['remind_buying_min', 0, 240],
+  remindWayMin: ['remind_way_min', 0, 240],
 }
 
 // كلمة سر المالك: إذا غيّرها من اللوحة بتنحفظ مشفّرة بالقاعدة، وإلا منستعمل الأصلية من السيرفر

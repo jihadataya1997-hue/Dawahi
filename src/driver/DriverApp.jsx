@@ -899,8 +899,24 @@ function OrderCard({ order: o, color, onChanged, onShowMap }) {
     }
   }
 
+  // تذكير جوّا التطبيق إذا طوّل بهالحالة
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => tick((x) => x + 1), 30000)
+    return () => clearInterval(id)
+  }, [])
+  const LIMIT = { assigned: 10, buying: 30, on_the_way: 25 }
+  const NEXT = { assigned: 'إذا بلّشت تشتري حدّث الحالة', buying: 'إذا طلعت لعند الزبون حدّث الحالة', on_the_way: 'إذا سلّمت الطلب حدّث الحالة' }
+  const staleMin = active && o.updatedAt ? Math.floor((Date.now() - Date.parse(o.updatedAt)) / 60000) : 0
+  const stale = active && staleMin >= LIMIT[o.status]
+
   return (
-    <article className={`rounded-3xl bg-white p-4 shadow-soft ${o.status === 'assigned' ? 'ring-2 ring-amber-400' : ''}`}>
+    <article className={`rounded-3xl bg-white p-4 shadow-soft ${stale ? 'ring-2 ring-rose-500' : o.status === 'assigned' ? 'ring-2 ring-amber-400' : ''}`}>
+      {stale && (
+        <p className="-mx-1 -mt-1 mb-3 rounded-2xl bg-rose-600 px-3 py-2 text-xs font-bold text-white">
+          ⏰ صرلك {staleMin} دقيقة على هالحالة. {NEXT[o.status]}.
+        </p>
+      )}
       <div className="flex items-center gap-3">
         <span
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${color ? 'text-white' : 'bg-brand-50 text-brand'}`}

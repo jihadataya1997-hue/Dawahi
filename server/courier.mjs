@@ -2,7 +2,7 @@
 import { awardPoints } from './promo.mjs'
 import { chargeCommission, courierWallet } from './wallet.mjs'
 import { courierLocation, markSeen } from './live.mjs'
-import { supervisorRoute, supFeed } from './supervisor.mjs'
+import { supervisorRoute, supFeed, takeReminders } from './supervisor.mjs'
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -129,6 +129,8 @@ export async function courierRoute(req, res, url) {
     return send(res, 200, {
       serverTime: now(),
       ...(me.is_supervisor ? { sup: supFeed() } : {}),
+      // الخدمة بالخلفية (أندرويد) بتطلب ?native=1 وبتعرض التذكيرات كإشعار
+      ...(url.searchParams.get('native') === '1' ? { reminders: takeReminders(me.id) } : {}),
       offers: rows.map((r) => {
         const o = toOrder(r)
         // قبل القبول: ما منعطي رقم الزبون ولا عنوانه التفصيلي

@@ -1558,6 +1558,28 @@ function DispatchSettings() {
             className="mt-1 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-end font-en font-bold outline-none focus:border-brand focus:bg-white"
           />
         </label>
+        <div className="col-span-2 rounded-2xl bg-navy-50 p-3">
+          <p className="text-xs font-bold">تذكير عامل التوصيل إذا ما غيّر حالة الطلب بعد (دقيقة، 0 = بدون تذكير)</p>
+          <p className="mt-0.5 text-[11px] text-navy/50">بيجيه إشعار، وإذا ضل متأخر بيعرف المشرف والإدارة.</p>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {[
+              ['remindAssignedMin', 'قبل وما بلّش يشتري', 10],
+              ['remindBuyingMin', 'عم يشتري', 30],
+              ['remindWayMin', 'بالطريق', 25],
+            ].map(([k, label, def]) => (
+              <label key={k} className="block">
+                <span className="text-[11px] font-bold text-navy/60">{label}</span>
+                <input
+                  inputMode="numeric"
+                  dir="ltr"
+                  value={v[k] ?? def}
+                  onChange={(e) => setV({ ...v, [k]: e.target.value.replace(/\D/g, '') })}
+                  className="mt-1 w-full rounded-xl border border-navy/10 bg-white px-3 py-2 text-end font-en font-bold outline-none focus:border-brand"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
         <label className="col-span-2 block">
           <span className="text-xs font-bold">العامل بيصير "غير متاح" تلقائياً إذا ما ردّ على كم طلب ورا بعض؟ (0 = أبداً)</span>
           <input
@@ -1572,7 +1594,14 @@ function DispatchSettings() {
       {error && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600">{error}</p>}
       <button
         onClick={() =>
-          save({ offerTimeoutSec: Number(v.offerTimeoutSec), maxOrdersPerCourier: Number(v.maxOrdersPerCourier), maxMissedOffers: Number(v.maxMissedOffers ?? 3) })
+          save({
+            offerTimeoutSec: Number(v.offerTimeoutSec),
+            maxOrdersPerCourier: Number(v.maxOrdersPerCourier),
+            maxMissedOffers: Number(v.maxMissedOffers ?? 3),
+            remindAssignedMin: Number(v.remindAssignedMin ?? 10),
+            remindBuyingMin: Number(v.remindBuyingMin ?? 30),
+            remindWayMin: Number(v.remindWayMin ?? 25),
+          })
         }
         disabled={busy}
         className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-navy py-3 text-sm font-bold text-white disabled:opacity-60"

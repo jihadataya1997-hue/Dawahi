@@ -248,7 +248,7 @@ public class DriverService extends Service {
     }
 
     private void pollOffers(String base, String token) throws Exception {
-        String res = request("GET", base + "/api/courier/offers", token, null);
+        String res = request("GET", base + "/api/courier/offers?native=1", token, null);
         JSONArray offers = new JSONObject(res).optJSONArray("offers");
         Set<String> current = new HashSet<>();
         JSONObject fresh = null;
@@ -262,6 +262,13 @@ public class DriverService extends Service {
         }
         seenOffers.clear();
         seenOffers.addAll(current);
+        JSONArray rem = new JSONObject(res).optJSONArray("reminders");
+        if (rem != null) {
+            for (int i = 0; i < rem.length(); i++) {
+                JSONObject r = rem.optJSONObject(i);
+                if (r != null) supNotify(r.optString("id").hashCode() + 13, r.optString("title"), r.optString("body"));
+            }
+        }
         JSONArray sup = new JSONObject(res).optJSONArray("sup");
         if (sup != null) handleSupervisor(sup);
         final JSONObject offer = fresh;

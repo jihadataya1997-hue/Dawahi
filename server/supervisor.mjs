@@ -180,3 +180,66 @@ export function supFeed() {
       }
     })
 }
+
+/* ───────── تذكير عامل التوصيل إذا طوّل بتغيير حالة الطلب ───────── */
+const STALE = {
+  assigned: { key: 'remind_assigned_min', what: 'قبلت الطلب وما بلّشت تشتري', next: 'إذا بلّشت تشتري اكبس "بدأت شراء الأغراض"' },
+  buying: { key: 'remind_buying_min', what: 'عم تشتري الطلب', next: 'إذا طلعت لعند الزبون اكبس "أنا في الطريق إلى الزبون"' },
+  on_the_way: { key: 'remind_way_min', what: 'الطلب بالطريق', next: 'إذا سلّمته اكبس "تم تسليم الطلب"' },
+}
+const reminded = new Map() // `${orderId}:${status}` -> عدد التذكيرات
+const pending = new Map() // courierId -> [{ id, title, body }] للتطبيق (الخدمة بالخلفية)
+
+/** للخدمة بالخلفية: التذكيرات يلي لسا ما وصلت للموبايل (بتنحذف بعد ما تنقرا) */
+export function takeReminders(courierId) {
+  const list = pending.get(courierId) || []
+  pending.delete(courierId)
+  return list
+}
+
+function checkStale() {
+  const s = Object.fromEntries(
+    db.prepare("SELECT key, value FROM settings WHERE key IN ('remind_assigned_min','remind_buying_min','remind_way_min')").all().map((r) => [r.key, Number(r.value)])
+  )
+  const rows = db
+    .prepare(
+      `SELECT o.id, o.status, o.courier_id, o.courier_name,
+         (SELECT MAX(e.created_at) FROM order_events e WHERE e.order_id = o.id) AS since
+       FROM orders o WHERE o.status IN ('assigned','buying','on_the_way') AND o.courier_id IS NOT NULL`
+    )
+    .all()
+  const open = new Set()
+  for (const o of rows) {
+    const rule = STALE[o.status]
+    const limit = s[rule.key] || 0
+    const k = `${o.id}:${o.status}`
+    open.add(k)
+    if (!limit || !o.since) continue
+    const mins = Math.floor((Date.now() - Date.parse(o.since)) / 60_000)
+    const due = Math.floor(mins / limit) // تذكير عند كل مضاعف للمدة، لحد 3 مرات
+    const done = reminded.get(k) || 0
+    if (due < 1 || due <= done || done >= 3) continue
+    reminded.set(k, due)
+    const title = `⏰ ${num(o.id)}: لا تنسى تحدّث حالة الطلب`
+    const body = `صرلك ${mins} دقيقة و${rule.what}. ${rule.next}.`
+    notify('courier', o.courier_id, { title, body, url: '/driver', tag: `stale-${o.id}` })
+    const q = pending.get(o.courier_id) || []
+    q.push({ id: `${k}:${due}`, title, body })
+    pending.set(o.courier_id, q.slice(-5))
+    log('info', 'courier reminded', { orderId: o.id, status: o.status, mins })
+    // من التذكير التاني: المشرفين والإدارة بيعرفوا
+    if (due >= 2) {
+      const msg = { title: `⚠️ ${num(o.id)} متأخر`, body: `${o.courier_name || 'عامل التوصيل'}: صرلو ${mins} دقيقة و${rule.what}.`, url: '/driver', tag: `late-${o.id}` }
+      for (const sup of db.prepare('SELECT id FROM couriers WHERE is_supervisor = 1 AND active = 1 AND id != ?').all(o.courier_id)) notify('courier', sup.id, msg)
+      notify('admin', 0, { ...msg, url: '/admin' })
+    }
+  }
+  for (const k of reminded.keys()) if (!open.has(k)) reminded.delete(k)
+}
+setInterval(() => {
+  try {
+    checkStale()
+  } catch (err) {
+    log('error', 'stale check failed', { err: err.message })
+  }
+}, 60_000).unref()

@@ -432,6 +432,10 @@ const MIGRATIONS = [
   CREATE UNIQUE INDEX staff_username ON staff(username COLLATE NOCASE);
   INSERT OR IGNORE INTO settings (key, value) VALUES ('require_staff_mfa', '0');
   `,
+  `
+  -- تذكير عامل التوصيل إذا طوّل بتغيير حالة الطلب (بالدقايق، 0 = بدون تذكير)
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('remind_assigned_min', '10'), ('remind_buying_min', '30'), ('remind_way_min', '25');
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')
