@@ -614,7 +614,7 @@ function NotificationsCard() {
       {state === 'denied' && (
         <p className="mt-4 rounded-2xl bg-white/15 p-4 text-sm leading-relaxed">
           الإشعارات مرفوضة سابقاً. لتفعيلها افتح إعدادات المتصفح، ثم إعدادات المواقع، ثم الإشعارات، واسمح لموقع
-          <b className="font-en"> dawahi.prodev.cloud</b>، ثم عُد إلى التطبيق.
+          <b className="font-en"> zapp.prodev.cloud</b>، ثم عُد إلى التطبيق.
         </p>
       )}
 

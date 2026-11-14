@@ -1169,7 +1169,7 @@ function Couriers() {
 
   const share = (c) =>
     `https://wa.me/963${c.phone.slice(1)}?text=${encodeURIComponent(
-      `أهلاً ${c.name}،\nهذه بيانات حسابك في تطبيق عمال التوصيل لدى ZAPP:\nالرابط: https://dawahi.prodev.cloud/driver\nالرقم: ${c.phone}\nالرمز: ${c.pin}\n\nافتح الرابط في Chrome، وثبّت التطبيق، ثم فعّل الإشعارات.`
+      `أهلاً ${c.name}،\nهذه بيانات حسابك في تطبيق عمال التوصيل لدى ZAPP:\nالرابط: https://zapp.prodev.cloud/driver\nالرقم: ${c.phone}\nالرمز: ${c.pin}\n\nافتح الرابط في Chrome، وثبّت التطبيق، ثم فعّل الإشعارات.`
     )}`
 
   return (

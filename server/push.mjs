@@ -19,7 +19,7 @@ function vapidKeys() {
 }
 
 const { pub, priv } = vapidKeys()
-webpush.setVapidDetails('https://dawahi.prodev.cloud', pub, priv)
+webpush.setVapidDetails('https://zapp.prodev.cloud', pub, priv)
 export const VAPID_PUBLIC_KEY = pub
 
 export function saveSubscription(ownerType, ownerId, sub) {
