@@ -78,14 +78,14 @@ export default function BannerCarousel({ onAction }) {
                 <span className="pointer-events-none absolute -top-10 end-16 h-24 w-24 rounded-full bg-white/10" />
               </>
             )}
-            <span className="relative flex h-full max-w-[78%] flex-col justify-center p-5">
+            <span className="relative flex h-full max-w-[85%] flex-col justify-center px-5 py-4">
               {b.badge && (
                 <span className="mb-2 w-fit rounded-full bg-white/25 px-2.5 py-0.5 text-[11px] font-bold backdrop-blur">{b.badge}</span>
               )}
-              <span className="text-lg font-extrabold leading-snug">{b.title}</span>
-              {b.subtitle && <span className="mt-1 text-xs leading-relaxed text-white/90">{b.subtitle}</span>}
+              <span className="line-clamp-2 text-base font-extrabold leading-snug">{b.title}</span>
+              {b.subtitle && <span className="mt-1 line-clamp-1 text-xs text-white/90">{b.subtitle}</span>}
               {b.action !== 'none' && (
-                <span className="mt-3 inline-flex w-fit items-center gap-0.5 text-xs font-bold underline-offset-4">
+                <span className="mt-2 inline-flex w-fit items-center gap-0.5 text-xs font-bold underline-offset-4">
                   {b.action === 'url' ? 'التفاصيل' : 'اطلب الآن'} <ChevronLeft size={14} className="ltr:rotate-180" />
                 </span>
               )}

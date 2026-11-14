@@ -4,7 +4,7 @@ import { LogoMark } from '../components/Logo'
 import BannerCarousel from '../components/BannerCarousel'
 import { useLang } from '../i18n/LanguageProvider'
 import { useAppConfig } from '../config/AppConfigProvider'
-import { OPEN_STATUSES } from '../orders/OrdersProvider'
+import { OPEN_STATUSES, useOrders } from '../orders/OrdersProvider'
 
 
 /**
@@ -15,6 +15,7 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
   const { t, lang, toggleLang } = useLang()
   const { areaName, services, pricing, money, peak } = useAppConfig()
   const ar = lang === 'ar'
+  const { orders, loaded } = useOrders()
   // اختصارات سريعة: كلها بتفتح نفس "اكتب طلبك" مع نوع المحل محدد (أو طلب الغاز)
   const quick = QUICK.filter((q) => services.some((s) => s.id === q.id))
   // الغاز والمازوت (طلبات تقيلة) بصف لحالهن، وإذا واحد بس بياخد العرض كله
@@ -77,6 +78,9 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
         {/* ٢) الطلب الحالي */}
         {activeOrder && <ActiveOrderCard order={activeOrder} onClick={onOpenOrders} />}
 
+        {/* ٣) العروض: مباشرة تحت صندوق الطلب لتنشاف بدون تمرير */}
+        <BannerCarousel onAction={onBanner} />
+
         {/* ٣) اختصارات: نفس الخدمة، بس أسرع */}
         {quick.length > 0 && (
           <section>
@@ -109,11 +113,8 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
           </section>
         )}
 
-        {/* ٤) العروض */}
-        <BannerCarousel onAction={onBanner} />
-
-        {/* ٥) كيف بتمشي — خطوات متسلسلة فعلاً */}
-        <section className="rounded-3xl bg-white p-4 shadow-soft">
+        {/* ٥) كيف بتمشي — للزبون الجديد بس (اللي ما طلب قبل) */}
+        {loaded && orders.length === 0 && <section className="rounded-3xl bg-white p-4 shadow-soft">
           <h2 className="text-base font-extrabold">{ar ? 'كيف بتمشي؟' : 'How it works'}</h2>
           <ol className="mt-3 space-y-3">
             {(ar
@@ -137,7 +138,7 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
               </li>
             ))}
           </ol>
-        </section>
+        </section>}
       </div>
     </div>
   )
