@@ -27,6 +27,10 @@
   }
 }
 
+@keyframes zapPing {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+
 @layer utilities {
   /* خطوط السرعة (من هوية ZAPP) — زخرفة خفيفة لرؤوس الصفحات الكحلية */
   .speed-bg {

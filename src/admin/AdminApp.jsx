@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Tag,
   UserPlus,
+  Radar,
   Users,
   Zap,
   X,
@@ -33,6 +34,7 @@ import { LogoMark } from '../components/Logo'
 import { disablePush, enablePush, pushState, registerSW } from '../push'
 import { currency, money } from './shared'
 import { AppContent, Announcements, Banners, Customers, Team } from './sections'
+import LiveMonitor from './LiveMonitor'
 
 // المستخدم الحالي وصلاحياته
 export const MeContext = createContext({ perms: [] })
@@ -187,6 +189,7 @@ function beep() {
 }
 
 const ALL_NAV = [
+  { id: 'live', label: 'المراقبة الحية', Icon: Radar, perm: 'orders.view' },
   { id: 'overview', label: 'الرئيسية', Icon: LayoutDashboard, perm: 'orders.view' },
   { id: 'orders', label: 'الطلبات', Icon: ClipboardList, perm: 'orders.view' },
   { id: 'couriers', label: 'عمال التوصيل', Icon: Bike, perm: 'couriers.manage' },
@@ -322,7 +325,8 @@ function Shell({ me, onLogout }) {
           </nav>
         </header>
 
-        <main className="mx-auto max-w-5xl p-4 pb-16 lg:p-8">
+        <main className={`mx-auto p-4 pb-16 lg:p-8 ${section === 'live' ? 'max-w-[1400px]' : 'max-w-5xl'}`}>
+          {section === 'live' && <LiveMonitor onOpenOrder={setSelected} />}
           {section === 'overview' && <Overview stats={stats} onGo={go} onOpenOrder={setSelected} />}
           {section === 'orders' && <OrdersBoard onOpen={setSelected} />}
           {section === 'couriers' && <Couriers />}

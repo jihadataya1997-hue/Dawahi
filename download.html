@@ -259,6 +259,23 @@
 
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {})
 
+    // نبضة حضور (رقم عشوائي للجهاز فقط) لإحصائيات لوحة الإدارة
+    var dev = null
+    try {
+      dev = localStorage.getItem('zapp.device')
+      if (!dev) {
+        var b = new Uint8Array(16); crypto.getRandomValues(b)
+        dev = btoa(String.fromCharCode.apply(null, b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+        localStorage.setItem('zapp.device', dev)
+      }
+    } catch (e) {}
+    function beat(extra) {
+      if (!dev) return
+      fetch('/api/presence', { method: 'POST', headers: { 'content-type': 'application/json' }, keepalive: true,
+        body: JSON.stringify(Object.assign({ deviceId: dev, app: 'download' }, extra || {})) }).catch(function () {})
+    }
+    beat(); setInterval(function () { document.visibilityState === 'visible' && beat() }, 30000)
+
     var ua = navigator.userAgent
     var isIOS = /iphone|ipad|ipod/i.test(ua)
     document.getElementById(isIOS ? 'how-ios' : 'how-android').classList.add('here')
@@ -276,6 +293,8 @@
       }
     })
     window.addEventListener('appinstalled', function () {
+      if (dev) fetch('/api/presence', { method: 'POST', headers: { 'content-type': 'application/json' }, keepalive: true,
+        body: JSON.stringify({ deviceId: dev, app: 'customer', installed: true }) }).catch(function () {})
       btn.style.display = 'none'
       document.getElementById('fine').style.display = 'none'
       document.getElementById('done').style.display = 'block'

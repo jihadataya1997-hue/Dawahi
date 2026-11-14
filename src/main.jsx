@@ -5,6 +5,7 @@ import { LanguageProvider } from './i18n/LanguageProvider'
 import { AuthProvider } from './auth/AuthProvider'
 import { OrdersProvider } from './orders/OrdersProvider'
 import { AppConfigProvider } from './config/AppConfigProvider'
+import { startPresence } from './presence'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -27,3 +28,5 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {})
   })
 }
+
+if (import.meta.env.PROD) startPresence('customer')

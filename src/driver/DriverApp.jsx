@@ -176,6 +176,35 @@ function ringOnce() {
 }
 
 // إبقاء الشاشة مضاءة طالما العامل "متاح" والتطبيق مفتوح
+// يرسل موقع العامل للإدارة كل ~20 ثانية طالما هو متاح لاستقبال الطلبات
+function useShareLocation(enabled) {
+  useEffect(() => {
+    if (!enabled || !navigator.geolocation) return
+    let last = 0
+    let latest = null
+    const push = () => {
+      if (!latest || Date.now() - last < 15000) return
+      last = Date.now()
+      const { latitude: lat, longitude: lng, accuracy } = latest.coords
+      api('/location', { method: 'POST', body: { lat, lng, accuracy } }).catch(() => {})
+    }
+    const watch = navigator.geolocation.watchPosition(
+      (p) => {
+        latest = p
+        push()
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 }
+    )
+    // حتى لو ما تحرّك، منعيد إرسال آخر موقع كل 20 ثانية لنعرف إنه لسا متصل
+    const tick = setInterval(push, 20000)
+    return () => {
+      navigator.geolocation.clearWatch(watch)
+      clearInterval(tick)
+    }
+  }, [enabled])
+}
+
 function useWakeLock(enabled) {
   useEffect(() => {
     if (!enabled || !('wakeLock' in navigator)) return
@@ -252,6 +281,7 @@ function Home({ onLogout }) {
   }, [loadOrders])
 
   useWakeLock(!!me?.online)
+  useShareLocation(!!me?.online)
   const load_ = loadOrders
   const logout = async () => {
     await disablePush((endpoint) => api('/push', { method: 'DELETE', body: { endpoint } })).catch(() => {})

@@ -8,6 +8,7 @@ import { hasSubscription, notify, removeSubscription, saveSubscription } from '.
 import { BACKUP_DIR, isBackupName, listBackups, runBackup } from './backup.mjs'
 import { cancelOffers, courierLoad, nudge } from './dispatch.mjs'
 import { contentAdminRoute } from './content.mjs'
+import { liveSnapshot } from './live.mjs'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
 const SESSION_DAYS = 30
@@ -247,6 +248,12 @@ export async function adminRoute(req, res, url) {
     }
     log('info', 'staff updated', { staffId: id, fields: Object.keys(body).filter((k) => k !== 'password') })
     return send(res, 200, { ok: true })
+  }
+
+  // لقطة المراقبة الحية (اللوحة تطلبها كل ثانيتين)
+  if (m === 'GET' && pathname === '/api/admin/live') {
+    need('orders.view')
+    return send(res, 200, liveSnapshot())
   }
 
   if (m === 'GET' && pathname === '/api/admin/stats') {

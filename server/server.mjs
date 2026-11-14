@@ -7,6 +7,8 @@ import { join } from 'node:path'
 import { db, getSettings, UPLOADS_DIR } from './db.mjs'
 import { HttpError, bad, sha256, now, isPhone, isFullName, str, distanceKm, clientIp, rateLimit, readJson, send, log } from './lib.mjs'
 import { adminRoute } from './admin.mjs'
+import { presenceRoute } from './live.mjs'
+const NOISY = new Set(['/api/presence', '/api/courier/location', '/api/admin/live'])
 import { toOrder } from './lib.mjs'
 import { scheduleBackups } from './backup.mjs'
 import { courierRoute } from './courier.mjs'
@@ -257,6 +259,9 @@ async function route(req, res, url) {
     return send(res, 200, { token, user: publicUser(customer) })
   }
 
+  // نبضة الحضور من التطبيقات (بدون تسجيل دخول)
+  if (m === 'POST' && pathname === '/api/presence') return presenceRoute(req, res)
+
   if (m === 'GET' && pathname === '/api/push/key') return send(res, 200, { key: VAPID_PUBLIC_KEY })
 
   // إعدادات التطبيق العامة: النصوص، الخدمات، الإعلانات، الأسعار، العملة
@@ -335,7 +340,10 @@ const server = createServer(async (req, res) => {
       send(res, 500, { error: { code: 'INTERNAL', message: 'Something went wrong', reqId } })
     }
   } finally {
-    log('info', 'request', { reqId, method: req.method, path: url.pathname, status: res.statusCode, ms: Date.now() - started })
+    // النبضات المتكررة (الحضور، المواقع، لقطة المراقبة) ما منسجّلها إلا إذا فشلت أو بطئت
+    const ms = Date.now() - started
+    if (!(NOISY.has(url.pathname) && res.statusCode < 400 && ms < 500))
+      log('info', 'request', { reqId, method: req.method, path: url.pathname, status: res.statusCode, ms })
   }
 })
 

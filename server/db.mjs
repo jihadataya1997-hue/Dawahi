@@ -245,6 +245,29 @@ const MIGRATIONS = [
   -- الجلسة إما للمالك (staff_id فارغ) أو لعضو بالفريق
   ALTER TABLE admin_sessions ADD COLUMN staff_id INTEGER REFERENCES staff(id) ON DELETE CASCADE;
   `,
+  `
+  -- المراقبة الحية: موقع عامل التوصيل الأخير
+  ALTER TABLE couriers ADD COLUMN lat REAL CHECK (lat IS NULL OR lat BETWEEN -90 AND 90);
+  ALTER TABLE couriers ADD COLUMN lng REAL CHECK (lng IS NULL OR lng BETWEEN -180 AND 180);
+  ALTER TABLE couriers ADD COLUMN loc_accuracy REAL;
+  ALTER TABLE couriers ADD COLUMN loc_at TEXT;
+
+  -- زوار كل يوم (جهاز واحد يُحسب مرة باليوم لكل تطبيق)
+  CREATE TABLE app_visits (
+    day       TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    app       TEXT NOT NULL CHECK (app IN ('customer','driver','download')),
+    PRIMARY KEY (day, app, device_id)
+  ) WITHOUT ROWID;
+
+  -- الأجهزة اللي ثبّتت التطبيق على الشاشة الرئيسية
+  CREATE TABLE app_installs (
+    device_id  TEXT PRIMARY KEY,
+    app        TEXT NOT NULL CHECK (app IN ('customer','driver')),
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX app_installs_created ON app_installs(app, created_at);
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

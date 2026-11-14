@@ -1,4 +1,5 @@
 // واجهة تطبيق شب التوصيل — كل المسارات تحت /api/courier/
+import { courierLocation } from './live.mjs'
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -96,6 +97,9 @@ export async function courierRoute(req, res, url) {
       max: getSettings().max_orders_per_courier,
     })
   }
+
+  // موقع العامل للمراقبة الحية
+  if (m === 'POST' && pathname === '/api/courier/location') return courierLocation(req, res, me)
 
   // متاح / غير متاح لاستقبال الطلبات
   if (m === 'POST' && pathname === '/api/courier/online') {
