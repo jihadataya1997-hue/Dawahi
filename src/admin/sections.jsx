@@ -905,6 +905,7 @@ export function Team() {
                       <p className="text-[11px] text-navy/50">
                         <span dir="ltr" className="font-en">{m.phone}</span>
                         {m.lastLoginAt ? `، آخر دخول ${fmtDate(m.lastLoginAt)}` : '، لم يدخل بعد'}
+                        {m.mfa && <span className="ms-1 rounded bg-emerald-100 px-1.5 text-[10px] font-bold text-emerald-700">🔐 تحقق بخطوتين</span>}
                       </p>
                     </div>
                     <select
@@ -920,6 +921,17 @@ export function Team() {
                     </select>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
+                    {m.mfa && (
+                      <button
+                        onClick={() =>
+                          window.confirm(`إلغاء التحقق بخطوتين لـ ${m.name}؟ (إذا ضيّع موبايله)`) &&
+                          run(`m${m.id}`, () => adminApi(`/staff/${m.id}/mfa`, { method: 'DELETE' }))
+                        }
+                        className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700"
+                      >
+                        إلغاء التحقق بخطوتين
+                      </button>
+                    )}
                     {pwFor === m.id ? (
                       <>
                         <input value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="كلمة سر جديدة" className={`${inputCls} max-w-[200px] py-1.5`} />

@@ -116,25 +116,53 @@ export default function AdminApp() {
 }
 
 function Login({ onDone }) {
-  const [phone, setPhone] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [ticket, setTicket] = useState(null) // الخطوة التانية: رمز التطبيق
+  const [code, setCode] = useState('')
+  const [useRecovery, setUseRecovery] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const finish = (token) => {
+    setAdminToken(token)
+    unlockSound()
+    onDone()
+  }
   const submit = async (e) => {
     e.preventDefault()
     setBusy(true)
     setError('')
     try {
-      const d = await adminApi('/login', { method: 'POST', body: { phone, password } })
-      setAdminToken(d.token)
-      unlockSound()
-      onDone()
+      if (!ticket) {
+        const d = await adminApi('/login', { method: 'POST', body: { username, password } })
+        if (d.mfaRequired) {
+          setTicket(d.ticket)
+          setPassword('')
+        } else finish(d.token)
+      } else {
+        const d = await adminApi('/login/mfa', { method: 'POST', body: { ticket, code } })
+        finish(d.token)
+      }
     } catch (err) {
-      setError(adminErrorText(err))
+      if (err.code === 'MFA_EXPIRED') {
+        setTicket(null)
+        setCode('')
+        setError('انتهى الوقت، سجّل دخول من جديد')
+      } else
+        setError(
+          err.code === 'WRONG_CODE'
+            ? 'الرمز غلط. تأكد من الرمز بتطبيق Authenticator'
+            : err.code === 'WRONG_PASSWORD'
+              ? 'اسم المستخدم أو كلمة السر غلط'
+              : err.code === 'USERNAME_REQUIRED'
+                ? 'اكتب اسم المستخدم'
+                : adminErrorText(err)
+        )
     } finally {
       setBusy(false)
     }
   }
+  const input = 'mt-2 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3.5 text-sm outline-none focus:border-brand focus:bg-white'
   return (
     <div className="flex min-h-full items-center justify-center bg-navy p-6">
       <form onSubmit={submit} className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-float">
@@ -142,34 +170,58 @@ function Login({ onDone }) {
           <LogoMark className="h-12 w-12" />
           <div>
             <h1 className="text-lg font-extrabold">لوحة إدارة ZAPP</h1>
-            <p className="text-xs text-navy/50">للإدارة فقط</p>
+            <p className="text-xs text-navy/50">{ticket ? 'التحقق بخطوتين' : 'للإدارة فقط'}</p>
           </div>
         </div>
-        <label className="mt-6 block text-sm font-bold">رقم الموبايل</label>
-        <input
-          type="tel"
-          inputMode="numeric"
-          dir="ltr"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-          placeholder="09xxxxxxxx"
-          className="mt-2 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3.5 text-end font-en text-sm outline-none focus:border-brand focus:bg-white"
-        />
-        <p className="mt-1 text-[11px] text-navy/40">المالك يترك هذا الحقل فارغاً ويدخل بكلمة السر الرئيسية</p>
-        <label className="mt-4 block text-sm font-bold">كلمة السر</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="mt-2 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3.5 text-sm outline-none focus:border-brand focus:bg-white"
-        />
+        {!ticket ? (
+          <>
+            <label className="mt-6 block text-sm font-bold">اسم المستخدم</label>
+            <input
+              dir="ltr"
+              autoComplete="username"
+              autoCapitalize="none"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.trim())}
+              placeholder="admin"
+              className={`${input} text-end font-en`}
+            />
+            <p className="mt-1 text-[11px] text-navy/40">أعضاء الفريق بيكتبوا رقم موبايلهم</p>
+            <label className="mt-4 block text-sm font-bold">كلمة السر</label>
+            <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className={input} />
+          </>
+        ) : (
+          <>
+            <p className="mt-6 text-sm leading-relaxed text-navy/70">
+              {useRecovery ? 'اكتب واحد من الرموز الاحتياطية يلي حفظتها وقت فعّلت التحقق.' : 'افتح تطبيق Authenticator على موبايلك واكتب الرمز يلي بيطلع لـ ZAPP Admin.'}
+            </p>
+            <input
+              autoFocus
+              dir="ltr"
+              inputMode={useRecovery ? 'text' : 'numeric'}
+              autoComplete="one-time-code"
+              maxLength={useRecovery ? 11 : 6}
+              value={code}
+              onChange={(e) => setCode(useRecovery ? e.target.value.toUpperCase() : e.target.value.replace(/\D/g, ''))}
+              placeholder={useRecovery ? 'XXXXX-XXXXX' : '000000'}
+              className={`${input} text-center font-en text-2xl font-black tracking-[0.4em]`}
+            />
+            <button type="button" onClick={() => (setUseRecovery(!useRecovery), setCode(''))} className="mt-2 text-xs font-bold text-brand">
+              {useRecovery ? 'رجوع لرمز التطبيق' : 'ضيّعت موبايلك؟ استعمل رمز احتياطي'}
+            </button>
+          </>
+        )}
         {error && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600">{error}</p>}
         <button
-          disabled={busy || !password}
+          disabled={busy || (!ticket ? !password || !username : useRecovery ? code.length < 10 : code.length !== 6)}
           className="mt-5 flex w-full items-center justify-center rounded-2xl bg-brand py-3.5 text-sm font-extrabold text-white disabled:opacity-60"
         >
-          {busy ? <LoaderCircle size={18} className="animate-spin" /> : 'دخول'}
+          {busy ? <LoaderCircle size={18} className="animate-spin" /> : ticket ? 'تأكيد' : 'دخول'}
         </button>
+        {ticket && (
+          <button type="button" onClick={() => (setTicket(null), setCode(''), setError(''))} className="mt-2 w-full py-2 text-xs font-bold text-navy/50">
+            رجوع
+          </button>
+        )}
       </form>
     </div>
   )

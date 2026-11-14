@@ -10,6 +10,7 @@ import { cancelOffers, courierLoad, nudge } from './dispatch.mjs'
 import { contentAdminRoute } from './content.mjs'
 import { markSeen } from './live.mjs'
 import { adminStoresRoute } from './stores.mjs'
+import { checkSecondFactor, getMfa, newRecoveryCodes, newSecret, otpauthUri, verifyTotp } from './mfa.mjs'
 import { courierProfileRoute } from './courierProfile.mjs'
 import { adminWalletRoute, chargeCommission } from './wallet.mjs'
 import { adminPromoRoute, awardPoints, releasePerks } from './promo.mjs'
@@ -79,6 +80,21 @@ export const PERMISSIONS = {
 }
 const ALL_PERMS = Object.keys(PERMISSIONS)
 
+const mfaTickets = new Map()
+const mfaPending = new Map()
+setInterval(() => {
+  for (const [k, v] of mfaTickets) if (v.exp < Date.now()) mfaTickets.delete(k)
+}, 60_000).unref()
+function startAdminSession(req, staffId) {
+  const token = randomBytes(32).toString('base64url')
+  const expires = new Date(Date.now() + SESSION_DAYS * 864e5).toISOString()
+  db.prepare('DELETE FROM admin_sessions WHERE expires_at < ?').run(now())
+  db.prepare('INSERT INTO admin_sessions (token_hash, expires_at, staff_id) VALUES (?, ?, ?)').run(sha256(token), expires, staffId)
+  if (staffId) db.prepare('UPDATE staff SET last_login_at = ? WHERE id = ?').run(now(), staffId)
+  log('info', 'admin login', { ip: clientIp(req), staffId })
+  return token
+}
+
 /** يتحقق من الجلسة ويرجع هوية المستخدم وصلاحياته */
 function authAdmin(req) {
   const h = req.headers.authorization || ''
@@ -129,34 +145,55 @@ export async function adminRoute(req, res, url) {
   const { pathname } = url
   const m = req.method
 
+  // الدخول: اسم المستخدم (المالك) أو رقم الموبايل (الفريق) + كلمة السر، وبعدها رمز التطبيق إذا التحقق بخطوتين مفعّل
   if (m === 'POST' && pathname === '/api/admin/login') {
     rateLimit(`admin-login:${clientIp(req)}`, 8, 15 * 60 * 1000)
     const body = await readJson(req)
-    const phone = String(body.phone || '').replace(/\s/g, '')
+    const user = String(body.username ?? body.phone ?? '').trim()
+    if (!user) throw bad('USERNAME_REQUIRED', 'Enter your username', 'username')
+    const ownerUser = db.prepare("SELECT value FROM secrets WHERE key = 'owner_username'").get()?.value || 'admin'
     let staffId = null
-    if (phone) {
-      // دخول عضو بالفريق: رقم الموبايل + كلمة السر
-      const st = db.prepare('SELECT id, password_hash, active FROM staff WHERE phone = ?').get(phone)
-      if (!st || !st.active || !verifySecret(body.password, st.password_hash)) {
-        log('warn', 'staff login failed', { ip: clientIp(req) })
-        throw new HttpError(401, 'WRONG_PASSWORD', 'Wrong phone or password')
-      }
-      staffId = st.id
-      db.prepare('UPDATE staff SET last_login_at = ? WHERE id = ?').run(now(), st.id)
-    } else {
-      // دخول المالك بكلمة السر الرئيسية
+    let subject
+    if (user.toLowerCase() === ownerUser.toLowerCase()) {
       if (!ADMIN_PASSWORD && !ownerHash()) throw new HttpError(503, 'NOT_CONFIGURED', 'Admin password is not set on the server')
       if (!passwordMatches(body.password)) {
         log('warn', 'admin login failed', { ip: clientIp(req) })
-        throw new HttpError(401, 'WRONG_PASSWORD', 'Wrong password')
+        throw new HttpError(401, 'WRONG_PASSWORD', 'Wrong username or password')
       }
+      subject = 'owner'
+    } else {
+      const phone = user.replace(/\s/g, '')
+      const st = db.prepare('SELECT id, password_hash, active FROM staff WHERE phone = ?').get(phone)
+      if (!st || !st.active || !verifySecret(body.password, st.password_hash)) {
+        log('warn', 'staff login failed', { ip: clientIp(req) })
+        throw new HttpError(401, 'WRONG_PASSWORD', 'Wrong username or password')
+      }
+      staffId = st.id
+      subject = `staff:${st.id}`
     }
-    const token = randomBytes(32).toString('base64url')
-    const expires = new Date(Date.now() + SESSION_DAYS * 864e5).toISOString()
-    db.prepare('DELETE FROM admin_sessions WHERE expires_at < ?').run(now())
-    db.prepare('INSERT INTO admin_sessions (token_hash, expires_at, staff_id) VALUES (?, ?, ?)').run(sha256(token), expires, staffId)
-    log('info', 'admin login', { ip: clientIp(req), staffId })
-    return send(res, 200, { token })
+    if (getMfa(subject)) {
+      const ticket = randomBytes(24).toString('base64url')
+      mfaTickets.set(ticket, { subject, staffId, exp: Date.now() + 5 * 60_000, tries: 0 })
+      return send(res, 200, { mfaRequired: true, ticket })
+    }
+    return send(res, 200, { token: startAdminSession(req, staffId) })
+  }
+
+  // الخطوة التانية: رمز من تطبيق Authenticator (أو رمز احتياطي)
+  if (m === 'POST' && pathname === '/api/admin/login/mfa') {
+    rateLimit(`admin-mfa:${clientIp(req)}`, 10, 15 * 60 * 1000)
+    const body = await readJson(req)
+    const t = mfaTickets.get(String(body.ticket || ''))
+    if (!t || t.exp < Date.now()) throw new HttpError(401, 'MFA_EXPIRED', 'Please sign in again')
+    const ok = checkSecondFactor(t.subject, body.code)
+    if (!ok) {
+      if (++t.tries >= 5) mfaTickets.delete(body.ticket)
+      log('warn', 'admin mfa failed', { ip: clientIp(req), subject: t.subject })
+      throw new HttpError(401, 'WRONG_CODE', 'Wrong code')
+    }
+    mfaTickets.delete(body.ticket)
+    if (ok === 'recovery') log('warn', 'admin used recovery code', { subject: t.subject })
+    return send(res, 200, { token: startAdminSession(req, t.staffId) })
   }
 
   const me = authAdmin(req)
@@ -189,6 +226,75 @@ export async function adminRoute(req, res, url) {
         db.prepare('DELETE FROM admin_sessions WHERE staff_id = ? AND token_hash != ?').run(me.staffId, sessionHash)
     }
     log('info', 'admin password changed', { staffId: me.staffId })
+    return send(res, 200, { ok: true })
+  }
+
+  // ───── أمان الحساب: اسم المستخدم والتحقق بخطوتين ─────
+  const subject = me.isOwner ? 'owner' : `staff:${me.staffId}`
+  const checkPassword = (pw) => {
+    if (me.isOwner) return passwordMatches(pw)
+    const st = db.prepare('SELECT password_hash FROM staff WHERE id = ?').get(me.staffId)
+    return !!st && verifySecret(pw, st.password_hash)
+  }
+  if (m === 'GET' && pathname === '/api/admin/security') {
+    const row = getMfa(subject)
+    const username = me.isOwner
+      ? db.prepare("SELECT value FROM secrets WHERE key = 'owner_username'").get()?.value || 'admin'
+      : db.prepare('SELECT phone FROM staff WHERE id = ?').get(me.staffId)?.phone
+    return send(res, 200, {
+      username,
+      canChangeUsername: me.isOwner,
+      mfa: row ? { enabled: true, since: row.enabled_at, recoveryLeft: JSON.parse(row.recovery).length } : { enabled: false },
+    })
+  }
+  if (m === 'PUT' && pathname === '/api/admin/username') {
+    if (!me.isOwner) throw new HttpError(403, 'FORBIDDEN', 'Owner only')
+    rateLimit(`admin-user:${sessionHash}`, 6, 15 * 60 * 1000)
+    const body = await readJson(req)
+    const u = String(body.username || '').trim()
+    if (!/^[A-Za-z0-9._-]{3,30}$/.test(u)) throw bad('INVALID_USERNAME', 'Username must be 3-30 English letters or numbers', 'username')
+    if (/^\d+$/.test(u)) throw bad('INVALID_USERNAME', 'Username cannot be only numbers', 'username')
+    if (!checkPassword(body.password)) throw new HttpError(400, 'WRONG_CURRENT', 'Password is wrong')
+    db.prepare("INSERT OR REPLACE INTO secrets (key, value) VALUES ('owner_username', ?)").run(u)
+    log('info', 'owner username changed')
+    return send(res, 200, { username: u })
+  }
+  if (m === 'POST' && pathname === '/api/admin/mfa/setup') {
+    if (getMfa(subject)) throw new HttpError(409, 'MFA_ON', 'Already enabled')
+    const secret = newSecret()
+    mfaPending.set(sessionHash, { secret, exp: Date.now() + 15 * 60_000 })
+    return send(res, 200, { secret, uri: otpauthUri(secret, me.name) })
+  }
+  if (m === 'POST' && pathname === '/api/admin/mfa/enable') {
+    rateLimit(`admin-mfa-en:${sessionHash}`, 10, 15 * 60 * 1000)
+    const p = mfaPending.get(sessionHash)
+    if (!p || p.exp < Date.now()) throw new HttpError(400, 'MFA_EXPIRED', 'Start again')
+    const body = await readJson(req)
+    if (!verifyTotp(p.secret, body.code)) throw new HttpError(400, 'WRONG_CODE', 'Wrong code')
+    const rc = newRecoveryCodes()
+    db.prepare('INSERT OR REPLACE INTO admin_mfa (subject, secret, recovery, enabled_at) VALUES (?, ?, ?, ?)').run(subject, p.secret, JSON.stringify(rc.hashed), now())
+    mfaPending.delete(sessionHash)
+    // باقي الأجهزة المسجّلة بهالحساب بتطلع
+    if (me.isOwner) db.prepare('DELETE FROM admin_sessions WHERE staff_id IS NULL AND token_hash != ?').run(sessionHash)
+    else db.prepare('DELETE FROM admin_sessions WHERE staff_id = ? AND token_hash != ?').run(me.staffId, sessionHash)
+    log('info', 'admin mfa enabled', { subject })
+    return send(res, 200, { recoveryCodes: rc.codes })
+  }
+  if (m === 'POST' && pathname === '/api/admin/mfa/disable') {
+    rateLimit(`admin-mfa-dis:${sessionHash}`, 6, 15 * 60 * 1000)
+    const body = await readJson(req)
+    if (!checkPassword(body.password)) throw new HttpError(400, 'WRONG_CURRENT', 'Password is wrong')
+    if (!checkSecondFactor(subject, body.code)) throw new HttpError(400, 'WRONG_CODE', 'Wrong code')
+    db.prepare('DELETE FROM admin_mfa WHERE subject = ?').run(subject)
+    log('warn', 'admin mfa disabled', { subject })
+    return send(res, 200, { ok: true })
+  }
+  // المالك بيقدر يلغي التحقق بخطوتين لموظف ضيّع موبايله
+  let smm = /^\/api\/admin\/staff\/(\d{1,9})\/mfa$/.exec(pathname)
+  if (smm && m === 'DELETE') {
+    need('staff.manage')
+    db.prepare('DELETE FROM admin_mfa WHERE subject = ?').run(`staff:${Number(smm[1])}`)
+    log('warn', 'staff mfa reset', { staffId: Number(smm[1]), by: me.name })
     return send(res, 200, { ok: true })
   }
 
@@ -241,11 +347,12 @@ export async function adminRoute(req, res, url) {
       const rows = db
         .prepare(
           `SELECT s.id, s.name, s.phone, s.active, s.role_id AS roleId, r.name AS role, s.last_login_at AS lastLoginAt,
-             EXISTS (SELECT 1 FROM couriers c WHERE c.phone = s.phone AND c.active = 1) AS isCourier
+             EXISTS (SELECT 1 FROM couriers c WHERE c.phone = s.phone AND c.active = 1) AS isCourier,
+             EXISTS (SELECT 1 FROM admin_mfa a WHERE a.subject = 'staff:' || s.id) AS mfa
            FROM staff s JOIN roles r ON r.id = s.role_id ORDER BY s.active DESC, s.name`
         )
         .all()
-      return send(res, 200, { staff: rows.map((r) => ({ ...r, active: !!r.active, isCourier: !!r.isCourier })) })
+      return send(res, 200, { staff: rows.map((r) => ({ ...r, active: !!r.active, isCourier: !!r.isCourier, mfa: !!r.mfa })) })
     }
     if (m === 'POST') {
       const body = await readJson(req)

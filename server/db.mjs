@@ -415,6 +415,16 @@ const MIGRATIONS = [
   -- توصيل مجاني تلقائي لأول طلب لكل زبون جديد (بدون كود)
   INSERT OR IGNORE INTO settings (key, value) VALUES ('first_order_free', '1');
   `,
+  `
+  -- التحقق بخطوتين للوحة الإدارة (تطبيق Authenticator): subject = 'owner' أو 'staff:<id>'
+  CREATE TABLE admin_mfa (
+    subject     TEXT PRIMARY KEY,
+    secret      TEXT NOT NULL,
+    recovery    TEXT NOT NULL DEFAULT '[]',  -- رموز احتياطية مشفّرة (sha256)
+    enabled_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  INSERT OR IGNORE INTO secrets (key, value) VALUES ('owner_username', 'admin');
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

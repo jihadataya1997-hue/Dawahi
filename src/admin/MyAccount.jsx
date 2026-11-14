@@ -1,6 +1,7 @@
 // حسابي: تغيير كلمة السر (للمالك ولكل موظف)
-import { useState } from 'react'
-import { Check, Eye, EyeOff, KeyRound, LoaderCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import QRCode from 'qrcode'
+import { AtSign, Check, Copy, Eye, EyeOff, KeyRound, LoaderCircle, ShieldCheck } from 'lucide-react'
 import { adminApi, adminErrorText } from './adminApi'
 import { inputCls } from './shared'
 
@@ -97,6 +98,243 @@ export default function MyAccount({ me }) {
           {busy ? <LoaderCircle size={18} className="animate-spin" /> : 'غيّر كلمة السر'}
         </button>
       </form>
+
+      <Security />
+    </div>
+  )
+}
+
+/* ───────── اسم المستخدم + التحقق بخطوتين ───────── */
+function Security() {
+  const [sec, setSec] = useState(null)
+  const [error, setError] = useState('')
+  const load = () => adminApi('/security').then(setSec).catch((e) => setError(adminErrorText(e)))
+  useEffect(() => void load(), [])
+  if (!sec) return error ? <p className="text-center text-xs text-rose-600">{error}</p> : null
+  return (
+    <>
+      {sec.canChangeUsername && <UsernameCard current={sec.username} onSaved={load} />}
+      <MfaCard sec={sec} onChanged={load} />
+    </>
+  )
+}
+
+function UsernameCard({ current, onSaved }) {
+  const [u, setU] = useState(current)
+  const [pw, setPw] = useState('')
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  const save = async (e) => {
+    e.preventDefault()
+    setBusy(true)
+    setMsg('')
+    try {
+      await adminApi('/username', { method: 'PUT', body: { username: u, password: pw } })
+      setPw('')
+      setMsg('✓ تغيّر اسم المستخدم')
+      onSaved()
+    } catch (err) {
+      setMsg(
+        err.code === 'WRONG_CURRENT' ? 'كلمة السر غلط' : err.code === 'INVALID_USERNAME' ? 'من 3 لـ 30 حرف إنكليزي أو أرقام (مو أرقام بس)' : adminErrorText(err)
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <form onSubmit={save} className="space-y-3 rounded-3xl bg-white p-5 shadow-soft">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-brand">
+          <AtSign size={20} />
+        </span>
+        <div>
+          <h2 className="font-extrabold">اسم المستخدم</h2>
+          <p className="text-xs text-navy/50">
+            هلق: <b dir="ltr" className="font-en">{current}</b>
+          </p>
+        </div>
+      </div>
+      <input dir="ltr" autoCapitalize="none" value={u} onChange={(e) => setU(e.target.value.trim())} className={`${inputCls} font-en`} />
+      <PassInput value={pw} onChange={setPw} placeholder="كلمة السر للتأكيد" autoComplete="current-password" />
+      {msg && <p className="text-center text-xs font-bold text-brand">{msg}</p>}
+      <button disabled={busy || !pw || u === current} className="w-full rounded-2xl bg-navy py-3 text-sm font-extrabold text-white disabled:opacity-50">
+        حفظ اسم المستخدم
+      </button>
+    </form>
+  )
+}
+
+function MfaCard({ sec, onChanged }) {
+  const [setup, setSetup] = useState(null) // { secret, uri, qr }
+  const [code, setCode] = useState('')
+  const [codes, setCodes] = useState(null) // الرموز الاحتياطية بعد التفعيل
+  const [disabling, setDisabling] = useState(false)
+  const [pw, setPw] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const start = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const d = await adminApi('/mfa/setup', { method: 'POST' })
+      const qr = await QRCode.toDataURL(d.uri, { margin: 1, width: 240, color: { dark: '#1E0E4F', light: '#ffffff' } })
+      setSetup({ ...d, qr })
+    } catch (e) {
+      setError(adminErrorText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const enable = async (e) => {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      const d = await adminApi('/mfa/enable', { method: 'POST', body: { code } })
+      setCodes(d.recoveryCodes)
+      setSetup(null)
+      setCode('')
+      onChanged()
+    } catch (err) {
+      setError(err.code === 'WRONG_CODE' ? 'الرمز غلط. تأكد إن وقت الموبايل مضبوط وجرّب الرمز الجديد' : err.code === 'MFA_EXPIRED' ? 'انتهى الوقت، ابدأ من جديد' : adminErrorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const disable = async (e) => {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      await adminApi('/mfa/disable', { method: 'POST', body: { password: pw, code } })
+      setDisabling(false)
+      setPw('')
+      setCode('')
+      onChanged()
+    } catch (err) {
+      setError(err.code === 'WRONG_CURRENT' ? 'كلمة السر غلط' : err.code === 'WRONG_CODE' ? 'الرمز غلط' : adminErrorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const copyCodes = async () => {
+    try {
+      await navigator.clipboard.writeText(codes.join('\n'))
+      setCopied(true)
+    } catch {}
+  }
+
+  return (
+    <div className="space-y-4 rounded-3xl bg-white p-5 shadow-soft">
+      <div className="flex items-center gap-3">
+        <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${sec.mfa.enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-brand-50 text-brand'}`}>
+          <ShieldCheck size={20} />
+        </span>
+        <div className="flex-1">
+          <h2 className="font-extrabold">التحقق بخطوتين</h2>
+          <p className="text-xs text-navy/50">
+            {sec.mfa.enabled
+              ? `شغّال ✓ · باقي ${sec.mfa.recoveryLeft} رموز احتياطية`
+              : 'بعد كلمة السر، بيطلب رمز من تطبيق Authenticator على موبايلك. حتى لو حدا عرف كلمة السر ما بيقدر يفوت.'}
+          </p>
+        </div>
+      </div>
+
+      {codes && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">
+          <p className="text-sm font-extrabold text-amber-800">احفظ هالرموز الاحتياطية هلق!</p>
+          <p className="mt-1 text-xs text-amber-800/80">إذا ضاع موبايلك، بتفوت بواحد منهن (كل رمز لمرة وحدة). ما رح يطلعوا مرة تانية.</p>
+          <div dir="ltr" className="mt-3 grid grid-cols-2 gap-2 font-en text-sm font-bold">
+            {codes.map((c) => (
+              <span key={c} className="rounded-lg bg-white px-2 py-1.5 text-center">
+                {c}
+              </span>
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button onClick={copyCodes} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-2 text-xs font-bold">
+              <Copy size={14} /> {copied ? '✓ انتسخوا' : 'نسخ'}
+            </button>
+            <button onClick={() => setCodes(null)} className="flex-1 rounded-xl bg-amber-600 py-2 text-xs font-bold text-white">
+              حفظتهن
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!sec.mfa.enabled && !setup && (
+        <button onClick={start} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-sm font-extrabold text-white disabled:opacity-60">
+          {busy ? <LoaderCircle size={18} className="animate-spin" /> : 'فعّل التحقق بخطوتين'}
+        </button>
+      )}
+
+      {setup && (
+        <form onSubmit={enable} className="space-y-3">
+          <ol className="list-decimal space-y-1.5 ps-5 text-sm text-navy/75">
+            <li>
+              نزّل تطبيق <b>Google Authenticator</b> أو <b>Microsoft Authenticator</b> على موبايلك.
+            </li>
+            <li>بالتطبيق اكبس <b>+</b> وبعدين <b>مسح رمز QR</b>، وامسح هالرمز:</li>
+          </ol>
+          <img src={setup.qr} alt="QR" className="mx-auto h-48 w-48 rounded-xl border border-navy/10" />
+          <details className="text-xs text-navy/55">
+            <summary className="cursor-pointer font-bold">ما زبط المسح؟ اكتب المفتاح بإيدك</summary>
+            <p dir="ltr" className="mt-2 select-all break-all rounded-lg bg-navy-50 p-2 text-center font-en font-bold">
+              {setup.secret.replace(/(.{4})/g, '$1 ').trim()}
+            </p>
+          </details>
+          <p className="text-sm text-navy/75">3. اكتب الرمز يلي طلع بالتطبيق (6 أرقام):</p>
+          <input
+            dir="ltr"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            placeholder="000000"
+            className={`${inputCls} text-center font-en text-2xl font-black tracking-[0.4em]`}
+          />
+          <button disabled={busy || code.length !== 6} className="flex w-full items-center justify-center rounded-2xl bg-brand py-3 text-sm font-extrabold text-white disabled:opacity-60">
+            {busy ? <LoaderCircle size={18} className="animate-spin" /> : 'تأكيد وتفعيل'}
+          </button>
+          <button type="button" onClick={() => (setSetup(null), setCode(''))} className="w-full text-xs font-bold text-navy/50">
+            إلغاء
+          </button>
+        </form>
+      )}
+
+      {sec.mfa.enabled &&
+        !codes &&
+        (disabling ? (
+          <form onSubmit={disable} className="space-y-2 rounded-2xl bg-rose-50 p-3">
+            <p className="text-xs font-bold text-rose-700">لتوقيف التحقق بخطوتين اكتب كلمة السر ورمز التطبيق:</p>
+            <PassInput value={pw} onChange={setPw} placeholder="كلمة السر" autoComplete="current-password" />
+            <input
+              dir="ltr"
+              inputMode="numeric"
+              maxLength={11}
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="رمز التطبيق"
+              className={`${inputCls} text-center font-en`}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setDisabling(false)} className="rounded-xl bg-white py-2 text-xs font-bold">
+                رجوع
+              </button>
+              <button disabled={busy || !pw || !code} className="rounded-xl bg-rose-600 py-2 text-xs font-bold text-white disabled:opacity-50">
+                وقّف التحقق
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button onClick={() => setDisabling(true)} className="w-full text-xs font-bold text-rose-600">
+            توقيف التحقق بخطوتين
+          </button>
+        ))}
+      {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600">{error}</p>}
     </div>
   )
 }
