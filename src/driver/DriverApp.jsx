@@ -128,6 +128,7 @@ const unlockSound = () => {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)()
     audioCtx.resume()
+    loadRing()
   } catch {}
 }
 // محاولة تشغيل الصوت بدون لمسة (تنجح إذا المستخدم لمس التطبيق من قبل)
@@ -137,41 +138,41 @@ const unlockSoundSilently = () => {
     audioCtx.resume().catch(() => {})
   } catch {}
 }
+// طلب جديد: الرنّة نفسها بتشتغل من قسم العروض، هون بس هزّة خفيفة
 const beep = () => {
-  try {
-    if (!audioCtx || Date.now() - lastTap < 3000) return // ما منزمّر إذا هو للتو ضاغط (مثلاً قبل الطلب)
-    ;[0, 0.3, 0.6].forEach((t) => {
-      const o = audioCtx.createOscillator()
-      const g = audioCtx.createGain()
-      o.frequency.value = 988
-      g.gain.setValueAtTime(0.3, audioCtx.currentTime + t)
-      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + t + 0.25)
-      o.connect(g).connect(audioCtx.destination)
-      o.start(audioCtx.currentTime + t)
-      o.stop(audioCtx.currentTime + t + 0.25)
-    })
-    navigator.vibrate?.([300, 100, 300])
-  } catch {}
+  if (Date.now() - lastTap < 3000) return
+  navigator.vibrate?.([300, 100, 300])
 }
 
 // رنين متواصل (مثل المكالمة) طالما في طلب معروض ولم يُرد عليه
+// رنّة ZAPP (نفس صوت تطبيق الأندرويد): منحمّلها مرة وحدة ومنشغّلها من الذاكرة
+let ringBuffer = null
+let ringLoading = null
+function loadRing() {
+  if (ringBuffer || ringLoading || !audioCtx) return ringLoading
+  ringLoading = fetch('/sounds/zapp-ring.mp3')
+    .then((r) => r.arrayBuffer())
+    .then((b) => new Promise((ok, no) => audioCtx.decodeAudioData(b, ok, no)))
+    .then((buf) => (ringBuffer = buf))
+    .catch(() => (ringLoading = null))
+  return ringLoading
+}
+function playRing(volume = 1) {
+  if (!audioCtx || !ringBuffer) return false
+  const src = audioCtx.createBufferSource()
+  const g = audioCtx.createGain()
+  g.gain.value = volume
+  src.buffer = ringBuffer
+  src.connect(g).connect(audioCtx.destination)
+  src.start()
+  return true
+}
 function ringOnce() {
   try {
     if (!audioCtx) return
-    const t0 = audioCtx.currentTime
-    ;[0, 0.18, 0.36, 0.9, 1.08, 1.26].forEach((t, i) => {
-      const o = audioCtx.createOscillator()
-      const g = audioCtx.createGain()
-      o.type = 'square'
-      o.frequency.value = i % 2 ? 1320 : 990
-      g.gain.setValueAtTime(0.0001, t0 + t)
-      g.gain.exponentialRampToValueAtTime(0.35, t0 + t + 0.02)
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + t + 0.16)
-      o.connect(g).connect(audioCtx.destination)
-      o.start(t0 + t)
-      o.stop(t0 + t + 0.17)
-    })
-    navigator.vibrate?.([400, 150, 400, 150, 400])
+    loadRing()
+    if (!playRing()) return
+    navigator.vibrate?.([400, 150, 400])
   } catch {}
 }
 
@@ -466,7 +467,7 @@ function Offers({ onAccepted }) {
     unlockSoundSilently()
     setSoundBlocked(!audioCtx || audioCtx.state !== 'running')
     ringOnce()
-    const id = setInterval(ringOnce, 2200)
+    const id = setInterval(ringOnce, 2900)
     return () => clearInterval(id)
   }, [ringing])
   if (!live.length) return null

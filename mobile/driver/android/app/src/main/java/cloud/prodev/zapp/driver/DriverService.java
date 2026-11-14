@@ -59,7 +59,7 @@ public class DriverService extends Service {
     private static final int ID_OFFER = 1002;
     private static final long POLL_SEC = 4;
     private static final long LOCATION_SEC = 20;
-    private static final long RING_MAX_MS = 60_000;
+    private static final long RING_MAX_MS = 90_000; // سقف أمان؛ عادةً بتوقف لما ينقبل العرض أو ينتهي وقته
 
     static volatile boolean running = false;
     static volatile boolean appVisible = false;
@@ -319,8 +319,8 @@ public class DriverService extends Service {
 
         stopSound();
         try {
-            Uri uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_RINGTONE);
-            if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            // رنّة ZAPP الخاصة (res/raw/zapp_ring.ogg)
+            Uri uri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.zapp_ring);
             player = new MediaPlayer();
             player.setAudioAttributes(new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
