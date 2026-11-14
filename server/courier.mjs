@@ -1,6 +1,7 @@
 // واجهة تطبيق شب التوصيل — كل المسارات تحت /api/courier/
 import { awardPoints } from './promo.mjs'
-import { courierLocation } from './live.mjs'
+import { courierLocation, markSeen } from './live.mjs'
+import { supervisorRoute } from './supervisor.mjs'
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -27,11 +28,12 @@ function authCourier(req) {
   if (!token || token.length > 200) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
   const row = db
     .prepare(
-      `SELECT c.id, c.name, c.phone, c.active, c.online, s.token_hash FROM courier_sessions s
+      `SELECT c.id, c.name, c.phone, c.active, c.online, c.is_supervisor, s.token_hash FROM courier_sessions s
        JOIN couriers c ON c.id = s.courier_id WHERE s.token_hash = ?`
     )
     .get(sha256(token))
   if (!row || !row.active) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
+  markSeen('courier', row.id)
   return row
 }
 
@@ -92,12 +94,15 @@ export async function courierRoute(req, res, url) {
 
   if (m === 'GET' && pathname === '/api/courier/me') {
     return send(res, 200, {
-      courier: { id: me.id, name: me.name, phone: me.phone, online: !!me.online },
+      courier: { id: me.id, name: me.name, phone: me.phone, online: !!me.online, supervisor: !!me.is_supervisor },
       push: hasSubscription('courier', me.id),
       load: courierLoad(me.id),
       max: getSettings().max_orders_per_courier,
     })
   }
+
+  // وضع المشرف: مراقبة السائقين وتحويل الطلبات من تطبيق السائقين
+  if (pathname.startsWith('/api/courier/sup/')) return supervisorRoute(req, res, url, me)
 
   // موقع العامل للمراقبة الحية
   if (m === 'POST' && pathname === '/api/courier/location') return courierLocation(req, res, me)

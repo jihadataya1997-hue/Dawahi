@@ -1,5 +1,6 @@
 // سيرفر ضواحي — Node.js بدون مكتبات خارجية
 // تشغيل: node server/server.mjs   (المنفذ PORT، مكان البيانات DATA_DIR)
+import { startSupervisorAlerts } from './supervisor.mjs'
 import { createServer } from 'node:http'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -460,6 +461,7 @@ server.requestTimeout = 30_000
 server.listen(PORT, () => log('info', 'dawahi api listening', { port: PORT }))
 scheduleBackups()
 startDispatcher()
+startSupervisorAlerts()
 
 for (const sig of ['SIGTERM', 'SIGINT']) {
   process.on(sig, () => {

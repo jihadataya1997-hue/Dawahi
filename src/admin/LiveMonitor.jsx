@@ -36,7 +36,8 @@ function ago(iso, now) {
   const s = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000))
   if (s < 60) return `قبل ${s} ث`
   if (s < 3600) return `قبل ${Math.floor(s / 60)} د`
-  return `قبل ${Math.floor(s / 3600)} س`
+  if (s < 86400) return `قبل ${Math.floor(s / 3600)} س`
+  return `قبل ${Math.floor(s / 86400)} يوم`
 }
 
 function useNow() {
@@ -144,6 +145,7 @@ export default function LiveMonitor({ onOpenOrder }) {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <Hourly hourly={data.today.hourly} />
         <Fleet couriers={data.couriers} now={now} onFocus={(c) => c.location && setFocus({ ...c.location, key: `c${c.id}:${Date.now()}` })} />
+        {data.team && <Team team={data.team} now={now} />}
       </div>
     </div>
   )
@@ -394,9 +396,14 @@ function Fleet({ couriers, now, onFocus }) {
                   {c.name.trim()[0]}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold">{c.name}</span>
+                  <span className="flex items-center gap-1.5 truncate text-sm font-bold">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${c.appOpen ? 'bg-emerald-500' : 'bg-navy/20'}`} title={c.appOpen ? 'فاتح التطبيق هلق' : ''} />
+                    {c.name}
+                    {c.supervisor && <span className="rounded bg-lime px-1.5 text-[10px] text-navy">مشرف</span>}
+                  </span>
                   <span className="block text-[11px] text-navy/45">
-                    {c.location ? `آخر موقع ${ago(c.location.at, now)}` : 'لم يرسل موقعه بعد'}
+                    {c.appOpen ? 'فاتح التطبيق هلق' : c.lastSeen ? `آخر ظهور ${ago(c.lastSeen, now)}` : 'ما فتح التطبيق بعد'}
+                    {c.location ? ` · آخر موقع ${ago(c.location.at, now)}` : ''}
                   </span>
                 </span>
                 {c.orders > 0 && <span className="num-zap text-sm text-brand">{c.orders} طلب</span>}
@@ -406,6 +413,29 @@ function Fleet({ couriers, now, onFocus }) {
           ))}
         </ul>
       )}
+    </section>
+  )
+}
+
+// مين من الفريق فاتح لوحة الإدارة هلق
+function Team({ team, now }) {
+  return (
+    <section className="rounded-2xl bg-white shadow-soft">
+      <h2 className="border-b border-navy/5 px-4 py-3 font-extrabold">الفريق (لوحة الإدارة)</h2>
+      <ul className="divide-y divide-navy/5">
+        {team.map((m) => (
+          <li key={m.id ?? 'owner'} className="flex items-center gap-3 px-4 py-2.5">
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${m.open ? 'bg-emerald-500' : 'bg-navy/20'}`} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-bold">{m.name}</span>
+              <span className="block text-[11px] text-navy/45">{m.role}</span>
+            </span>
+            <span className={`text-[11px] font-bold ${m.open ? 'text-emerald-600' : 'text-navy/45'}`}>
+              {m.open ? 'فاتح هلق' : m.lastSeen ? `آخر ظهور ${ago(m.lastSeen, now)}` : 'ما فات بعد'}
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

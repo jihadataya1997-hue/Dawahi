@@ -8,6 +8,7 @@ import { hasSubscription, notify, removeSubscription, saveSubscription } from '.
 import { BACKUP_DIR, isBackupName, listBackups, runBackup } from './backup.mjs'
 import { cancelOffers, courierLoad, nudge } from './dispatch.mjs'
 import { contentAdminRoute } from './content.mjs'
+import { markSeen } from './live.mjs'
 import { adminStoresRoute } from './stores.mjs'
 import { courierProfileRoute } from './courierProfile.mjs'
 import { adminPromoRoute, awardPoints, releasePerks } from './promo.mjs'
@@ -87,6 +88,7 @@ function authAdmin(req) {
     )
     .get(sha256(token))
   if (!row || row.expires_at < now()) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
+  markSeen('staff', row.staff_id)
   if (row.staff_id === null) return { hash: row.token_hash, staffId: null, name: 'المالك', role: 'مالك', isOwner: true, perms: ALL_PERMS }
   if (!row.active) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
   return { hash: row.token_hash, staffId: row.staff_id, name: row.name, role: row.role, isOwner: false, perms: JSON.parse(row.permissions) }
@@ -422,13 +424,13 @@ export async function adminRoute(req, res, url) {
     if (m === 'GET') {
       const rows = db
         .prepare(
-          `SELECT c.id, c.name, c.phone, c.active, c.online, c.created_at AS createdAt,
+          `SELECT c.id, c.name, c.phone, c.active, c.online, c.is_supervisor AS supervisor, c.last_seen_at AS lastSeen, c.created_at AS createdAt,
              (SELECT COUNT(*) FROM orders o WHERE o.courier_id = c.id AND o.status IN ('assigned','buying','on_the_way')) AS openOrders,
              EXISTS (SELECT 1 FROM push_subscriptions p WHERE p.owner_type = 'courier' AND p.owner_id = c.id) AS push
            FROM couriers c ORDER BY c.active DESC, c.name`
         )
         .all()
-      return send(res, 200, { couriers: rows.map((r) => ({ ...r, active: !!r.active, online: !!r.online, push: !!r.push })) })
+      return send(res, 200, { couriers: rows.map((r) => ({ ...r, active: !!r.active, online: !!r.online, push: !!r.push, supervisor: !!r.supervisor })) })
     }
     if (m === 'POST') {
       const body = await readJson(req)
@@ -455,6 +457,7 @@ export async function adminRoute(req, res, url) {
       db.prepare('UPDATE couriers SET pin_hash = ? WHERE id = ?').run(hashPin(String(body.pin)), id)
       db.prepare('DELETE FROM courier_sessions WHERE courier_id = ?').run(id) // تسجيل خروج من كل الأجهزة
     }
+    if (body.supervisor !== undefined) db.prepare('UPDATE couriers SET is_supervisor = ? WHERE id = ?').run(body.supervisor ? 1 : 0, id)
     if (body.online !== undefined) {
       db.prepare('UPDATE couriers SET online = ?, missed_offers = 0 WHERE id = ?').run(body.online ? 1 : 0, id)
       if (body.online) nudge()
@@ -464,8 +467,8 @@ export async function adminRoute(req, res, url) {
       if (!body.active) db.prepare('DELETE FROM courier_sessions WHERE courier_id = ?').run(id)
     }
     log('info', 'courier updated', { courierId: id, fields: Object.keys(body) })
-    const u = db.prepare('SELECT id, name, phone, active, online FROM couriers WHERE id = ?').get(id)
-    return send(res, 200, { courier: { ...u, active: !!u.active, online: !!u.online, load: courierLoad(id) } })
+    const u = db.prepare('SELECT id, name, phone, active, online, is_supervisor FROM couriers WHERE id = ?').get(id)
+    return send(res, 200, { courier: { id: u.id, name: u.name, phone: u.phone, active: !!u.active, online: !!u.online, supervisor: !!u.is_supervisor, load: courierLoad(id) } })
   }
 
   // تنبيهات المدير (طلب جديد)

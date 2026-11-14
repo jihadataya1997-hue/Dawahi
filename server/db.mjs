@@ -382,6 +382,12 @@ const MIGRATIONS = [
   ALTER TABLE couriers ADD COLUMN id_back TEXT;
   ALTER TABLE couriers ADD COLUMN license_doc TEXT;
   `,
+  `
+  -- مشرف السائقين (من تطبيق السائقين نفسه) + آخر ظهور للسائقين والفريق
+  ALTER TABLE couriers ADD COLUMN is_supervisor INTEGER NOT NULL DEFAULT 0 CHECK (is_supervisor IN (0,1));
+  ALTER TABLE couriers ADD COLUMN last_seen_at TEXT;
+  ALTER TABLE staff ADD COLUMN last_seen_at TEXT;
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

@@ -1316,6 +1316,12 @@ function Couriers() {
                       {c.online ? 'جعله غير متاح' : 'جعله متاحاً'}
                     </button>
                   )}
+                  <button
+                    onClick={() => patch(c, { supervisor: !c.supervisor })}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-bold ${c.supervisor ? 'bg-lime text-navy' : 'bg-navy-50'}`}
+                  >
+                    {c.supervisor ? '✓ مشرف' : 'جعله مشرف'}
+                  </button>
                   <button onClick={() => setProfile(c)} className="rounded-xl bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand">
                     الملف والوثائق
                   </button>

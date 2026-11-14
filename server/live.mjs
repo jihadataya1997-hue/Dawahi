@@ -14,6 +14,25 @@ setInterval(() => {
   for (const [k, v] of presence) if (v.at < cut) presence.delete(k)
 }, 30_000).unref()
 
+// آخر ظهور للسائقين والفريق (المشرفين والموظفين): بالذاكرة لحظياً، وبالقاعدة كل دقيقة
+const seen = new Map() // 'courier:5' | 'staff:3' | 'staff:owner' -> ms
+const lastWrite = new Map()
+export function markSeen(kind, id) {
+  const key = `${kind}:${id ?? 'owner'}`
+  const t = Date.now()
+  seen.set(key, t)
+  if (id == null || t - (lastWrite.get(key) || 0) < 60_000) return
+  lastWrite.set(key, t)
+  try {
+    db.prepare(`UPDATE ${kind === 'courier' ? 'couriers' : 'staff'} SET last_seen_at = ? WHERE id = ?`).run(new Date(t).toISOString(), id)
+  } catch {}
+}
+const openNow = (kind, id) => (seen.get(`${kind}:${id ?? 'owner'}`) || 0) >= Date.now() - ONLINE_MS
+const lastSeenOf = (kind, id, dbValue) => {
+  const mem = seen.get(`${kind}:${id ?? 'owner'}`)
+  return mem ? new Date(mem).toISOString() : dbValue || null
+}
+
 /** يوم دمشق الحالي بصيغة YYYY-MM-DD (دمشق UTC+3 طوال السنة) */
 export const damascusDay = (t = Date.now()) => new Date(t + 3 * 3600 * 1000).toISOString().slice(0, 10)
 export function damascusMidnightUtc() {
@@ -133,7 +152,7 @@ export function liveSnapshot() {
   for (const o of active) if (o.courierId) load.set(o.courierId, (load.get(o.courierId) || 0) + 1)
   const freshCut = Date.now() - LOC_FRESH_MS
   const couriers = db
-    .prepare('SELECT id, name, phone, online, lat, lng, loc_at FROM couriers WHERE active = 1 ORDER BY name')
+    .prepare('SELECT id, name, phone, online, lat, lng, loc_at, is_supervisor, last_seen_at FROM couriers WHERE active = 1 ORDER BY name')
     .all()
     .map((c) => {
       const n = load.get(c.id) || 0
@@ -144,6 +163,9 @@ export function liveSnapshot() {
         phone: c.phone,
         state: !c.online ? 'offline' : n > 0 ? 'busy' : 'free',
         orders: n,
+        supervisor: !!c.is_supervisor,
+        appOpen: openNow('courier', c.id),
+        lastSeen: lastSeenOf('courier', c.id, c.last_seen_at),
         location: c.lat != null ? { lat: c.lat, lng: c.lng, at: c.loc_at, fresh: !!fresh } : null,
       }
     })
@@ -166,5 +188,12 @@ export function liveSnapshot() {
     customersTotal: db.prepare('SELECT COUNT(*) AS n FROM customers').get().n,
     couriers,
     active,
+    team: [
+      { id: null, name: 'المالك', role: 'مالك', open: openNow('staff', null), lastSeen: lastSeenOf('staff', null) },
+      ...db
+        .prepare('SELECT s.id, s.name, r.name AS role, s.last_seen_at FROM staff s JOIN roles r ON r.id = s.role_id WHERE s.active = 1 ORDER BY s.name')
+        .all()
+        .map((m) => ({ id: m.id, name: m.name, role: m.role, open: openNow('staff', m.id), lastSeen: lastSeenOf('staff', m.id, m.last_seen_at) })),
+    ],
   }
 }

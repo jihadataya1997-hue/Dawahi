@@ -24,6 +24,7 @@ import { api, errText, getToken, photoUrl, setLoggedOutHandler, setToken } from 
 import { disablePush, enablePush, isIOS, pushState } from '../push'
 import { nativePlugin } from '../native'
 import DriverMap, { colorFor } from './DriverMap'
+import Supervisor from './Supervisor'
 
 const CATEGORY = {
   any: 'أي محل',
@@ -315,11 +316,12 @@ function Home({ onLogout }) {
             <LogOut size={18} className="-scale-x-100" />
           </button>
         </div>
-        <nav className="mt-4 grid grid-cols-3 gap-1 rounded-2xl bg-white/10 p-1">
+        <nav className={`mt-4 grid gap-1 rounded-2xl bg-white/10 p-1 ${me?.supervisor ? 'grid-cols-4' : 'grid-cols-3'}`}>
           {[
             ['active', 'طلباتي'],
             ['map', 'الخريطة'],
             ['done', 'المنتهية'],
+            ...(me?.supervisor ? [['sup', 'المشرف']] : []),
           ].map(([id, label]) => (
             <button
               key={id}
@@ -336,6 +338,11 @@ function Home({ onLogout }) {
         </nav>
       </header>
 
+      {tab === 'sup' ? (
+        <main className="p-4">
+          <Supervisor />
+        </main>
+      ) : (
       <main className="space-y-4 p-4">
         {tab !== 'map' && (
           <>
@@ -386,6 +393,7 @@ function Home({ onLogout }) {
           ))
         )}
       </main>
+      )}
     </div>
   )
 }
