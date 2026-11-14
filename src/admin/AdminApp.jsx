@@ -563,7 +563,7 @@ function orderText(o) {
     `طلب ${o.number} — ${CATEGORY[o.category]}`,
     `الزبون: ${o.customer.name} — ${o.contactPhone}`,
   ]
-  if (o.kind === 'gas') lines.push(`الطلب: ${summaryOf(o)}`, `التقدير: ${money(o.details.estimate)}`)
+  if (o.kind === 'gas') lines.push(`الطلب: ${summaryOf(o)}`, `التقدير: ${money(o.details.estimate)}${o.details.priceUnknown ? ' + ثمن الغاز حسب السعر وقت التوصيل' : ''}`)
   else {
     if (o.details.storeMode === 'specific' && o.details.storeName) lines.push(`المحل: ${o.details.storeName}`)
     if (o.details.items) lines.push(`الطلب:\n${o.details.items}`)
@@ -692,6 +692,7 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
                   <p className="font-bold">{summaryOf(o)}</p>
                   <p className="mt-2 text-navy/60">
                     التقدير وقت الطلب: <b className="text-brand">{money(o.details.estimate)}</b>
+                    {o.details.priceUnknown && <span className="text-navy/50"> + ثمن الغاز حسب السعر وقت التوصيل</span>}
                   </p>
                 </div>
               ) : (
@@ -902,11 +903,12 @@ function Action({ onClick, busy, label, green }) {
 
 /* ───────── الأسعار ───────── */
 
+// الحقل الرابع: مسموح يكون "بدون سعر ثابت" (صفر = بيتحدد وقت التوصيل)
 const PRICE_FIELDS = [
-  ['deliveryFee', 'أجرة التوصيل (ثابتة)', 'تُضاف على كل طلب'],
-  ['gasPrice', 'سعر تعبئة جرة الغاز', 'سعر السوق الحالي'],
-  ['emptyCylinder', 'ثمن جرة فارغة جديدة', 'عند اختيار "شراء جرة جديدة"'],
-  ['stairsPerFloor', 'رسم الدرج لكل طابق', 'لكل جرة، إذا ما في مصعد'],
+  ['deliveryFee', 'أجرة التوصيل (ثابتة)', 'تُضاف على كل طلب', false],
+  ['gasPrice', 'سعر تعبئة جرة الغاز', 'سعر السوق الحالي', true],
+  ['emptyCylinder', 'ثمن جرة فارغة جديدة', 'عند اختيار "شراء جرة جديدة"', true],
+  ['stairsPerFloor', 'رسم الدرج لكل طابق', 'لكل جرة، إذا ما في مصعد', true],
 ]
 
 function Prices() {
@@ -925,6 +927,10 @@ function Prices() {
     setBusy(true)
     setError('')
     try {
+      if (Object.values(values).some((v) => v === '')) {
+        setBusy(false)
+        return setError('اكتب السعر، أو اختار "ما في سعر ثابت"')
+      }
       const pricing = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, Number(v)]))
       await adminApi('/settings', { method: 'PUT', body: { pricing } })
       setSaved(true)
@@ -952,10 +958,32 @@ function Prices() {
       </h2>
       <p className="mt-1 text-xs text-navy/50">التعديل يظهر عند الزبائن فوراً، ولا يغيّر الطلبات القديمة.</p>
       <div className="mt-5 space-y-4">
-        {PRICE_FIELDS.map(([key, label, hint]) => (
-          <label key={key} className="block">
-            <span className="text-sm font-bold">{label}</span>
-            <span className="block text-[11px] text-navy/40">{hint}</span>
+        {PRICE_FIELDS.map(([key, label, hint, optional]) => {
+          const none = optional && Number(values[key] || 0) === 0
+          return (
+          <div key={key} className="block">
+            <div className="flex items-start gap-2">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold">{label}</span>
+                <span className="block text-[11px] text-navy/40">{hint}</span>
+              </span>
+              {optional && (
+                <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-navy/5 px-2.5 py-1.5 text-[11px] font-bold">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-brand"
+                    checked={none}
+                    onChange={(e) => setValues({ ...values, [key]: e.target.checked ? '0' : '' })}
+                  />
+                  ما في سعر ثابت
+                </label>
+              )}
+            </div>
+            {none ? (
+              <p className="mt-2 rounded-2xl bg-brand-50 px-4 py-3 text-xs font-bold text-brand">
+                الزبون بيشوف: "حسب السعر وقت التوصيل"، وعامل التوصيل بيقلّه السعر.
+              </p>
+            ) : (
             <div className="mt-2 flex items-center rounded-2xl border border-navy/10 bg-navy-50 focus-within:border-brand focus-within:bg-white">
               <input
                 inputMode="numeric"
@@ -966,8 +994,10 @@ function Prices() {
               />
               <span className="pe-4 text-xs text-navy/50">{currency.label}</span>
             </div>
-          </label>
-        ))}
+            )}
+          </div>
+          )
+        })}
       </div>
       {error && <p className="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600">{error}</p>}
       <button

@@ -13,7 +13,8 @@ import { OPEN_STATUSES, useOrders } from '../orders/OrdersProvider'
  */
 export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onService, onBanner, onOpenOrders }) {
   const { t, lang, toggleLang } = useLang()
-  const { areaName, services, pricing, money, peak } = useAppConfig()
+  const { areaName, services, pricing, money, peak, texts, home = {} } = useAppConfig()
+  const show = (k) => home[k] !== false // كل قسم ظاهر إلا إذا الإدارة خفته
   const ar = lang === 'ar'
   const { orders, loaded } = useOrders()
   // اختصارات سريعة: كلها بتفتح نفس "اكتب طلبك" مع نوع المحل محدد (أو طلب الغاز)
@@ -47,9 +48,9 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
           <MapPin size={14} className="shrink-0 text-lime" />
           {t('deliverTo')} <b className="font-bold text-white">{areaName}</b>
         </p>
-        <h1 className="mt-1.5 text-[26px] font-black leading-tight">{ar ? 'شو بدك نجيبلك اليوم؟' : 'What can we get you today?'}</h1>
+        <h1 className="mt-1.5 text-[26px] font-black leading-tight">{ar ? texts.heroTitle || 'شو بدك نجيبلك اليوم؟' : 'What can we get you today?'}</h1>
         <p className="mt-1 text-sm text-white/75">
-          {ar ? 'اكتب طلبك من أي محل، وعامل التوصيل بيشتريه وبيوصله لباب بيتك.' : 'Write your order from any shop, and a courier buys and brings it to your door.'}
+          {ar ? texts.heroSub || 'اكتب طلبك من أي محل، وعامل التوصيل بيشتريه وبيوصله لباب بيتك.' : 'Write your order from any shop, and a courier buys and brings it to your door.'}
         </p>
 
         {/* صندوق الطلب: هو الشي الأساسي بالتطبيق */}
@@ -79,15 +80,18 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
         {activeOrder && <ActiveOrderCard order={activeOrder} onClick={onOpenOrders} />}
 
         {/* ٣) العروض: مباشرة تحت صندوق الطلب لتنشاف بدون تمرير */}
-        <BannerCarousel onAction={onBanner} />
+        {show('banners') && <BannerCarousel onAction={onBanner} />}
 
         {/* ٣) اختصارات: نفس الخدمة، بس أسرع */}
-        {quick.length > 0 && (
+        {show('shortcuts') && quick.length > 0 && (
           <section>
             <h2 className="text-base font-extrabold">{ar ? 'أو ابدأ من هون' : 'Or start here'}</h2>
             <p className="mb-3 text-xs text-navy/50">{ar ? 'منجيبلك من أي محل بالضاحية' : 'From any shop in the area'}</p>
             <div className="grid grid-cols-2 gap-2.5">
-              {quick.map(({ id, Icon, ar: la, en, sub, heavy }) => (
+              {quick.map(({ id, Icon, ar: la0, en, sub: sub0, heavy }) => {
+                const la = la0
+                const sub = sub0
+                return (
                 <button
                   key={id}
                   onClick={() => onService(id)}
@@ -104,17 +108,22 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
                     <span className="block truncate text-[11px] text-navy/50">
                       {paused(id)
                         ? ar ? 'متوقف مؤقتاً' : 'Paused for now'
-                        : id === 'gas' ? `${money(pricing.gasPrice)} ${ar ? 'للجرة' : 'each'}` : ar ? sub : ''}
+                        : id === 'gas'
+                          ? pricing.gasPrice
+                            ? `${money(pricing.gasPrice)} ${ar ? 'للجرة' : 'each'}`
+                            : ar ? 'تبديل أو شراء لحد البيت' : 'Swap or buy, to your door'
+                          : ar ? sub : ''}
                     </span>
                   </span>
                 </button>
-              ))}
+                )
+              })}
             </div>
           </section>
         )}
 
         {/* ٥) كيف بتمشي — للزبون الجديد بس (اللي ما طلب قبل) */}
-        {loaded && orders.length === 0 && <section className="rounded-3xl bg-white p-4 shadow-soft">
+        {show('howItWorks') && loaded && orders.length === 0 && <section className="rounded-3xl bg-white p-4 shadow-soft">
           <h2 className="text-base font-extrabold">{ar ? 'كيف بتمشي؟' : 'How it works'}</h2>
           <ol className="mt-3 space-y-3">
             {(ar

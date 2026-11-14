@@ -268,6 +268,12 @@ const MIGRATIONS = [
   );
   CREATE INDEX app_installs_created ON app_installs(app, created_at);
   `,
+  `
+  -- عنوان الصفحة الرئيسية الجديد (فقط إذا ما تعدّل من الإدارة)
+  UPDATE content SET value = 'شو بدك نجيبلك اليوم؟' WHERE key = 'hero_title' AND value = 'اطلب ما تحتاجه من أي محل';
+  UPDATE content SET value = 'اكتب طلبك من أي محل، وعامل التوصيل بيشتريه وبيوصله لباب بيتك.'
+    WHERE key = 'hero_sub' AND value = 'اكتب طلبك، وعامل التوصيل يشتريه ويوصله إلى باب بيتك';
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

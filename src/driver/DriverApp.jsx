@@ -743,7 +743,10 @@ function OrderCard({ order: o, color, onChanged, onShowMap }) {
             <p className="mt-1 text-xs text-navy/60">
               {o.floor ? `الطابق ${o.floor}، ${o.details.elevator ? 'يوجد مصعد' : 'بدون مصعد'}` : 'أرضي'}
             </p>
-            <p className="mt-1 text-xs text-navy/60">التكلفة التقديرية للزبون: {money(o.details.estimate)}</p>
+            <p className="mt-1 text-xs text-navy/60">
+              التكلفة التقديرية للزبون: {money(o.details.estimate)}
+              {o.details.priceUnknown && ' + ثمن الغاز حسب سعر اليوم (قول للزبون السعر)'}
+            </p>
           </>
         ) : (
           <>

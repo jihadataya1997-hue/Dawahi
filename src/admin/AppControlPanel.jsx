@@ -117,6 +117,7 @@ export default function AppControlPanel({ can }) {
       <div className="grid items-start gap-4 lg:grid-cols-2">
         {content && <Maintenance data={data} onSaved={setData} />}
         {content && <Services data={data} onSaved={setData} />}
+        {content && <HomeSections data={data} onSaved={setData} />}
         {pricing && <Peak data={data} onSaved={setData} />}
         {content && <Popup data={data} onSaved={setData} />}
       </div>
@@ -180,7 +181,7 @@ function Services({ data, onSaved }) {
   const upd = (id, patch) => setList((l) => l.map((s) => (s.id === id ? { ...s, ...patch } : s)))
   return (
     <Card>
-      <Head Icon={Power} title="أقسام التطبيق" sub="وقّف أي قسم بكبسة. القسم الموقّف بيظهر باهت مع رسالتك، والمخفي ما بيظهر أبداً." />
+      <Head Icon={Power} title="خيارات الصفحة الرئيسية" sub="جرة الغاز والمازوت والصيدلية وغيرها. الموقّف بيظهر باهت مع رسالتك، والمخفي بيختفي من الصفحة كلياً ومن اختيارات الطلب." />
       <ul className="space-y-3">
         {list.map((s) => (
           <li key={s.id} className="rounded-2xl border border-navy/10 p-3">
@@ -213,6 +214,39 @@ function Services({ data, onSaved }) {
         ))}
       </ul>
       <Save busy={busy} saved={saved} onClick={() => save({ services: list.map(({ id, state, pauseNote }) => ({ id, state, pauseNote })) })} />
+      <Err>{error}</Err>
+    </Card>
+  )
+}
+
+/* ───────── أقسام الصفحة الرئيسية ───────── */
+const HOME_PARTS = [
+  ['banners', 'الإعلانات', 'السلايدر تحت صندوق الطلب (إذا في إعلانات مفعّلة)'],
+  ['shortcuts', 'الاختصارات "أو ابدأ من هون"', 'مربعات الغاز والمازوت والصيدلية وغيرها'],
+  ['howItWorks', '"كيف بتمشي؟"', 'شرح الخطوات، بيطلع للزبون الجديد بس'],
+]
+function HomeSections({ data, onSaved }) {
+  const [f, setF] = useState(data.controls.home)
+  const { busy, saved, error, save } = useSaver((d) => {
+    onSaved(d)
+    setF(d.controls.home)
+  })
+  return (
+    <Card>
+      <Head Icon={Megaphone} title="أقسام الصفحة الرئيسية" sub='صندوق "اكتب طلبك" دايماً ظاهر لأنه الخدمة الأساسية. الباقي فيك تخفيه.' />
+      <ul className="space-y-2">
+        {HOME_PARTS.map(([k, label, hint]) => (
+          <li key={k} className="flex items-center gap-3 rounded-2xl border border-navy/10 p-3">
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold">{label}</span>
+              <span className="block text-[11px] text-navy/45">{hint}</span>
+            </span>
+            <span className={`text-[11px] font-bold ${f[k] ? 'text-brand' : 'text-navy/40'}`}>{f[k] ? 'ظاهر' : 'مخفي'}</span>
+            <Switch on={!!f[k]} onChange={(v) => setF({ ...f, [k]: v })} label={label} />
+          </li>
+        ))}
+      </ul>
+      <Save busy={busy} saved={saved} onClick={() => save({ home: f })} />
       <Err>{error}</Err>
     </Card>
   )

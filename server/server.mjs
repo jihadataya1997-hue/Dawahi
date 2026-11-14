@@ -118,7 +118,9 @@ function validateOrder(body, user) {
     stairsFee: s.stairs_fee_per_floor * stairsFloors * qty,
   }
   const estimate = base.deliveryFee + prices.gasPrice * qty + prices.emptyCylinderPrice * qty + prices.stairsFee
-  return { ...base, category: 'gas', details: { qty, gasType, elevator, prices, estimate, ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}) } }
+  // سعر ما حددته الإدارة (صفر) → بيتحدد وقت التوصيل
+  const priceUnknown = !prices.gasPrice || (gasType === 'buy' && !prices.emptyCylinderPrice) || (stairsFloors > 0 && !s.stairs_fee_per_floor)
+  return { ...base, category: 'gas', details: { qty, gasType, elevator, prices, estimate, ...(priceUnknown ? { priceUnknown: true } : {}), ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}) } }
 }
 
 async function createOrder(req, res, user) {

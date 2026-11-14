@@ -26,7 +26,7 @@ import LocationPicker, { LocationField, loadLastLocation } from './LocationPicke
 const initial = () => ({ qty: 1, type: 'swap', location: loadLastLocation(), floor: 0, elevator: true, notes: '' })
 
 export default function GasOrderSheet({ open, onClose, onConfirmed }) {
-  const { t, formatNumber } = useLang()
+  const { t, lang, formatNumber } = useLang()
   const g = (k) => t(`gas.${k}`)
   const [step, setStep] = useState(0)
   const [order, setOrder] = useState(initial)
@@ -61,18 +61,23 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
   const stairsFloors = order.elevator ? 0 : order.floor
   const lines = [
     { label: peak ? `${g('deliveryFee')} · ${peak.label}` : g('deliveryFee'), amount: PRICING.deliveryFee },
-    { label: `${g('gasPrice')} × ${formatNumber(order.qty)}`, amount: PRICING.gasPrice * order.qty, approx: true },
+    { label: `${g('gasPrice')} × ${formatNumber(order.qty)}`, amount: PRICING.gasPrice * order.qty, approx: true, unknown: !PRICING.gasPrice },
     order.type === 'buy' && {
       label: `${g('cylinderPrice')} × ${formatNumber(order.qty)}`,
       amount: PRICING.emptyCylinder * order.qty,
       approx: true,
+      unknown: !PRICING.emptyCylinder,
     },
     stairsFloors > 0 && {
       label: `${g('stairsFee')} (${formatNumber(stairsFloors)} × ${formatNumber(order.qty)})`,
       amount: PRICING.stairsPerFloor * stairsFloors * order.qty,
+      unknown: !PRICING.stairsPerFloor,
     },
   ].filter(Boolean)
   const total = lines.reduce((s, l) => s + l.amount, 0)
+  // الإدارة ما حطت سعر ثابت لبند → سعره بيتحدد وقت التوصيل
+  const someUnknown = lines.some((l) => l.unknown)
+  const unknownText = lang === 'ar' ? 'حسب السعر وقت التوصيل' : 'Priced at delivery'
 
   const confirm = async () => {
     setStatus('searching')
@@ -226,15 +231,18 @@ export default function GasOrderSheet({ open, onClose, onConfirmed }) {
                         <li key={i} className="flex items-start justify-between gap-3">
                           <span className="text-navy/70">{l.label}</span>
                           <span className="shrink-0 text-end font-bold">
-                            {money(l.amount)}
-                            {l.approx && <span className="block text-[10px] font-normal text-brand">{g('approx')}</span>}
+                            {l.unknown ? <span className="text-xs text-brand">{unknownText}</span> : money(l.amount)}
+                            {l.approx && !l.unknown && <span className="block text-[10px] font-normal text-brand">{g('approx')}</span>}
                           </span>
                         </li>
                       ))}
                     </ul>
                     <div className="mt-4 flex items-center justify-between border-t border-dashed border-navy/15 pt-4">
                       <span className="font-extrabold">{g('total')}</span>
-                      <span className="text-xl font-extrabold text-brand">≈ {money(total)}</span>
+                      <span className="text-end text-xl font-extrabold text-brand">
+                        {someUnknown ? `${money(total)} +` : `≈ ${money(total)}`}
+                        {someUnknown && <span className="block text-[10px] font-bold">{lang === 'ar' ? 'والباقي حسب السعر وقت التوصيل' : 'plus items priced at delivery'}</span>}
+                      </span>
                     </div>
                   </div>
                   <p className="flex items-start gap-2 rounded-2xl bg-brand-50 p-3 text-xs leading-relaxed text-navy/80">

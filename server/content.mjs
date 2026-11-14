@@ -43,6 +43,7 @@ function activeBanners() {
 const DEFAULT_CONTROLS = {
   maintenance: { enabled: false, title: 'التطبيق قيد الصيانة', message: 'نعمل على تحسين الخدمة، ونعود خلال وقت قصير.' },
   peak: { manual: false, extra: 50, label: 'أوقات الذروة', schedule: [] },
+  home: { banners: true, shortcuts: true, howItWorks: true },
   popup: { enabled: false, id: 0, title: '', body: '', image: null, buttonText: '', action: 'none', actionValue: '', frequency: 'once' },
 }
 const POPUP_FREQ = ['once', 'daily', 'always']
@@ -57,6 +58,7 @@ export function getControls() {
     maintenance: { ...DEFAULT_CONTROLS.maintenance, ...saved.maintenance },
     peak: { ...DEFAULT_CONTROLS.peak, ...saved.peak },
     popup: { ...DEFAULT_CONTROLS.popup, ...saved.popup },
+    home: { ...DEFAULT_CONTROLS.home, ...saved.home },
   }
 }
 
@@ -107,6 +109,7 @@ export function publicApp() {
       .filter((x) => serviceState(x) !== 'hidden')
       .map((x) => ({ ...x, paused: serviceState(x) === 'paused', pauseNote: x.pauseNote || '' })),
     banners: activeBanners(),
+    home: ctl.home,
     maintenance: ctl.maintenance.enabled ? { title: ctl.maintenance.title, message: ctl.maintenance.message } : null,
     peak: fee.peak.active ? { extra: fee.extra, label: ctl.peak.label, until: fee.peak.until || null } : null,
     popup: popup.enabled && popup.title
@@ -323,6 +326,10 @@ export async function contentAdminRoute(req, res, url, need) {
           actionValue,
           frequency: POPUP_FREQ.includes(p.frequency) ? p.frequency : 'once',
         }
+      }
+      if (b.home !== undefined) {
+        need('content.manage')
+        ctl.home = Object.fromEntries(Object.keys(DEFAULT_CONTROLS.home).map((k) => [k, b.home[k] !== false]))
       }
       if (b.services !== undefined) {
         need('content.manage')
