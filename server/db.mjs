@@ -411,6 +411,10 @@ const MIGRATIONS = [
   -- كم عرض متتالي بلا رد قبل ما يصير العامل "غير متاح" تلقائياً (0 = أبداً)
   INSERT OR IGNORE INTO settings (key, value) VALUES ('max_missed_offers', '3');
   `,
+  `
+  -- توصيل مجاني تلقائي لأول طلب لكل زبون جديد (بدون كود)
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('first_order_free', '1');
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

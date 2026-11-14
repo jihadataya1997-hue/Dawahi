@@ -125,6 +125,7 @@ export function publicApp() {
           frequency: popup.frequency,
         }
       : null,
+    firstOrderFree: s.first_order_free === 1,
     pricing: {
       deliveryFee: fee.fee,
       baseDeliveryFee: fee.base,

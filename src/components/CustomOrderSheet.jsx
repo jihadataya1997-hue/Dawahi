@@ -69,8 +69,10 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
   const ar = lang === 'ar'
   const L = (a, e) => (ar ? a : e)
   const { user } = useAuth()
-  const { createOrder } = useOrders()
-  const { pricing, money, services, peak } = useAppConfig()
+  const { createOrder, orders, loaded } = useOrders()
+  const { pricing, money, services, peak, firstOrderFree } = useAppConfig()
+  // أول طلب للزبون: التوصيل ببلاش (السيرفر بيطبّقها لحاله)
+  const firstFree = !!firstOrderFree && loaded && !orders.some((o) => o.status !== 'cancelled') && pricing.deliveryFee > 0
   const { addresses, defaultAddress, add: addAddress } = useAddresses()
   const quick = QUICK.filter((q) => services.some((s) => s.id === q.id && !s.paused))
   const [clientKey, setClientKey] = useState('')
@@ -132,7 +134,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
   }
 
   const savedAddress = addresses.find((a) => a.id === order.addressId)
-  const fee = Math.max(0, pricing.deliveryFee - perk.discount)
+  const fee = firstFree ? 0 : Math.max(0, pricing.deliveryFee - perk.discount)
 
   const submit = async () => {
     if (!cart && !order.items.trim() && !order.photo) return setError(L('اكتب شو بدك، أو صوّر الورقة', 'Write your order or add a photo'))
@@ -159,8 +161,8 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
         floor: order.floor,
         contactPhone: order.phone,
         notes: '',
-        promoCode: perk.promoCode || undefined,
-        usePoints: perk.usePoints || undefined,
+        promoCode: firstFree ? undefined : perk.promoCode || undefined,
+        usePoints: firstFree ? undefined : perk.usePoints || undefined,
         ...(cart ? { storeId: cart.storeId, cart: cart.lines.map((l) => ({ itemId: l.id, qty: l.qty })) } : {}),
       })
       setCreated(o)
@@ -328,7 +330,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
                     {L('بيتصل فيك على', 'Courier calls')} <span dir="ltr" className="font-en">{order.phone}</span> · <span className="text-brand">{L('رقم تاني؟', 'Change')}</span>
                   </button>
                 )}
-                {!showPromo && perk.discount === 0 && !perk.usePoints && (
+                {!firstFree && !showPromo && perk.discount === 0 && !perk.usePoints && (
                   <button onClick={() => setShowPromo(true)} className="flex items-center gap-1 text-brand">
                     <Gift size={14} /> {L('عندك كود حسم أو نقاط؟', 'Promo code or points?')}
                   </button>
@@ -345,7 +347,13 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
                   className={`${input} font-en tracking-wider rtl:text-end`}
                 />
               )}
-              {(showPromo || perk.discount > 0 || perk.usePoints) && <PromoBox fee={pricing.deliveryFee} value={perk} onChange={setPerk} />}
+              {firstFree ? (
+                <p className="flex items-center gap-2 rounded-2xl bg-lime px-4 py-3 text-sm font-black text-navy">
+                  <Gift size={18} className="shrink-0" /> {L('أول طلب إلك: التوصيل ببلاش!', 'Your first order: free delivery!')}
+                </p>
+              ) : (
+                (showPromo || perk.discount > 0 || perk.usePoints) && <PromoBox fee={pricing.deliveryFee} value={perk} onChange={setPerk} />
+              )}
             </div>
 
             {error && <p className="mx-5 mb-2 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600 animate-fade-in">{error}</p>}
@@ -355,7 +363,8 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
                 <span className="text-navy/60">
                   {cart ? L('الأكل', 'Food') + ` ${money(cart.total)} + ` : L('ثمن الأغراض متل سعر المحل + ', 'Shop price + ')}
                   {L('توصيل', 'delivery')}{' '}
-                  {perk.discount > 0 && <s className="text-navy/35">{money(pricing.deliveryFee)}</s>} <b className="text-navy">{money(fee)}</b>
+                  {(perk.discount > 0 || firstFree) && <s className="text-navy/35">{money(pricing.deliveryFee)}</s>}{' '}
+                  <b className="text-navy">{firstFree ? L('ببلاش', 'Free') : money(fee)}</b>
                   {peak ? <span className="text-brand"> · {peak.label}</span> : null}
                 </span>
                 <span className="font-bold text-navy/50">{L('الدفع عند الاستلام', 'Cash on delivery')}</span>

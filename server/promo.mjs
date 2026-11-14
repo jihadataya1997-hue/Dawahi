@@ -60,6 +60,12 @@ export function applyPerks(o, body, customerId) {
     return { fee: 0, perk: { type: 'points', points: forFree, discount: fee, feeBefore: fee }, pointsUsed: forFree }
   }
   const p = checkPromo(body.promoCode, customerId, fee)
+  // أول طلب: التوصيل ببلاش تلقائياً (إذا الإدارة مشغّلتها)
+  if (!p || p.discount < fee) {
+    const on = db.prepare("SELECT value FROM settings WHERE key = 'first_order_free'").get()?.value === '1'
+    const prev = on ? db.prepare("SELECT COUNT(*) AS n FROM orders WHERE customer_id = ? AND status != 'cancelled'").get(customerId).n : 1
+    if (on && prev === 0 && fee > 0) return { fee: 0, perk: { type: 'first', discount: fee, feeBefore: fee } }
+  }
   if (!p) return { fee, perk: null }
   return { fee: fee - p.discount, perk: { type: 'promo', code: p.code, discount: p.discount, feeBefore: fee }, promoId: p.id }
 }
@@ -170,7 +176,8 @@ export async function adminPromoRoute(req, res, url, need) {
   if (pathname === '/api/admin/points') {
     if (m === 'GET') {
       const top = db.prepare('SELECT id, name, phone, points FROM customers WHERE points > 0 ORDER BY points DESC LIMIT 20').all()
-      send(res, 200, { ...pointsConfig(), top })
+      const firstOrderFree = db.prepare("SELECT value FROM settings WHERE key = 'first_order_free'").get()?.value === '1'
+      send(res, 200, { ...pointsConfig(), firstOrderFree, top })
       return true
     }
     if (m === 'PUT') {
@@ -182,7 +189,9 @@ export async function adminPromoRoute(req, res, url, need) {
       }
       if (b.perOrder !== undefined) set('points_per_order', b.perOrder, 0, 100)
       if (b.forFree !== undefined) set('points_free_delivery', b.forFree, 0, 1000)
-      send(res, 200, pointsConfig())
+      if (b.firstOrderFree !== undefined) set('first_order_free', b.firstOrderFree ? 1 : 0, 0, 1)
+      const firstOrderFree = db.prepare("SELECT value FROM settings WHERE key = 'first_order_free'").get()?.value === '1'
+      send(res, 200, { ...pointsConfig(), firstOrderFree })
       return true
     }
   }

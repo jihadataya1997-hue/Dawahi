@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Zap, Bell, BookOpen, ChevronLeft, Flame, Fuel, MapPin, PencilLine, Pill, RotateCcw, ShoppingCart, Truck, UtensilsCrossed } from 'lucide-react'
+import { Zap, Bell, BookOpen, ChevronLeft, Flame, Fuel, Gift, MapPin, PencilLine, Pill, RotateCcw, ShoppingCart, Truck, UtensilsCrossed } from 'lucide-react'
 import CourierCard from '../components/CourierCard'
 import BannerCarousel from '../components/BannerCarousel'
 import { useLang } from '../i18n/LanguageProvider'
@@ -13,7 +13,7 @@ import { OPEN_STATUSES, useOrders } from '../orders/OrdersProvider'
  */
 export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onService, onBanner, onOpenOrders, onReorder, restaurants }) {
   const { t, lang, toggleLang } = useLang()
-  const { areaName, services, pricing, money, peak, home = {} } = useAppConfig()
+  const { areaName, services, pricing, money, peak, firstOrderFree, home = {} } = useAppConfig()
   const show = (k) => home[k] !== false // كل قسم ظاهر إلا إذا الإدارة خفته
   const ar = lang === 'ar'
   const { orders, loaded } = useOrders()
@@ -81,6 +81,12 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
             {ar ? 'اكتب طلبك' : 'Write your order'}
             <Zap size={18} className="fill-lime text-lime" />
           </span>
+          {firstOrderFree && loaded && !orders.some((o) => o.status !== 'cancelled') && (
+            <span className="mt-2.5 flex items-center justify-center gap-1.5 rounded-xl bg-lime py-2 text-xs font-black text-navy">
+              <Gift size={14} className="shrink-0" />
+              {ar ? 'أول طلب إلك؟ التوصيل ببلاش!' : 'First order? Free delivery!'}
+            </span>
+          )}
           {peak && (
             <span className="mt-2.5 flex items-center justify-center gap-1.5 text-xs font-bold text-brand">
               <Zap size={13} className="shrink-0" />

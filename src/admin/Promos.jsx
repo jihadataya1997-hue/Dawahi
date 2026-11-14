@@ -194,7 +194,10 @@ function PointsCard() {
   }, [])
   const save = async () => {
     try {
-      const d = await adminApi('/points', { method: 'PUT', body: { perOrder: Number(cfg.perOrder), forFree: Number(cfg.forFree) } })
+      const d = await adminApi('/points', {
+        method: 'PUT',
+        body: { perOrder: Number(cfg.perOrder), forFree: Number(cfg.forFree), firstOrderFree: !!cfg.firstOrderFree },
+      })
       setCfg((c) => ({ ...c, ...d }))
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -203,7 +206,32 @@ function PointsCard() {
     }
   }
   if (!cfg) return null
+  const toggleFirst = async () => {
+    try {
+      const d = await adminApi('/points', { method: 'PUT', body: { firstOrderFree: !cfg.firstOrderFree } })
+      setCfg((c) => ({ ...c, ...d }))
+    } catch (e) {
+      setError(adminErrorText(e))
+    }
+  }
   return (
+    <>
+    <Card>
+      <button onClick={toggleFirst} className="flex w-full items-center gap-3 text-start">
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${cfg.firstOrderFree ? 'bg-lime text-navy' : 'bg-navy-50 text-navy/40'}`}>
+          <Gift size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <b className="block text-base">توصيل مجاني لأول طلب</b>
+          <span className="block text-xs text-navy/50">
+            كل زبون جديد أول طلب إله توصيله ببلاش تلقائياً، بدون كود. عامل التوصيل بياخد حصته كاملة، والحسم بينحسب من حصتك.
+          </span>
+        </span>
+        <span className={`relative h-7 w-12 shrink-0 rounded-full ${cfg.firstOrderFree ? 'bg-emerald-500' : 'bg-navy/15'}`}>
+          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${cfg.firstOrderFree ? 'start-6' : 'start-1'}`} />
+        </span>
+      </button>
+    </Card>
     <Card>
       <h2 className="flex items-center gap-2 text-base font-extrabold">
         <Star size={18} className="fill-lime text-navy" /> نظام النقاط
@@ -236,5 +264,6 @@ function PointsCard() {
         </div>
       )}
     </Card>
+    </>
   )
 }
