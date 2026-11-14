@@ -66,7 +66,7 @@ const CATEGORY = {
   other: 'غير ذلك',
   gas: 'غاز',
 }
-const mapsUrl = (l) => `https://maps.google.com/?q=${l.lat.toFixed(6)},${l.lng.toFixed(6)}`
+const mapsUrl = (l) => `https://www.google.com/maps/dir/?api=1&destination=${l.lat.toFixed(6)},${l.lng.toFixed(6)}&travelmode=driving`
 const waUrl = (phone, text = '') => `https://wa.me/963${phone.slice(1)}${text ? `?text=${encodeURIComponent(text)}` : ''}`
 const timeAgo = (iso) => {
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000)

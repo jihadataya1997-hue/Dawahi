@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Flame, LocateFixed, Navigation, Phone, ShoppingBag } from 'lucide-react'
-import { STOP_COLORS, bestOrder, fmtKm, km, multiStopUrl } from './route'
+import { STOP_COLORS, bestOrder, fmtKm, googleDirUrl, km, multiStopUrl, openGoogleMaps } from './route'
 import { api } from './driverApi'
 
 const STATUS = { assigned: 'جديد', buying: 'قيد الشراء', on_the_way: 'في الطريق' }
-const navUrl = (l) => `https://www.google.com/maps/dir/?api=1&destination=${l.lat.toFixed(6)},${l.lng.toFixed(6)}`
 
 // لون ثابت لكل طلب (نفس اللون بالخريطة وبالقائمة)
 export const colorFor = (orders, id) => {
@@ -152,7 +151,7 @@ export default function DriverMap({ orders, focusId }) {
     map.current?.setView([o.location.lat, o.location.lng], 17, { animate: true })
   }
 
-  const all = multiStopUrl(stops)
+  const all = multiStopUrl(stops, me)
 
   return (
     <div className="space-y-3">
@@ -177,6 +176,10 @@ export default function DriverMap({ orders, focusId }) {
           href={all}
           target="_blank"
           rel="noreferrer"
+          onClick={(e) => {
+            e.preventDefault()
+            openGoogleMaps(stops.map((s) => s.location), me)
+          }}
           className="flex items-center justify-center gap-2 rounded-2xl bg-navy py-3.5 text-sm font-extrabold text-white"
         >
           <Navigation size={18} /> فتح كل المحطات بالترتيب في خرائط Google
@@ -230,10 +233,14 @@ export default function DriverMap({ orders, focusId }) {
                 <Phone size={16} className="text-brand" />
               </a>
               <a
-                href={navUrl(o.location)}
+                href={googleDirUrl([o.location], me)}
                 target="_blank"
                 rel="noreferrer"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  openGoogleMaps([o.location], me)
+                }}
                 aria-label="فتح في خرائط Google"
                 className="flex h-10 shrink-0 items-center justify-center gap-1 rounded-xl px-2.5 text-[11px] font-bold text-white"
                 style={{ background: color }}

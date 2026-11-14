@@ -44,7 +44,6 @@ const STATUS = {
 const currency = { label: 'ل.س' }
 fetch('/api/app').then((r) => r.json()).then((d) => d.currency && (currency.label = d.currency)).catch(() => {})
 const money = (n) => `${new Intl.NumberFormat('ar-SY').format(n)} ${currency.label}`
-const navUrl = (l) => `https://www.google.com/maps/dir/?api=1&destination=${l.lat.toFixed(6)},${l.lng.toFixed(6)}`
 const waUrl = (p) => `https://wa.me/963${p.slice(1)}`
 
 export default function DriverApp() {

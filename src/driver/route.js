@@ -44,13 +44,51 @@ export function bestOrder(orders, from) {
   return [...first, ...after]
 }
 
-/** رابط Google Maps فيه كل المحطات بالترتيب */
-export function multiStopUrl(stops) {
-  if (!stops.length) return null
-  const p = (l) => `${l.lat.toFixed(6)},${l.lng.toFixed(6)}`
-  const dest = stops[stops.length - 1].location
-  const waypoints = stops.slice(0, -1).map((s) => p(s.location)).join('|')
-  return `https://www.google.com/maps/dir/?api=1&destination=${p(dest)}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ''}&travelmode=driving`
+const ll = (l) => `${l.lat.toFixed(6)},${l.lng.toFixed(6)}`
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+/**
+ * رابط Google Maps للمسار: من موقع العامل (إذا معروف) مروراً بكل المحطات بالترتيب،
+ * بالسيارة، وبيبلّش الملاحة فوراً (dir_action=navigate)
+ */
+export function googleDirUrl(points, from) {
+  if (!points.length) return null
+  const dest = points[points.length - 1]
+  const waypoints = points.slice(0, -1).map(ll).join('|')
+  const q = new URLSearchParams({ api: '1', destination: ll(dest), travelmode: 'driving', dir_action: 'navigate' })
+  if (from) q.set('origin', ll(from))
+  if (waypoints) q.set('waypoints', waypoints)
+  return `https://www.google.com/maps/dir/?${q}`
+}
+
+/** للتوافق مع الكود القديم: رابط كل المحطات */
+export const multiStopUrl = (stops, from) => googleDirUrl(stops.map((s) => s.location), from)
+
+/**
+ * يفتح المسار بتطبيق Google Maps نفسه.
+ * عالآيفون: التطبيق المثبّت على الشاشة الرئيسية بيفتح روابط https بمتصفح داخلي (بدون مسار)،
+ * فمنفتح تطبيق Google Maps مباشرة، وإذا مو مثبّت منرجع للرابط العادي.
+ */
+export function openGoogleMaps(points, from) {
+  const web = googleDirUrl(points, from)
+  if (!web) return
+  if (isIOS()) {
+    const app = `comgooglemaps://?${from ? `saddr=${ll(from)}&` : ''}daddr=${points.map(ll).join('+to:')}&directionsmode=driving`
+    let left = false
+    const onHide = () => (left = true)
+    document.addEventListener('visibilitychange', onHide, { once: true })
+    window.location.href = app
+    setTimeout(() => {
+      document.removeEventListener('visibilitychange', onHide)
+      // التطبيق ما انفتح (مو مثبّت) → خرائط آبل بالمسار، أو رابط Google إذا أكتر من محطة
+      if (!left && document.visibilityState === 'visible') {
+        if (points.length === 1) window.location.href = `maps://?${from ? `saddr=${ll(from)}&` : ''}daddr=${ll(points[0])}&dirflg=d`
+        else window.open(web, '_blank')
+      }
+    }, 1400)
+    return
+  }
+  window.open(web, '_blank', 'noopener')
 }
 
 export const fmtKm = (d) => (d < 1 ? `${Math.round(d * 1000)} م` : `${d.toFixed(1)} كم`)
