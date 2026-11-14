@@ -45,8 +45,14 @@ const DISPATCH_KEYS = {
   maxOrdersPerCourier: ['max_orders_per_courier', 1, 10],
 }
 
+// كلمة سر المالك: إذا غيّرها من اللوحة بتنحفظ مشفّرة بالقاعدة، وإلا منستعمل الأصلية من السيرفر
+const ownerHash = () => db.prepare("SELECT value FROM secrets WHERE key = 'owner_password'").get()?.value || null
+
 function passwordMatches(input) {
-  if (!ADMIN_PASSWORD || typeof input !== 'string') return false
+  if (typeof input !== 'string') return false
+  const h = ownerHash()
+  if (h) return verifySecret(input, h)
+  if (!ADMIN_PASSWORD) return false
   // مقارنة آمنة ضد هجمات التوقيت
   return timingSafeEqual(Buffer.from(sha256(input), 'hex'), Buffer.from(sha256(ADMIN_PASSWORD), 'hex'))
 }
@@ -130,7 +136,7 @@ export async function adminRoute(req, res, url) {
       db.prepare('UPDATE staff SET last_login_at = ? WHERE id = ?').run(now(), st.id)
     } else {
       // دخول المالك بكلمة السر الرئيسية
-      if (!ADMIN_PASSWORD) throw new HttpError(503, 'NOT_CONFIGURED', 'Admin password is not set on the server')
+      if (!ADMIN_PASSWORD && !ownerHash()) throw new HttpError(503, 'NOT_CONFIGURED', 'Admin password is not set on the server')
       if (!passwordMatches(body.password)) {
         log('warn', 'admin login failed', { ip: clientIp(req) })
         throw new HttpError(401, 'WRONG_PASSWORD', 'Wrong password')
@@ -154,6 +160,27 @@ export async function adminRoute(req, res, url) {
 
   if (m === 'GET' && pathname === '/api/admin/me') {
     return send(res, 200, { me: { name: me.name, role: me.role, isOwner: me.isOwner, perms: me.perms }, permissions: PERMISSIONS })
+  }
+
+  // تغيير كلمة السر (المالك أو أي موظف لحسابه هو)
+  if (m === 'POST' && pathname === '/api/admin/password') {
+    rateLimit(`admin-pass:${sessionHash}`, 6, 15 * 60 * 1000)
+    const { current, next, logoutOthers } = await readJson(req)
+    if (!isPassword(next)) throw bad('WEAK_PASSWORD', 'Password must be at least 8 characters', 'next')
+    if (me.isOwner) {
+      if (!passwordMatches(current)) throw new HttpError(400, 'WRONG_CURRENT', 'Current password is wrong')
+      db.prepare("INSERT OR REPLACE INTO secrets (key, value) VALUES ('owner_password', ?)").run(hashSecret(next))
+      if (logoutOthers !== false)
+        db.prepare('DELETE FROM admin_sessions WHERE staff_id IS NULL AND token_hash != ?').run(sessionHash)
+    } else {
+      const st = db.prepare('SELECT password_hash FROM staff WHERE id = ?').get(me.staffId)
+      if (!st || !verifySecret(current, st.password_hash)) throw new HttpError(400, 'WRONG_CURRENT', 'Current password is wrong')
+      db.prepare('UPDATE staff SET password_hash = ? WHERE id = ?').run(hashSecret(next), me.staffId)
+      if (logoutOthers !== false)
+        db.prepare('DELETE FROM admin_sessions WHERE staff_id = ? AND token_hash != ?').run(me.staffId, sessionHash)
+    }
+    log('info', 'admin password changed', { staffId: me.staffId })
+    return send(res, 200, { ok: true })
   }
 
   if (m === 'POST' && pathname === '/api/admin/logout') {

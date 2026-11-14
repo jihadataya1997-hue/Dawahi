@@ -26,6 +26,7 @@ import {
   Tag,
   UserPlus,
   Radar,
+  KeyRound,
   SlidersHorizontal,
   Users,
   Zap,
@@ -37,6 +38,7 @@ import { currency, money } from './shared'
 import { AppContent, Announcements, Banners, Customers, Team } from './sections'
 import LiveMonitor from './LiveMonitor'
 import AppControlPanel from './AppControlPanel'
+import MyAccount from './MyAccount'
 
 // المستخدم الحالي وصلاحياته
 export const MeContext = createContext({ perms: [] })
@@ -203,6 +205,7 @@ const ALL_NAV = [
   { id: 'prices', label: 'الأسعار والتوزيع', Icon: Tag, perm: 'pricing.manage' },
   { id: 'team', label: 'الفريق والصلاحيات', Icon: ShieldCheck, perm: 'staff.manage' },
   { id: 'backups', label: 'النسخ الاحتياطي', Icon: Database, perm: 'backups.manage' },
+  { id: 'account', label: 'حسابي وكلمة السر', Icon: KeyRound, perm: null },
 ]
 const TITLES = Object.fromEntries(ALL_NAV.map((n) => [n.id, n.label]))
 
@@ -227,7 +230,7 @@ function Dashboard({ onLogout }) {
 }
 
 function Shell({ me, onLogout }) {
-  const NAV = ALL_NAV.filter((n) => [].concat(n.perm).some((p) => me.perms.includes(p)))
+  const NAV = ALL_NAV.filter((n) => n.perm === null || [].concat(n.perm).some((p) => me.perms.includes(p)))
   const [section, setSection] = useState(() => (NAV.some((n) => `#${n.id}` === location.hash) ? location.hash.slice(1) : NAV[0]?.id || 'overview'))
   const [stats, setStats] = useState(null)
   const [selected, setSelected] = useState(null)
@@ -330,6 +333,7 @@ function Shell({ me, onLogout }) {
 
         <main className={`mx-auto p-4 pb-16 lg:p-8 ${section === 'live' ? 'max-w-[1400px]' : 'max-w-5xl'}`}>
           {section === 'live' && <LiveMonitor onOpenOrder={setSelected} />}
+          {section === 'account' && <MyAccount me={me} />}
           {section === 'control' && <AppControlPanel can={(p) => me.perms.includes(p)} />}
           {section === 'overview' && <Overview stats={stats} onGo={go} onOpenOrder={setSelected} />}
           {section === 'orders' && <OrdersBoard onOpen={setSelected} />}
