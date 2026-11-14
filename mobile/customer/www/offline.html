@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>ZAPP</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#4B1FE0;color:#fff;font-family:system-ui,sans-serif;text-align:center;padding:24px}
+  b{font:900 italic 42px system-ui;color:#C8F531;letter-spacing:-1px}
+  p{margin:0;opacity:.85;line-height:1.7}
+  button{margin-top:10px;border:0;background:#C8F531;color:#1E0E4F;font:800 16px system-ui;padding:14px 34px;border-radius:8px}
+</style></head>
+<body>
+  <b>ZAPP</b>
+  <p>ما في اتصال بالإنترنت.<br>تأكد من النت وجرّب مرة تانية.</p>
+  <button onclick="location.replace(document.referrer && document.referrer.startsWith('https://zapp.prodev.cloud') ? document.referrer : 'https://zapp.prodev.cloud/' + (navigator.userAgent.includes('ZappDriver') ? 'driver' : ''))">حاول مرة أخرى</button>
+</body></html>

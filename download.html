@@ -223,11 +223,16 @@
 
       <section aria-labelledby="h-how" id="how">
         <h2 id="h-how">إذا لم يعمل زر التحميل</h2>
-        <p class="sub">يُثبَّت التطبيق من المتصفح مباشرة. اتبع الخطوات المناسبة لموبايلك:</p>
+        <p class="sub">اتبع الخطوات المناسبة لموبايلك:</p>
         <div class="how">
           <article id="how-android">
             <h3>أندرويد</h3>
-            <ol>
+            <ol id="steps-apk" hidden>
+              <li>اضغط <kbd>حمّل التطبيق</kbd> وانتظر لينتهي التحميل</li>
+              <li>افتح الملف <kbd>zapp.apk</kbd> من الإشعار أو من التنزيلات</li>
+              <li>إذا طلب منك، اسمح بـ <kbd>تثبيت تطبيقات غير معروفة</kbd> ثم <kbd>تثبيت</kbd></li>
+            </ol>
+            <ol id="steps-pwa">
               <li>افتح هذه الصفحة في <kbd>Chrome</kbd></li>
               <li>اضغط على النقاط الثلاث <kbd>⋮</kbd> في الأعلى</li>
               <li>اختر <kbd>تثبيت التطبيق</kbd> أو <kbd>إضافة إلى الشاشة الرئيسية</kbd></li>
@@ -280,12 +285,25 @@
     var isIOS = /iphone|ipad|ipod/i.test(ua)
     document.getElementById(isIOS ? 'how-ios' : 'how-android').classList.add('here')
 
-    // زر التنزيل: على أندرويد بيفتح نافذة التثبيت الرسمية
+    // زر التنزيل: على أندرويد بينزّل تطبيق APK الحقيقي إذا جاهز، وإلا نافذة التثبيت من المتصفح
     var deferred = null
     var btn = document.getElementById('install')
+    var apk = null
+    if (!isIOS) {
+      fetch('/apk/version.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null }).then(function (v) {
+        if (!v) return
+        apk = '/apk/zapp.apk?v=' + v.versionCode
+        document.getElementById('fine').textContent = 'تطبيق أندرويد مجاني، الإصدار ' + v.versionName + '. بدون متجر Play.'
+        document.getElementById('steps-apk').hidden = false
+        document.getElementById('steps-pwa').hidden = true
+      }).catch(function () {})
+    }
     window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e })
     btn.addEventListener('click', function () {
-      if (deferred) {
+      if (apk) {
+        location.href = apk
+        document.getElementById('how').scrollIntoView({ behavior: 'smooth' })
+      } else if (deferred) {
         deferred.prompt()
         deferred.userChoice.finally(function () { deferred = null })
       } else {

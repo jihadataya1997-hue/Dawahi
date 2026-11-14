@@ -9,6 +9,7 @@ import { HttpError, bad, sha256, now, isPhone, isFullName, str, distanceKm, clie
 import { adminRoute } from './admin.mjs'
 import { presenceRoute } from './live.mjs'
 import { addressesRoute } from './addresses.mjs'
+import { removeNativeToken, saveNativeToken } from './fcm.mjs'
 const NOISY = new Set(['/api/presence', '/api/courier/location', '/api/admin/live'])
 import { toOrder } from './lib.mjs'
 import { scheduleBackups } from './backup.mjs'
@@ -311,6 +312,21 @@ async function route(req, res, url) {
     }
     if (m === 'DELETE') {
       removeSubscription(body.endpoint)
+      return send(res, 204)
+    }
+  }
+
+  // تطبيق الأندرويد: رمز جهاز Firebase
+  if (pathname === '/api/push/native') {
+    const body = await readJson(req)
+    const token = typeof body.token === 'string' ? body.token.trim() : ''
+    if (!/^[\w:.-]{20,4096}$/.test(token)) throw bad('INVALID', 'Invalid device token', 'token')
+    if (m === 'POST') {
+      saveNativeToken('customer', user.id, token)
+      return send(res, 200, { ok: true })
+    }
+    if (m === 'DELETE') {
+      removeNativeToken(token)
       return send(res, 204)
     }
   }

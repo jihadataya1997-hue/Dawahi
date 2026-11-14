@@ -291,6 +291,17 @@ const MIGRATIONS = [
   );
   CREATE INDEX customer_addresses_customer ON customer_addresses(customer_id, is_default DESC, updated_at DESC);
   `,
+  `
+  -- أجهزة تطبيق الأندرويد (إشعارات Firebase)
+  CREATE TABLE native_push_tokens (
+    token       TEXT PRIMARY KEY,
+    owner_type  TEXT NOT NULL CHECK (owner_type IN ('courier','admin','customer')),
+    owner_id    INTEGER NOT NULL,
+    platform    TEXT NOT NULL DEFAULT 'android',
+    updated_at  TEXT NOT NULL
+  );
+  CREATE INDEX native_push_owner ON native_push_tokens(owner_type, owner_id);
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

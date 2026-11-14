@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { BellRing, LoaderCircle } from 'lucide-react'
 import { api } from '../api'
-import { enablePush, pushState } from '../push'
+import { enableNativePush, enablePush, isNativePushApp, nativePushState, pushState } from '../push'
+import { isNativeApp } from '../native'
 import { useLang } from '../i18n/LanguageProvider'
 
 // بطاقة صغيرة: "فعّل التنبيهات لتعرف وين صار طلبك"
@@ -10,13 +11,21 @@ export default function CustomerPushCard() {
   const [state, setState] = useState(null)
   const [busy, setBusy] = useState(false)
   useEffect(() => {
-    pushState().then(setState).catch(() => {})
+    if (isNativePushApp()) {
+      nativePushState().then((st) => {
+        setState(st)
+        // رمز الجهاز ممكن يتغيّر: منجدّده بصمت إذا الإذن موجود
+        if (st === 'enabled') enableNativePush((token) => api('/push/native', { method: 'POST', body: { token } }), { prompt: false }).catch(() => {})
+      })
+    } else if (isNativeApp()) setState('unsupported')
+    else pushState().then(setState).catch(() => {})
   }, [])
   if (state !== 'off') return null
   const enable = async () => {
     setBusy(true)
     try {
-      await enablePush((subscription) => api('/push', { method: 'POST', body: { subscription } }))
+      if (isNativePushApp()) await enableNativePush((token) => api('/push/native', { method: 'POST', body: { token } }))
+      else await enablePush((subscription) => api('/push', { method: 'POST', body: { subscription } }))
       setState('enabled')
     } catch (e) {
       if (e.message === 'denied') setState('denied')

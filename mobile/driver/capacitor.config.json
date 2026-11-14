@@ -1,0 +1,16 @@
+{
+  "appId": "cloud.prodev.zapp.driver",
+  "appName": "ZAPP Driver",
+  "webDir": "www",
+  "server": {
+    "url": "https://zapp.prodev.cloud/driver",
+    "allowNavigation": [
+      "zapp.prodev.cloud"
+    ],
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "backgroundColor": "#1E0E4F"
+  },
+  "appendUserAgent": "ZappApp/driver ZappDriver"
+}

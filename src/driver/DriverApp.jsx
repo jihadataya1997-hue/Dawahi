@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { api, errText, getToken, photoUrl, setLoggedOutHandler, setToken } from './driverApi'
 import { disablePush, enablePush, isIOS, pushState } from '../push'
+import { nativePlugin } from '../native'
 import DriverMap, { colorFor } from './DriverMap'
 
 const CATEGORY = {
@@ -279,10 +280,17 @@ function Home({ onLogout }) {
     }
   }, [loadOrders])
 
-  useWakeLock(!!me?.online)
-  useShareLocation(!!me?.online)
+  const zapp = nativePlugin('ZappDriver') // تطبيق الأندرويد: خدمة خلفية بترنّ وبترسل الموقع
+  useWakeLock(!!me?.online && !zapp)
+  useShareLocation(!!me?.online && !zapp)
+  useEffect(() => {
+    if (!zapp || !me) return
+    if (me.online) zapp.start({ token: getToken(), base: location.origin }).catch(() => {})
+    else zapp.stop().catch(() => {})
+  }, [zapp, me?.online, me])
   const load_ = loadOrders
   const logout = async () => {
+    await zapp?.stop().catch(() => {})
     await disablePush((endpoint) => api('/push', { method: 'DELETE', body: { endpoint } })).catch(() => {})
     await api('/logout', { method: 'POST' }).catch(() => {})
     setToken(null)
@@ -329,8 +337,9 @@ function Home({ onLogout }) {
       <main className="space-y-4 p-4">
         {tab !== 'map' && (
           <>
-            <NotificationsCard />
-            <InstallCard />
+            {zapp ? <NativeSetupCard zapp={zapp} /> : <NotificationsCard />}
+            {!zapp && <DriverApkCard />}
+            {!zapp && <InstallCard />}
             {me && <AvailabilityCard me={me} load={load} max={max} onChange={refreshMe} />}
           </>
         )}
@@ -550,6 +559,43 @@ function OfferCard({ offer, secondsLeft, onDone }) {
   )
 }
 
+/* ───────── تطبيق الأندرويد: الأذونات اللازمة للرنين والموقع ───────── */
+
+function NativeSetupCard({ zapp }) {
+  const [st, setSt] = useState(null)
+  const check = useCallback(() => zapp.status().then(setSt).catch(() => {}), [zapp])
+  useEffect(() => {
+    check()
+    const onVis = () => document.visibilityState === 'visible' && check()
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [check])
+  if (!st || (st.location && st.notifications && st.batteryExempt)) return null
+  const steps = [
+    { ok: st.notifications && st.location, label: 'اسمح بالإشعارات والموقع', run: () => zapp.ensurePermissions().then(setSt) },
+    { ok: st.batteryExempt, label: 'اسمح للتطبيق يشتغل بالخلفية (البطارية)', run: () => zapp.batteryExemption().then(() => setTimeout(check, 1500)) },
+  ]
+  return (
+    <div className="rounded-3xl bg-amber-400 p-4 text-navy">
+      <p className="font-extrabold">خطوة وحدة لحتى يرنّ الموبايل لما يجيك طلب</p>
+      <p className="mt-1 text-xs">بدون هالأذونات ممكن ما توصلك الطلبات والتطبيق مسكّر.</p>
+      <div className="mt-3 space-y-2">
+        {steps.map((s, i) => (
+          <button
+            key={i}
+            disabled={s.ok}
+            onClick={s.run}
+            className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-sm font-bold ${s.ok ? 'bg-white/40' : 'bg-navy text-white'}`}
+          >
+            {s.label}
+            <span>{s.ok ? '✓' : `${i + 1}`}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ───────── بطاقة تفعيل التنبيهات ───────── */
 
 function NotificationsCard() {
@@ -654,6 +700,31 @@ function NotificationsCard() {
       )}
       {msg && <p className="mt-3 text-center text-xs">{msg}</p>}
     </div>
+  )
+}
+
+/* ───────── تطبيق الأندرويد الحقيقي (بيرنّ حتى والتطبيق مسكّر) ───────── */
+
+function DriverApkCard() {
+  const [ver, setVer] = useState(null)
+  useEffect(() => {
+    if (!/android/i.test(navigator.userAgent)) return
+    fetch('/apk/version.json', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setVer)
+      .catch(() => {})
+  }, [])
+  if (!ver) return null
+  return (
+    <a href={`/apk/zapp-driver.apk?v=${ver.versionCode}`} className="flex items-center gap-3 rounded-3xl bg-lime p-4 text-navy shadow-soft">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-navy text-lime">
+        <Download size={20} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-extrabold">نزّل تطبيق عامل التوصيل للأندرويد</span>
+        <span className="block text-xs">بيرنّ الموبايل متل المكالمة لما يجيك طلب، حتى والتطبيق مسكّر.</span>
+      </span>
+    </a>
   )
 }
 

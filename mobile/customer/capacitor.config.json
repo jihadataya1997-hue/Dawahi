@@ -1,0 +1,25 @@
+{
+  "appId": "cloud.prodev.zapp",
+  "appName": "ZAPP",
+  "webDir": "www",
+  "server": {
+    "url": "https://zapp.prodev.cloud/",
+    "allowNavigation": [
+      "zapp.prodev.cloud"
+    ],
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "backgroundColor": "#4B1FE0"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
+  },
+  "appendUserAgent": "ZappApp/customer"
+}

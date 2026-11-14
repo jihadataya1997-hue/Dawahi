@@ -2,6 +2,7 @@
 import webpush from 'web-push'
 import { db } from './db.mjs'
 import { HttpError, bad, log } from './lib.mjs'
+import { notifyNative } from './fcm.mjs'
 
 function vapidKeys() {
   const get = (k) => db.prepare('SELECT value FROM secrets WHERE key = ?').get(k)?.value
@@ -73,5 +74,7 @@ export function notify(ownerType, ownerId, payload) {
         }
       })
   }
-  return subs.length
+  // تطبيق الأندرويد (Firebase)
+  const native = ownerType === 'admin' ? 0 : notifyNative(ownerType, ownerId, payload)
+  return subs.length + native
 }

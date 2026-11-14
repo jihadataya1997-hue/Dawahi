@@ -7,6 +7,7 @@ import { OrdersProvider } from './orders/OrdersProvider'
 import { AddressesProvider } from './addresses/AddressesProvider'
 import { AppConfigProvider } from './config/AppConfigProvider'
 import { startPresence } from './presence'
+import { onNativePushTap } from './push'
 import './index.css'
 
 // آيفون (التطبيق المثبّت على الشاشة الرئيسية) أحياناً بيعطي ارتفاع أقصر من الشاشة
@@ -51,3 +52,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 }
 
 if (import.meta.env.PROD) startPresence('customer')
+
+// تطبيق الأندرويد: الكبس على إشعار بيفتح الصفحة المطلوبة
+onNativePushTap((url) => {
+  if (url && url !== location.pathname + location.search) location.href = url
+})

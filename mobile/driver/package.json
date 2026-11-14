@@ -1,0 +1,13 @@
+{
+  "name": "zapp-driver-android",
+  "private": true,
+  "version": "1.0.0",
+  "description": "ZAPP driver Android shell (Capacitor) \u2014 loads the live web app",
+  "dependencies": {
+    "@capacitor/android": "8.6.2",
+    "@capacitor/core": "8.6.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.2"
+  }
+}

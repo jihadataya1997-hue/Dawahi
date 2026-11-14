@@ -48,3 +48,46 @@ export async function disablePush(remove) {
     await sub.unsubscribe()
   }
 }
+
+/* ───────── تطبيق الأندرويد: إشعارات Firebase بدل إشعارات المتصفح ───────── */
+const nativePush = () =>
+  /ZappFCM/.test(navigator.userAgent) && window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.PushNotifications || null : null
+export const isNativePushApp = () => !!nativePush()
+
+export async function nativePushState() {
+  const p = nativePush()
+  if (!p) return null
+  const { receive } = await p.checkPermissions()
+  if (receive === 'denied') return 'denied'
+  return receive === 'granted' && localStorage.getItem('zapp.fcmToken') ? 'enabled' : 'off'
+}
+
+/** يسجّل الجهاز ويرسل رمزه للسيرفر. send = (token) => Promise */
+export async function enableNativePush(send, { prompt = true } = {}) {
+  const p = nativePush()
+  if (!p) throw new Error('unsupported')
+  let { receive } = await p.checkPermissions()
+  if (receive !== 'granted' && prompt) receive = (await p.requestPermissions()).receive
+  if (receive !== 'granted') throw new Error(receive === 'denied' ? 'denied' : 'dismissed')
+  await p.createChannel?.({ id: 'zapp_orders', name: 'حالة الطلبات', importance: 5, visibility: 1, vibration: true }).catch(() => {})
+  const token = await new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout')), 20000)
+    p.addListener('registration', (r) => {
+      clearTimeout(t)
+      resolve(r.value)
+    })
+    p.addListener('registrationError', (e) => {
+      clearTimeout(t)
+      reject(new Error(e?.error || 'registration failed'))
+    })
+    p.register()
+  })
+  await send(token)
+  localStorage.setItem('zapp.fcmToken', token)
+  return token
+}
+
+/** الكبس على الإشعار بالتطبيق بيفتح الصفحة المناسبة */
+export function onNativePushTap(go) {
+  nativePush()?.addListener('pushNotificationActionPerformed', (a) => go(a?.notification?.data?.url || '/'))
+}
