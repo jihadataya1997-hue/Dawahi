@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react'
 import InboxSheet, { useInbox } from './components/InboxSheet'
 import BottomNav from './components/BottomNav'
+import FloatingOrder from './components/FloatingOrder'
 import HomeScreen from './screens/HomeScreen'
 import GasOrderSheet from './components/GasOrderSheet'
 import CustomOrderSheet from './components/CustomOrderSheet'
 import LoginScreen from './screens/LoginScreen'
 import SetPasswordScreen from './screens/SetPasswordScreen'
+import PermissionsScreen, { permsDone } from './screens/PermissionsScreen'
 import UpdateNotice from './components/UpdateNotice'
 import { RestaurantsRow, StoreSheet, useStores } from './stores/Restaurants'
 import OrdersScreen from './screens/OrdersScreen'
@@ -23,6 +25,7 @@ export default function App() {
   const [custom, setCustom] = useState(null) // { category, text } أو null
   const [tab, setTab] = useState('home')
   const [inboxOpen, setInboxOpen] = useState(() => new URLSearchParams(location.search).has('inbox'))
+  const [needPerms, setNeedPerms] = useState(() => !permsDone())
 
   const { maintenance } = useAppConfig()
   // وضع الصيانة من لوحة الإدارة بيغطي كل شي
@@ -30,6 +33,7 @@ export default function App() {
   // الزبون لازم يسجّل دخول أولاً
   if (!user) return <LoginScreen />
   if (user.mustSetPassword) return <SetPasswordScreen />
+  if (needPerms) return <PermissionsScreen onDone={() => setNeedPerms(false)} />
   return <Main {...{ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder, inboxOpen, setInboxOpen }} />
 }
 
@@ -76,7 +80,7 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col overflow-hidden bg-[#F5F7FA] sm:shadow-2xl">
-      <main className="scrollbar-hide min-h-0 flex-1 overflow-y-auto pb-4">
+      <main className={`scrollbar-hide min-h-0 flex-1 overflow-y-auto ${activeOrder && tab !== 'orders' ? 'pb-32' : 'pb-4'}`}>
         {tab === 'home' && (
           <HomeScreen
             activeOrder={activeOrder}
@@ -94,7 +98,10 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
         {tab === 'account' && <AccountScreen />}
       </main>
 
-      <BottomNav active={tab} onChange={setTab} />
+      <div className="relative shrink-0">
+        {tab !== 'orders' && <FloatingOrder order={activeOrder} onOpen={() => setTab('orders')} />}
+        <BottomNav active={tab} onChange={setTab} />
+      </div>
 
       <PromoPopup onAction={onBanner} />
       <UpdateNotice />

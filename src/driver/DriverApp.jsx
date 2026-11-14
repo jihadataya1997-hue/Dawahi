@@ -348,6 +348,7 @@ function Home({ onLogout }) {
         {tab !== 'map' && (
           <>
             <UpdateNotice driver />
+            {zapp && <DriverSetupGate zapp={zapp} />}
             {zapp ? <NativeSetupCard zapp={zapp} /> : <NotificationsCard />}
             {!zapp && <DriverApkCard />}
             {!zapp && <InstallCard />}
@@ -596,6 +597,79 @@ function OfferCard({ offer, secondsLeft, onDone }) {
 }
 
 /* ───────── تطبيق الأندرويد: الأذونات اللازمة للرنين والموقع ───────── */
+
+// أول ما يفتح السائق التطبيق: شاشة كاملة بتطلب كل الأذونات خطوة خطوة (لحتى ما تضيع عليه الطلبات)
+function DriverSetupGate({ zapp }) {
+  const [st, setSt] = useState(null)
+  const [skipped, setSkipped] = useState(() => {
+    try {
+      return sessionStorage.getItem('zapp.setupSkip') === '1'
+    } catch {
+      return false
+    }
+  })
+  const check = useCallback(() => zapp.status().then(setSt).catch(() => {}), [zapp])
+  useEffect(() => {
+    check()
+    const onVis = () => document.visibilityState === 'visible' && check()
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [check])
+  if (skipped || !st) return null
+  const steps = [
+    { ok: st.notifications, title: 'الإشعارات', sub: 'حتى يرنّ الموبايل لما يجيك طلب', run: () => zapp.ensurePermissions().then(setSt) },
+    { ok: st.location, title: 'الموقع', sub: 'حتى توصلك الطلبات القريبة منك وتطلع عالخريطة', run: () => zapp.ensurePermissions().then(setSt) },
+    { ok: st.batteryExempt, title: 'الشغل بالخلفية', sub: 'اختار "السماح" حتى ما يسكّر الموبايل التطبيق', run: () => zapp.batteryExemption().then(() => setTimeout(check, 1500)) },
+    ...(st.fullScreen === false
+      ? [{ ok: false, title: 'الظهور على شاشة القفل', sub: 'حتى يطلع الطلب متل المكالمة والموبايل مقفول', run: () => zapp.fullScreenSettings().then(() => setTimeout(check, 1500)) }]
+      : []),
+  ]
+  if (steps.every((x) => x.ok)) return null
+  const next = steps.find((x) => !x.ok)
+  const skip = () => {
+    try {
+      sessionStorage.setItem('zapp.setupSkip', '1')
+    } catch {}
+    setSkipped(true)
+  }
+  return (
+    <div className="pt-safe pb-safe fixed inset-0 z-[70] mx-auto flex max-w-md flex-col overflow-y-auto bg-navy px-6 text-white">
+      <div className="flex-1 pt-12">
+        <img src="/driver-192.png" alt="" className="h-14 w-14 rounded-2xl" />
+        <h1 className="mt-6 text-[28px] font-black leading-tight">جهّز موبايلك لتوصلك الطلبات</h1>
+        <p className="mt-2 text-sm text-white/70">بدون هالأذونات ممكن ما يرنّ الموبايل وما توصلك الطلبات والتطبيق مسكّر.</p>
+        <ol className="mt-7 space-y-3">
+          {steps.map((x, i) => (
+            <li key={x.title}>
+              <button
+                disabled={x.ok}
+                onClick={x.run}
+                className={`flex w-full items-center gap-3 rounded-2xl p-4 text-start ${x.ok ? 'bg-white/10' : x === next ? 'bg-lime text-navy' : 'bg-white/5'}`}
+              >
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg font-black ${x.ok ? 'bg-lime text-navy' : x === next ? 'bg-navy text-lime' : 'bg-white/10'}`}>
+                  {x.ok ? '✓' : i + 1}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-extrabold">{x.title}</span>
+                  <span className={`block text-xs ${x === next ? 'text-navy/70' : 'text-white/60'}`}>{x.sub}</span>
+                </span>
+                {!x.ok && x === next && <span className="text-xs font-black">اسمح</span>}
+              </button>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div className="pb-8 pt-6">
+        <button onClick={next.run} className="w-full rounded-2xl bg-lime py-4 text-base font-black text-navy">
+          {next.title}: اسمح
+        </button>
+        <button onClick={skip} className="mt-3 w-full py-2 text-sm font-bold text-white/50">
+          لاحقاً
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function NativeSetupCard({ zapp }) {
   const [st, setSt] = useState(null)

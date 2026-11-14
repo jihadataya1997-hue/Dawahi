@@ -79,7 +79,7 @@ export const translations = {
       start: 'اطلب الآن',
     },
     status: {
-      new: 'بانتظار عامل توصيل',
+      new: 'جاري البحث عن عامل توصيل…',
       assigned: 'عامل التوصيل استلم طلبك',
       buying: 'يشتري أغراضك الآن',
       on_the_way: 'في الطريق إليك',
@@ -297,7 +297,7 @@ export const translations = {
       start: 'Order something now',
     },
     status: {
-      new: 'Waiting for a courier',
+      new: 'Finding a courier…',
       assigned: 'Courier accepted your order',
       buying: 'Buying your items',
       on_the_way: 'On the way to you',

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api'
 import { useAuth } from '../auth/AuthProvider'
 import { useAppConfig } from '../config/AppConfigProvider'
@@ -11,6 +11,7 @@ export function OrdersProvider({ children }) {
   const { user } = useAuth()
   const [orders, setOrders] = useState([])
   const [loaded, setLoaded] = useState(false)
+  const hasOpen = useRef(false)
   const { pricing } = useAppConfig()
 
   const refresh = useCallback(async () => {
@@ -32,7 +33,13 @@ export function OrdersProvider({ children }) {
       return
     }
     refresh()
-    const id = setInterval(() => document.visibilityState === 'visible' && refresh(), 20000)
+    // أسرع لما في طلب مفتوح (لحتى تتحدّث حالته بسرعة)
+    let n = 0
+    const id = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      n++
+      if (hasOpen.current || n % 4 === 0) refresh()
+    }, 5000)
     const onVis = () => document.visibilityState === 'visible' && refresh()
     document.addEventListener('visibilitychange', onVis)
     return () => {
@@ -56,6 +63,7 @@ export function OrdersProvider({ children }) {
   }, [])
 
   const activeOrder = orders.find((o) => OPEN_STATUSES.includes(o.status)) || null
+  hasOpen.current = !!activeOrder
 
   const value = useMemo(
     () => ({ orders, loaded, pricing, activeOrder, refresh, createOrder, cancelOrder }),

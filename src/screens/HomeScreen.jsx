@@ -133,12 +133,7 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
         {show('banners') && <BannerCarousel onAction={onBanner} placement="top" />}
 
         {/* ٤) الطلب الحالي */}
-        {activeOrder && (
-          <div className="space-y-2">
-            <ActiveOrderCard order={activeOrder} onClick={onOpenOrders} />
-            <CourierCard order={activeOrder} compact />
-          </div>
-        )}
+        {/* حالة الطلب الحالي صارت شريط عائم تحت (FloatingOrder) */}
 
         {/* ٥) المطاعم الشريكة: بتطلع لحالها أول ما الإدارة تنشر مطعم */}
         {restaurants}

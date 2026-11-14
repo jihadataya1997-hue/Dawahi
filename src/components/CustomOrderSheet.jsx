@@ -14,6 +14,7 @@ import {
   ShoppingCart,
   Store,
   UtensilsCrossed,
+  Search,
   X,
   Zap,
 } from 'lucide-react'
@@ -86,6 +87,20 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
   const [showPromo, setShowPromo] = useState(false)
   const [showPhone, setShowPhone] = useState(false)
   const fileRef = useRef(null)
+  // لما يطلع الكيبورد: الشاشة بتلحقه، وزر "اطلب الآن" بيضل فوق الكيبورد
+  const [vv, setVv] = useState(null)
+  useEffect(() => {
+    const v = window.visualViewport
+    if (!open || !v) return
+    const update = () => setVv({ h: v.height, top: v.offsetTop })
+    update()
+    v.addEventListener('resize', update)
+    v.addEventListener('scroll', update)
+    return () => {
+      v.removeEventListener('resize', update)
+      v.removeEventListener('scroll', update)
+    }
+  }, [open])
   const set = (patch) => {
     setError('')
     setOrder((o) => ({ ...o, ...patch }))
@@ -185,7 +200,10 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
   const input = 'w-full rounded-2xl border border-navy/10 bg-navy-50 p-3.5 text-sm outline-none transition focus:border-brand focus:bg-white'
 
   return (
-    <div className="fixed inset-0 z-50 mx-auto flex max-w-md flex-col justify-end">
+    <div
+      className="fixed inset-x-0 top-0 z-50 mx-auto flex h-full max-w-md flex-col justify-end"
+      style={vv ? { height: vv.h, top: vv.top } : undefined}
+    >
       <div className="absolute inset-0 bg-navy/60 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
 
       <div className="relative flex max-h-[95%] flex-col rounded-t-[2rem] bg-white animate-sheet-up">
@@ -373,7 +391,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
                 onClick={submit}
                 className="btn-zap flex w-full items-center justify-center gap-2 bg-navy py-4 text-[16px] font-black text-white transition active:scale-[0.98]"
               >
-                {cart ? `${L('اطلب', 'Order')} · ${money(cart.total + fee)}` : L('اطلب هلق', 'Order now')}
+                {cart ? `${L('اطلب الآن', 'Order now')} · ${money(cart.total + fee)}` : L('اطلب الآن', 'Order now')}
                 <Zap size={18} className="fill-lime text-lime" />
               </button>
             </div>
@@ -392,13 +410,17 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
               </>
             ) : (
               <>
-                <span className="flex h-20 w-20 items-center justify-center rounded-full bg-lime text-navy">
-                  <Check size={40} strokeWidth={3} />
-                </span>
-                <p className="mt-5 text-xl font-black">{L('وصل طلبك!', 'Order sent!')}</p>
+                <div className="relative flex h-28 w-28 items-center justify-center">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-brand/15" />
+                  <span className="absolute inset-3 animate-ping rounded-full bg-brand/20 [animation-delay:.4s]" />
+                  <span className="relative flex h-20 w-20 items-center justify-center rounded-full bg-brand text-white">
+                    <Search size={34} />
+                  </span>
+                </div>
+                <p className="mt-5 text-xl font-black">{L('جاري البحث عن عامل توصيل…', 'Finding a courier…')}</p>
                 {created && <p className="mt-2 rounded-full bg-navy-50 px-4 py-1.5 font-en text-sm font-bold">{created.number}</p>}
                 <p className="mt-2 text-sm text-navy/60">
-                  {L('عم ندوّرلك على عامل توصيل. أول ما يقبل بيطلعلك اسمه ورقمه.', "We're finding a courier. You'll see their name and number once they accept.")}
+                  {L('حالة طلبك رح تضل ظاهرة تحت بالشاشة، وأول ما يقبل عامل التوصيل بيطلعلك اسمه ورقمه.', "Your order status stays visible at the bottom. You'll see the courier's name once accepted.")}
                 </p>
                 <div className="mt-4 w-full text-start">
                   <CustomerPushCard />
@@ -410,7 +432,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
                   }}
                   className="mt-6 w-full rounded-2xl bg-navy py-3.5 text-sm font-extrabold text-white active:scale-[0.98]"
                 >
-                  {L('تابع طلبي', 'Track my order')}
+                  {L('تمام', 'OK')}
                 </button>
               </>
             )}
