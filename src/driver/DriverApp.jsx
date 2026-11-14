@@ -45,7 +45,7 @@ const STATUS = {
 // العملة من إعدادات التطبيق (الليرة الجديدة)
 const currency = { label: 'ل.س' }
 fetch('/api/app').then((r) => r.json()).then((d) => d.currency && (currency.label = d.currency)).catch(() => {})
-const money = (n) => `${new Intl.NumberFormat('ar-SY').format(n)} ${currency.label}`
+const money = (n) => `${new Intl.NumberFormat('en-US').format(n)} ${currency.label}`
 const waUrl = (p) => `https://wa.me/963${p.slice(1)}`
 
 export default function DriverApp() {

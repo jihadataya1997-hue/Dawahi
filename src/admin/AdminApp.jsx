@@ -1,5 +1,6 @@
 import Promos from './Promos'
 import Stores from './Stores'
+import CourierProfile from './CourierProfile'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import {
   Bike,
@@ -1166,6 +1167,7 @@ function alertBox(text) {
 function Couriers() {
   const [list, setList] = useState(null)
   const [form, setForm] = useState({ name: '', phone: '', pin: '' })
+  const [profile, setProfile] = useState(null)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [created, setCreated] = useState(null)
@@ -1228,6 +1230,7 @@ function Couriers() {
 
   return (
     <div className="space-y-4">
+      {profile && <CourierProfile courier={profile} onClose={() => setProfile(null)} />}
       <form onSubmit={add} className="rounded-3xl bg-white p-5 shadow-soft">
         <h2 className="flex items-center gap-2 font-extrabold">
           <UserPlus size={18} className="text-brand" /> إضافة عامل توصيل
@@ -1313,6 +1316,9 @@ function Couriers() {
                       {c.online ? 'جعله غير متاح' : 'جعله متاحاً'}
                     </button>
                   )}
+                  <button onClick={() => setProfile(c)} className="rounded-xl bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand">
+                    الملف والوثائق
+                  </button>
                   <button onClick={() => resetPin(c)} className="rounded-xl bg-navy-50 px-3 py-1.5 text-xs font-bold">
                     تغيير الرمز
                   </button>

@@ -1,3 +1,4 @@
+import CourierCard from '../components/CourierCard'
 import { useState } from 'react'
 import { ClipboardList, Flame, ImageIcon, LoaderCircle, MapPin, ShoppingBag } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
@@ -111,9 +112,7 @@ function OrderCard({ order: o }) {
         </p>
       )}
 
-      {o.courierName && OPEN_STATUSES.includes(o.status) && (
-        <p className="mt-2 text-xs font-bold text-sky-700">🛵 {o.courierName}</p>
-      )}
+      <CourierCard order={o} />
       {OPEN_STATUSES.includes(o.status) && <Progress status={o.status} />}
 
       {o.status === 'new' &&

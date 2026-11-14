@@ -37,11 +37,8 @@ export function LanguageProvider({ children }) {
     [lang]
   )
 
-  // تنسيق الأرقام والأسعار حسب اللغة
-  const formatNumber = useCallback(
-    (n) => new Intl.NumberFormat(lang === 'ar' ? 'ar-SY' : 'en-US').format(n),
-    [lang]
-  )
+  // الأرقام والأسعار بالأرقام الإنكليزية (15,000) باللغتين — أوضح للقراءة
+  const formatNumber = useCallback((n) => new Intl.NumberFormat('en-US').format(n), [])
 
   const value = useMemo(
     () => ({ lang, dir, isRTL: dir === 'rtl', setLang, toggleLang, t, formatNumber }),

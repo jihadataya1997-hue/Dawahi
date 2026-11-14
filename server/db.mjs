@@ -6,8 +6,10 @@ import { join } from 'node:path'
 export const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data')
 export const UPLOADS_DIR = join(DATA_DIR, 'uploads')
 export const MEDIA_DIR = join(DATA_DIR, 'media') // صور الإعلانات (عامة)
+export const PRIVATE_DIR = join(DATA_DIR, 'private') // وثائق عمال التوصيل (للإدارة بس)
 mkdirSync(UPLOADS_DIR, { recursive: true })
 mkdirSync(MEDIA_DIR, { recursive: true })
+mkdirSync(PRIVATE_DIR, { recursive: true })
 
 export const db = new DatabaseSync(join(DATA_DIR, 'dawahi.db'))
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;')
@@ -368,6 +370,17 @@ const MIGRATIONS = [
     sort         INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX menu_items_store ON menu_items(store_id, sort);
+  `,
+  `
+  -- ملف عامل التوصيل: صورة (بتطلع للزبون) + وثائق ثبوتية (للإدارة بس)
+  ALTER TABLE couriers ADD COLUMN photo TEXT;
+  ALTER TABLE couriers ADD COLUMN vehicle TEXT NOT NULL DEFAULT '';
+  ALTER TABLE couriers ADD COLUMN national_id TEXT NOT NULL DEFAULT '';
+  ALTER TABLE couriers ADD COLUMN home_address TEXT NOT NULL DEFAULT '';
+  ALTER TABLE couriers ADD COLUMN notes TEXT NOT NULL DEFAULT '';
+  ALTER TABLE couriers ADD COLUMN id_front TEXT;
+  ALTER TABLE couriers ADD COLUMN id_back TEXT;
+  ALTER TABLE couriers ADD COLUMN license_doc TEXT;
   `,
 ]
 

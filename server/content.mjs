@@ -149,13 +149,13 @@ export function listAnnouncements(limit = 20) {
     .all(limit)
 }
 
-export async function saveImage(dataUrl) {
+export async function saveImage(dataUrl, dir = MEDIA_DIR) {
   const m = typeof dataUrl === 'string' && /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
   if (!m) throw bad('INVALID', 'Image must be JPEG, PNG or WebP', 'image')
   const buf = Buffer.from(m[2], 'base64')
   if (buf.length > MAX_IMAGE) throw bad('TOO_LARGE', 'Image is too large', 'image')
   const name = `${randomBytes(16).toString('hex')}.${m[1] === 'jpeg' ? 'jpg' : m[1]}`
-  await writeFile(join(MEDIA_DIR, name), buf)
+  await writeFile(join(dir, name), buf)
   return name
 }
 

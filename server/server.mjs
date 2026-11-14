@@ -13,6 +13,7 @@ import { removeNativeToken, saveNativeToken } from './fcm.mjs'
 const NOISY = new Set(['/api/presence', '/api/courier/location', '/api/admin/live'])
 import { toOrder } from './lib.mjs'
 import { priceCart, publicStores } from './stores.mjs'
+import { courierPublic } from './courierProfile.mjs'
 import { applyPerks, recordPerks, releasePerks, customerPromoRoute } from './promo.mjs'
 import { scheduleBackups } from './backup.mjs'
 import { courierRoute } from './courier.mjs'
@@ -208,12 +209,19 @@ async function createOrder(req, res, user) {
   })
 }
 
+// الزبون بيشوف اسم عامل التوصيل ورقمه وصورته أول ما يقبل الطلب
+function withCourier(row, events) {
+  const o = toOrder(row, events)
+  if (!row.courier_id || !['assigned', 'buying', 'on_the_way', 'delivered'].includes(row.status)) return o
+  return { ...o, courierPhone: row.courier_phone || '', courier: courierPublic(row.courier_id) }
+}
+
 function listOrders(res, user, url) {
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 30, 1), 100)
   const rows = db
     .prepare('SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC LIMIT ?')
     .all(user.id, limit)
-  send(res, 200, { orders: rows.map((r) => toOrder(r)) })
+  send(res, 200, { orders: rows.map(withCourier) })
 }
 
 function getOrder(res, user, id) {
@@ -222,7 +230,7 @@ function getOrder(res, user, id) {
   const events = db
     .prepare('SELECT status, created_at AS at FROM order_events WHERE order_id = ? ORDER BY id')
     .all(row.id)
-  send(res, 200, { order: toOrder(row, events) })
+  send(res, 200, { order: withCourier(row, events) })
 }
 
 function cancelOrder(res, user, id) {

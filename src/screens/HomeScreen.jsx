@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Zap, Bell, BookOpen, ChevronLeft, Flame, Fuel, MapPin, PencilLine, Pill, ShoppingCart, Truck, UtensilsCrossed } from 'lucide-react'
+import CourierCard from '../components/CourierCard'
 import BannerCarousel from '../components/BannerCarousel'
 import { useLang } from '../i18n/LanguageProvider'
 import { useAppConfig } from '../config/AppConfigProvider'
@@ -96,7 +97,12 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
         {show('banners') && <BannerCarousel onAction={onBanner} placement="top" />}
 
         {/* ٤) الطلب الحالي */}
-        {activeOrder && <ActiveOrderCard order={activeOrder} onClick={onOpenOrders} />}
+        {activeOrder && (
+          <div className="space-y-2">
+            <ActiveOrderCard order={activeOrder} onClick={onOpenOrders} />
+            <CourierCard order={activeOrder} compact />
+          </div>
+        )}
 
         {/* ٥) المطاعم الشريكة: بتطلع لحالها أول ما الإدارة تنشر مطعم */}
         {restaurants}

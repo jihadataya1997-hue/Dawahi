@@ -1,6 +1,6 @@
 // أدوات مشتركة للوحة الإدارة
 export const currency = { label: 'ل.س' }
-export const money = (n) => `${new Intl.NumberFormat('ar-SY').format(n)} ${currency.label}`
+export const money = (n) => `${new Intl.NumberFormat('en-US').format(n)} ${currency.label}`
 
 // تصغير صورة قبل الرفع (للإعلانات)
 export async function imageToDataUrl(file, maxSide = 1400, quality = 0.82) {

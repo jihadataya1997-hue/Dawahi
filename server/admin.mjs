@@ -9,6 +9,7 @@ import { BACKUP_DIR, isBackupName, listBackups, runBackup } from './backup.mjs'
 import { cancelOffers, courierLoad, nudge } from './dispatch.mjs'
 import { contentAdminRoute } from './content.mjs'
 import { adminStoresRoute } from './stores.mjs'
+import { courierProfileRoute } from './courierProfile.mjs'
 import { adminPromoRoute, awardPoints, releasePerks } from './promo.mjs'
 import { liveSnapshot } from './live.mjs'
 
@@ -566,6 +567,7 @@ export async function adminRoute(req, res, url) {
   if (await contentAdminRoute(req, res, url, need)) return
   if (await adminPromoRoute(req, res, url, need)) return
   if (await adminStoresRoute(req, res, url, need)) return
+  if (await courierProfileRoute(req, res, url, need)) return
 
   throw new HttpError(404, 'NOT_FOUND', 'Not found')
 }
