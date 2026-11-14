@@ -29,10 +29,10 @@ export default function LoginScreen() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col bg-navy">
+    <div className="mx-auto flex h-full max-w-md flex-col bg-brand">
       {/* الجزء العلوي */}
       <div className="speed-bg pt-safe relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 pb-10 text-center">
-        <div className="pointer-events-none absolute -end-20 -top-20 h-64 w-64 rounded-full bg-brand/20 blur-3xl" />
+        <div className="pointer-events-none absolute -end-20 -top-20 h-64 w-64 rounded-full bg-lime/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -start-16 h-56 w-56 rounded-full bg-white/5" />
         <button
           onClick={toggleLang}
@@ -91,7 +91,7 @@ export default function LoginScreen() {
         <button
           type="submit"
           disabled={busy}
-          className="btn-zap mt-6 disabled:opacity-70 flex w-full items-center justify-center gap-2 bg-brand py-4 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_#FF6F08] active:scale-[0.98]"
+          className="btn-zap mt-6 disabled:opacity-70 flex w-full items-center justify-center gap-2 bg-brand py-4 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_#4B1FE0] active:scale-[0.98]"
         >
           {busy ? <LoaderCircle size={18} className="animate-spin" /> : t('auth.login')}
           {!busy && <ChevronLeft size={18} className="ltr:rotate-180" />}

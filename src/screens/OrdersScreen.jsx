@@ -20,7 +20,7 @@ export default function OrdersScreen({ onStart }) {
 
   return (
     <div className="animate-fade-in">
-      <header className="speed-bg pt-safe rounded-b-[2rem] bg-navy px-5 pb-10 pt-6">
+      <header className="speed-bg pt-safe rounded-b-[2rem] bg-brand px-5 pb-10 pt-6">
         <h1 className="text-lg font-extrabold text-white">{t('orders.title')}</h1>
       </header>
 

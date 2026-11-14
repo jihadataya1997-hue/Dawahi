@@ -27,11 +27,11 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
   return (
     <div className="pb-6">
       {/* ١) الشريط العلوي */}
-      <header className="speed-bg pt-safe rounded-b-[2rem] bg-navy px-4 pb-6 text-white">
+      <header className="speed-bg pt-safe rounded-b-[2rem] bg-brand px-4 pb-6 text-white">
         <div className="flex items-center gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <LogoMark className="h-10 w-10" />
-            <span className="font-brand text-2xl font-black italic tracking-tight text-brand">ZAPP</span>
+            <span className="font-brand text-2xl font-black italic tracking-tight text-lime">ZAPP</span>
           </div>
           <button
             onClick={toggleLang}
@@ -43,15 +43,15 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
           <button onClick={onBell} aria-label={t('inbox.title')} className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/10 active:scale-95">
             <Bell size={19} />
             {unread > 0 && (
-              <span className="absolute -end-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-navy bg-brand px-1 text-[10px] font-bold">
+              <span className="absolute -end-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-brand bg-lime px-1 text-[10px] font-bold text-navy">
                 {unread}
               </span>
             )}
           </button>
         </div>
 
-        <p className="mt-4 flex items-center gap-1.5 text-xs text-white/60">
-          <MapPin size={14} className="shrink-0 text-brand" />
+        <p className="mt-4 flex items-center gap-1.5 text-xs text-white/70">
+          <MapPin size={14} className="shrink-0 text-lime" />
           {t('deliverTo')} <b className="font-bold text-white">{areaName}</b>
         </p>
 
@@ -60,7 +60,7 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
           onClick={onOrder}
           className="mt-3 flex w-full items-center gap-3 rounded-3xl bg-white p-4 text-start text-navy shadow-float active:scale-[0.99]"
         >
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand text-white">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-lime text-navy">
             <PencilLine size={22} />
           </span>
           <span className="min-w-0 flex-1">
@@ -91,7 +91,7 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
                     onClick={() => onService(s.id)}
                     className="flex flex-col items-center gap-2 rounded-3xl bg-white px-2 py-4 shadow-soft active:scale-95"
                   >
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-navy text-brand">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand">
                       <Icon size={24} strokeWidth={2.2} />
                     </span>
                     <span className="text-[13px] font-bold">{lang === 'ar' && s.label ? s.label : t(`svc.${s.id}`)}</span>

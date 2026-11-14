@@ -16,7 +16,7 @@ export const colorFor = (orders, id) => {
 
 // اسم الزبون فوق الدبوس
 const label = (name, color) =>
-  `<div style="background:#fff;border:2px solid ${color};color:#0B1B35;font:700 12px Cairo,sans-serif;padding:2px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(11,27,53,.25)">${name.replace(/[<>&"]/g, '')}</div>`
+  `<div style="background:#fff;border:2px solid ${color};color:#1E0E4F;font:700 12px Cairo,sans-serif;padding:2px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(11,27,53,.25)">${name.replace(/[<>&"]/g, '')}</div>`
 
 const pin = (n, color, active) =>
   L.divIcon({
@@ -118,7 +118,7 @@ export default function DriverMap({ orders, focusId }) {
       m.addTo(g)
       pts.push([o.location.lat, o.location.lng])
     })
-    if (!legs && pts.length > 1) L.polyline(pts, { color: '#0B1B35', weight: 3, opacity: 0.5, dashArray: '8 8' }).addTo(g)
+    if (!legs && pts.length > 1) L.polyline(pts, { color: '#1E0E4F', weight: 3, opacity: 0.5, dashArray: '8 8' }).addTo(g)
     if (me) {
       if (!meMarker.current) meMarker.current = L.marker([me.lat, me.lng], { icon: meIcon, zIndexOffset: 2000 })
       meMarker.current.setLatLng([me.lat, me.lng]).addTo(g)

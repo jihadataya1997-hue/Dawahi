@@ -83,7 +83,7 @@ function Login({ onDone }) {
     <div className="flex min-h-full flex-col bg-navy">
       <div className="speed-bg pt-safe flex flex-1 flex-col items-center justify-center p-6 text-center text-white">
         <img src="/driver-192.png" alt="" className="h-20 w-20 rounded-3xl shadow-xl" />
-        <h1 className="mt-4 font-brand text-3xl font-black italic text-brand">ZAPP <span className="text-white">Driver</span></h1>
+        <h1 className="mt-4 font-brand text-3xl font-black italic text-lime">ZAPP <span className="text-white">Driver</span></h1>
         <p className="mt-1 text-sm text-white/60">تطبيق عمال التوصيل</p>
       </div>
       <form onSubmit={submit} className="pb-safe rounded-t-[2rem] bg-white p-6 pb-10">
@@ -288,7 +288,7 @@ function Home({ onLogout }) {
                 setFocusId(null)
                 setTab(id)
               }}
-              className={`rounded-xl py-2.5 text-sm font-bold ${tab === id ? 'bg-brand text-white' : 'text-white/70'}`}
+              className={`rounded-xl py-2.5 text-sm font-bold ${tab === id ? 'bg-lime text-navy' : 'text-white/70'}`}
             >
               {label}
               {id === 'active' && tab !== 'done' && orders?.length ? ` (${orders.length})` : ''}
