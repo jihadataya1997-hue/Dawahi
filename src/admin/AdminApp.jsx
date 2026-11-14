@@ -266,7 +266,7 @@ function Shell({ me, onLogout }) {
   return (
     <div className="min-h-full bg-[#F3F5F9] lg:flex" onClick={unlockSound}>
       {/* القائمة الجانبية (كمبيوتر) */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-navy p-4 text-white lg:flex">
+      <aside className="speed-bg sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-navy p-4 text-white lg:flex">
         <div className="flex items-center gap-3 px-2 py-2">
           <LogoMark className="h-10 w-10" />
           <div className="min-w-0">
@@ -523,7 +523,7 @@ function OrderRow({ order: o, onOpen }) {
           </span>
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 text-sm font-extrabold">
-              <span className="font-en">{o.number}</span>
+              <span className="num-zap">{o.number}</span>
               <span className="rounded-md bg-navy-50 px-1.5 py-0.5 text-[10px] font-bold text-navy/60">{CATEGORY[o.category]}</span>
             </p>
             <p className="truncate text-xs text-navy/60">
@@ -635,7 +635,7 @@ function OrderDetail({ orderId, onClose, onUpdated }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="font-en text-xl font-extrabold">{o?.number || '...'}</h2>
+          <h2 className="num-zap text-xl">{o?.number || '...'}</h2>
           <button onClick={onClose} aria-label="إغلاق" className="flex h-9 w-9 items-center justify-center rounded-full bg-navy-50">
             <X size={18} />
           </button>

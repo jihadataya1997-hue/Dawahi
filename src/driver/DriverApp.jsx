@@ -81,7 +81,7 @@ function Login({ onDone }) {
   }
   return (
     <div className="flex min-h-full flex-col bg-navy">
-      <div className="pt-safe flex flex-1 flex-col items-center justify-center p-6 text-center text-white">
+      <div className="speed-bg pt-safe flex flex-1 flex-col items-center justify-center p-6 text-center text-white">
         <img src="/driver-192.png" alt="" className="h-20 w-20 rounded-3xl shadow-xl" />
         <h1 className="mt-4 font-brand text-3xl font-black italic text-brand">ZAPP <span className="text-white">Driver</span></h1>
         <p className="mt-1 text-sm text-white/60">تطبيق عمال التوصيل</p>
@@ -262,7 +262,7 @@ function Home({ onLogout }) {
 
   return (
     <div className="mx-auto min-h-full max-w-md pb-10" onClick={unlockSound}>
-      <header className="pt-safe sticky top-0 z-20 rounded-b-[2rem] bg-navy px-4 pb-5 pt-4 text-white shadow-lg">
+      <header className="speed-bg pt-safe sticky top-0 z-20 rounded-b-[2rem] bg-navy px-4 pb-5 pt-4 text-white shadow-lg">
         <div className="flex items-center gap-3">
           <img src="/driver-192.png" alt="" className="h-11 w-11 rounded-2xl" />
           <div className="min-w-0 flex-1">
@@ -511,7 +511,7 @@ function OfferCard({ offer, secondsLeft, onDone }) {
           <button
             onClick={() => respond('accept')}
             disabled={!!busy}
-            className="col-span-2 flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-sm font-extrabold disabled:opacity-60"
+            className="col-span-2 btn-zap flex items-center justify-center gap-2 bg-emerald-500 py-3.5 text-sm font-extrabold disabled:opacity-60"
           >
             {busy === 'accept' ? <LoaderCircle size={18} className="animate-spin" /> : <><Check size={18} /> قبول الطلب</>}
           </button>
@@ -696,7 +696,7 @@ function OrderCard({ order: o, color, onChanged, onShowMap }) {
           {o.kind === 'gas' ? <Flame size={20} /> : <ShoppingBag size={20} />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-en text-sm font-extrabold">{o.number}</p>
+          <p className="num-zap text-sm">{o.number}</p>
           <p className="text-xs text-navy/60">
             {CATEGORY[o.category]} • {o.customer.name}
           </p>

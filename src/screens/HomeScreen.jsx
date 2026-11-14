@@ -6,12 +6,12 @@ import { useAppConfig } from '../config/AppConfigProvider'
 import { OPEN_STATUSES } from '../orders/OrdersProvider'
 
 const ICONS = {
-  restaurants: { Icon: UtensilsCrossed, tint: 'bg-rose-50 text-rose-500' },
-  supermarket: { Icon: ShoppingCart, tint: 'bg-emerald-50 text-emerald-600' },
-  gas: { Icon: Flame, tint: 'bg-brand-50 text-brand' },
-  diesel: { Icon: Fuel, tint: 'bg-amber-50 text-amber-600' },
-  pharmacy: { Icon: Pill, tint: 'bg-sky-50 text-sky-600' },
-  library: { Icon: BookOpen, tint: 'bg-violet-50 text-violet-600' },
+  restaurants: { Icon: UtensilsCrossed },
+  supermarket: { Icon: ShoppingCart },
+  gas: { Icon: Flame },
+  diesel: { Icon: Fuel },
+  pharmacy: { Icon: Pill },
+  library: { Icon: BookOpen },
 }
 
 /**
@@ -27,14 +27,11 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
   return (
     <div className="pb-6">
       {/* ١) الشريط العلوي */}
-      <header className="pt-safe rounded-b-[2rem] bg-navy px-4 pb-6 pt-4 text-white">
+      <header className="speed-bg pt-safe rounded-b-[2rem] bg-navy px-4 pb-6 text-white">
         <div className="flex items-center gap-3">
-          <LogoMark className="h-10 w-10" />
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] text-white/55">{t('deliverTo')}</p>
-            <p className="flex items-center gap-1 truncate text-sm font-bold">
-              <MapPin size={14} className="shrink-0 text-brand" /> {areaName}
-            </p>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <LogoMark className="h-10 w-10" />
+            <span className="font-brand text-2xl font-black italic tracking-tight text-brand">ZAPP</span>
           </div>
           <button
             onClick={toggleLang}
@@ -53,10 +50,15 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
           </button>
         </div>
 
+        <p className="mt-4 flex items-center gap-1.5 text-xs text-white/60">
+          <MapPin size={14} className="shrink-0 text-brand" />
+          {t('deliverTo')} <b className="font-bold text-white">{areaName}</b>
+        </p>
+
         {/* زر الطلب الرئيسي */}
         <button
           onClick={onOrder}
-          className="mt-5 flex w-full items-center gap-3 rounded-3xl bg-white p-4 text-start text-navy shadow-float active:scale-[0.99]"
+          className="mt-3 flex w-full items-center gap-3 rounded-3xl bg-white p-4 text-start text-navy shadow-float active:scale-[0.99]"
         >
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand text-white">
             <PencilLine size={22} />
@@ -82,15 +84,15 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
             <h2 className="mb-3 text-base font-extrabold">{t('services')}</h2>
             <div className="grid grid-cols-3 gap-3">
               {list.map((s) => {
-                const { Icon, tint } = ICONS[s.id]
+                const { Icon } = ICONS[s.id]
                 return (
                   <button
                     key={s.id}
                     onClick={() => onService(s.id)}
                     className="flex flex-col items-center gap-2 rounded-3xl bg-white px-2 py-4 shadow-soft active:scale-95"
                   >
-                    <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tint}`}>
-                      <Icon size={24} />
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-navy text-brand">
+                      <Icon size={24} strokeWidth={2.2} />
                     </span>
                     <span className="text-[13px] font-bold">{lang === 'ar' && s.label ? s.label : t(`svc.${s.id}`)}</span>
                   </button>
@@ -132,7 +134,7 @@ function ActiveOrderCard({ order, onClick }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-extrabold">{t(`status.${order.status}`)}</span>
-          <span className="block font-en text-xs text-navy/50">{order.number}</span>
+          <span className="num-zap block text-xs text-navy/50">{order.number}</span>
         </span>
         <ChevronLeft size={18} className="shrink-0 text-navy/30 ltr:rotate-180" />
       </div>

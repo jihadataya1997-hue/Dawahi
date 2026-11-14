@@ -20,7 +20,7 @@ export default function OrdersScreen({ onStart }) {
 
   return (
     <div className="animate-fade-in">
-      <header className="pt-safe rounded-b-[2rem] bg-navy px-5 pb-10 pt-6">
+      <header className="speed-bg pt-safe rounded-b-[2rem] bg-navy px-5 pb-10 pt-6">
         <h1 className="text-lg font-extrabold text-white">{t('orders.title')}</h1>
       </header>
 
@@ -92,7 +92,7 @@ function OrderCard({ order: o }) {
           {isGas ? <Flame size={20} /> : <ShoppingBag size={20} />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-en text-sm font-extrabold">{o.number}</p>
+          <p className="num-zap text-sm">{o.number}</p>
           <p className="text-[11px] text-navy/50">{date}</p>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${STATUS_STYLE[o.status]}`}>

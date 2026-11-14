@@ -24,7 +24,7 @@ export default function AccountScreen() {
 
   return (
     <div className="animate-fade-in">
-      <header className="pt-safe rounded-b-[2rem] bg-navy px-5 pb-8 pt-6 text-white">
+      <header className="speed-bg pt-safe rounded-b-[2rem] bg-navy px-5 pb-8 pt-6 text-white">
         <h1 className="text-lg font-extrabold">{t('account.title')}</h1>
         <div className="mt-5 flex items-center gap-4">
           <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand text-2xl font-extrabold">
