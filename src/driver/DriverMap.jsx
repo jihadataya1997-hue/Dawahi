@@ -209,10 +209,10 @@ export default function DriverMap({ orders, focusId }) {
                 {i + 1}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5 text-sm font-extrabold">
-                  {o.kind === 'gas' ? <Flame size={14} className="text-brand" /> : <ShoppingBag size={14} className="text-brand" />}
-                  <span className="font-en">{o.number}</span>
-                  <span className="truncate font-normal text-navy/60">— {o.customer.name}</span>
+                <p className="truncate text-sm font-extrabold">{o.customer.name}</p>
+                <p className="flex items-center gap-1 text-[11px] font-bold text-navy/60">
+                  {o.kind === 'gas' ? <Flame size={12} className="text-brand" /> : <ShoppingBag size={12} className="text-brand" />}
+                  <span className="whitespace-nowrap font-en">{o.number}</span>
                 </p>
                 <p className="text-[11px] text-navy/50">
                   {STATUS[o.status]}
