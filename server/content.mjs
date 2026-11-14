@@ -3,7 +3,7 @@ import { randomBytes, randomInt } from 'node:crypto'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, getContent, getSettings, MEDIA_DIR } from './db.mjs'
-import { HttpError, bad, now, str, isPhone, rateLimit, readJson, send, log, hashSecret } from './lib.mjs'
+import { HttpError, bad, now, str, isPhone, rateLimit, readJson, send, log, hashSecret, isImageBytes } from './lib.mjs'
 import { notify } from './push.mjs'
 
 const SERVICE_IDS = ['restaurants', 'supermarket', 'gas', 'diesel', 'pharmacy', 'library']
@@ -154,6 +154,7 @@ export async function saveImage(dataUrl, dir = MEDIA_DIR) {
   const m = typeof dataUrl === 'string' && /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
   if (!m) throw bad('INVALID', 'Image must be JPEG, PNG or WebP', 'image')
   const buf = Buffer.from(m[2], 'base64')
+  if (!isImageBytes(buf, m[1])) throw bad('INVALID', 'Not a valid image', 'image')
   if (buf.length > MAX_IMAGE) throw bad('TOO_LARGE', 'Image is too large', 'image')
   const name = `${randomBytes(16).toString('hex')}.${m[1] === 'jpeg' ? 'jpg' : m[1]}`
   await writeFile(join(dir, name), buf)

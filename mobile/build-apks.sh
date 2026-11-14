@@ -75,6 +75,13 @@ build() {
   ./gradlew --no-daemon -q assembleRelease
   cp app/build/outputs/apk/release/app-release.apk "/out/$out.tmp"
   mv -f "/out/$out.tmp" "/out/$out"
+  # ملف AAB لـ Google Play (تطبيق الزبون بس)
+  if [ "$app" = customer ]; then
+    ./gradlew --no-daemon -q bundleRelease
+    cp app/build/outputs/bundle/release/app-release.aab /out/zapp-play.aab.tmp
+    mv -f /out/zapp-play.aab.tmp /out/zapp-play.aab
+    log "done customer AAB ($(du -h /out/zapp-play.aab | cut -f1))"
+  fi
   log "done $app → $out ($(du -h /out/$out | cut -f1))"
 }
 

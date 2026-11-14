@@ -152,6 +152,16 @@ export default function LoginScreen() {
           {!busy && <ChevronLeft size={18} className="ltr:rotate-180" />}
         </button>
         <p className="mt-4 text-center text-[11px] text-navy/40">{t('auth.note')}</p>
+        <p className="mt-2 text-center text-[11px] leading-relaxed text-navy/40">
+          {lang === 'ar' ? 'باستعمالك التطبيق أنت موافق على ' : 'By using the app you agree to the '}
+          <a href="https://zapp.prodev.cloud/terms" target="_blank" rel="noopener" className="font-bold text-brand underline">
+            {lang === 'ar' ? 'شروط الاستخدام' : 'Terms'}
+          </a>
+          {lang === 'ar' ? ' و' : ' and '}
+          <a href="https://zapp.prodev.cloud/privacy" target="_blank" rel="noopener" className="font-bold text-brand underline">
+            {lang === 'ar' ? 'سياسة الخصوصية' : 'Privacy Policy'}
+          </a>
+        </p>
       </form>
     </div>
   )

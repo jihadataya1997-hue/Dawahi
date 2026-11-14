@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { Check, Globe, KeyRound, LoaderCircle, LogOut, MapPin, MessageCircle, Pencil, Phone } from 'lucide-react'
+import { Check, FileText, Globe, KeyRound, LoaderCircle, LogOut, MapPin, MessageCircle, Pencil, Phone, ShieldCheck, Trash2 } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
 import { useAuth } from '../auth/AuthProvider'
 import { useAppConfig } from '../config/AppConfigProvider'
@@ -73,6 +73,8 @@ export default function AccountScreen() {
             onClick={() => window.open(`https://wa.me/963${support.slice(1)}`, '_blank')}
           />
         )}
+        <Row Icon={ShieldCheck} label={lang === 'ar' ? 'سياسة الخصوصية' : 'Privacy policy'} onClick={() => window.open('https://zapp.prodev.cloud/privacy', '_blank')} />
+        <Row Icon={FileText} label={lang === 'ar' ? 'شروط الاستخدام' : 'Terms of use'} onClick={() => window.open('https://zapp.prodev.cloud/terms', '_blank')} />
       </ul>
 
       <PointsCard />
@@ -85,6 +87,75 @@ export default function AccountScreen() {
         <LogOut size={18} className="rtl:-scale-x-100" />
         {t('account.logout')}
       </button>
+
+      <DeleteAccount />
+    </div>
+  )
+}
+
+// حذف الحساب نهائياً (مطلوب من Google Play)
+function DeleteAccount() {
+  const { lang } = useLang()
+  const { user, deleteAccount } = useAuth()
+  const ar = lang === 'ar'
+  const [open, setOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  const needPass = true
+  const submit = async (e) => {
+    e.preventDefault()
+    setBusy(true)
+    setMsg('')
+    try {
+      await deleteAccount(password)
+    } catch (err) {
+      setMsg(
+        err?.code === 'WRONG_PASSWORD'
+          ? ar ? 'كلمة السر غلط' : 'Wrong password'
+          : err?.code === 'ACTIVE_ORDER'
+            ? ar ? 'عندك طلب شغّال. استنى ليخلص أو ألغيه أول' : 'You have an active order. Wait for it to finish or cancel it first'
+            : ar ? 'صار خطأ، جرّب مرة تانية' : 'Something went wrong, try again'
+      )
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="mx-4 mb-8 mt-6 text-center">
+      {!open ? (
+        <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 text-xs font-bold text-navy/45 underline-offset-4 hover:underline">
+          <Trash2 size={14} /> {ar ? 'حذف حسابي' : 'Delete my account'}
+        </button>
+      ) : (
+        <form onSubmit={submit} className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-start">
+          <p className="text-sm font-extrabold text-rose-700">{ar ? 'حذف الحساب نهائياً' : 'Delete account permanently'}</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-rose-700/80">
+            {ar
+              ? 'رح ينمسح اسمك ورقمك وعناوينك ونقاطك وكلمة السر، وما فيك ترجعهن. الطلبات القديمة بتضل بسجلاتنا بدون أي معلومة عنك.'
+              : 'Your name, number, addresses, points and password will be erased and cannot be recovered. Past orders stay in our records without any of your details.'}
+          </p>
+          {needPass && (
+            <input
+              type="password"
+              dir="ltr"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={ar ? 'اكتب كلمة السر للتأكيد' : 'Enter your password to confirm'}
+              autoComplete="current-password"
+              className="mt-3 w-full rounded-xl border border-rose-200 bg-white px-3 py-3 font-en text-sm outline-none focus:border-rose-400 rtl:text-end"
+            />
+          )}
+          {msg && <p className="mt-2 text-xs font-bold text-rose-700">{msg}</p>}
+          <div className="mt-3 flex gap-2">
+            <button type="button" onClick={() => (setOpen(false), setMsg(''), setPassword(''))} className="flex-1 rounded-xl bg-white py-3 text-sm font-bold text-navy/70">
+              {ar ? 'تراجع' : 'Cancel'}
+            </button>
+            <button disabled={busy || (needPass && !password)} className="flex flex-1 items-center justify-center rounded-xl bg-rose-600 py-3 text-sm font-extrabold text-white disabled:opacity-50">
+              {busy ? <LoaderCircle size={16} className="animate-spin" /> : ar ? 'احذف حسابي' : 'Delete my account'}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   )
 }

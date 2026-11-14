@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#4B1FE0" />
+<meta name="robots" content="noindex" />
+<title>حذف الحساب | ZAPP Delivery</title>
+<link rel="icon" href="/icon-192.png" type="image/png" />
+<link rel="stylesheet" href="/legal.css" />
+</head>
+<body>
+<header>
+  <a href="/">ZAPP Delivery</a>
+  <h1>حذف حسابك</h1>
+  <p>Delete your ZAPP Delivery account</p>
+</header>
+<main>
+  <p>فيك تحذف حسابك من التطبيق: <strong>حسابي ← حذف حسابي</strong>. أو من هون إذا ما عندك التطبيق: اكتب رقمك وكلمة السر.</p>
+  <p><strong>شو بينمسح فوراً:</strong> اسمك، رقمك، كلمة السر، عناوينك المحفوظة، نقاطك، ورموز الإشعارات. وبينمسح من طلباتك القديمة العنوان والموقع ورقم التواصل والصور. الطلبات نفسها (السعر والتاريخ) بتضل بسجلاتنا للمحاسبة بدون أي معلومة بتدل عليك.</p>
+
+  <form class="card" id="f">
+    <label for="phone">رقم الموبايل · Mobile number</label>
+    <input id="phone" inputmode="numeric" autocomplete="tel" placeholder="09xxxxxxxx" maxlength="10" required />
+    <label for="pass">كلمة السر · Password</label>
+    <input id="pass" type="password" autocomplete="current-password" required />
+    <button id="go" type="submit">احذف حسابي نهائياً · Delete my account</button>
+    <p id="msg" role="status"></p>
+  </form>
+
+  <p style="margin-top:22px">نسيت كلمة السر؟ احكينا عالواتساب <span data-support>من صفحة "حسابي" بالتطبيق</span> ومنحذفلك الحساب بعد ما نتأكد إنه إلك.</p>
+
+  <section class="en" lang="en" dir="ltr">
+    <p>Delete your account in the app (Account → Delete my account) or with the form above. Erased immediately: your name, mobile number, password, saved addresses, points and notification tokens; the address, location, contact number and photos are also removed from your past orders. Order amounts and dates are kept for accounting without any details that identify you. Forgot your password? Contact us on WhatsApp and we will delete it after verifying ownership.</p>
+  </section>
+</main>
+<footer><a href="/privacy">سياسة الخصوصية · Privacy policy</a></footer>
+<script src="/legal.js" defer></script>
+<script src="/delete-account.js" defer></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 // كودات الحسم ونقاط الزبائن
 import { db } from './db.mjs'
-import { HttpError, bad, now, str, readJson, send, log } from './lib.mjs'
+import { HttpError, bad, now, str, readJson, send, log, rateLimit } from './lib.mjs'
 
 const normCode = (c) => String(c || '').trim().toUpperCase().replace(/\s+/g, '')
 
@@ -119,6 +119,7 @@ export async function customerPromoRoute(req, res, url, user) {
     return true
   }
   if (req.method === 'POST' && pathname === '/api/promo/check') {
+    rateLimit(`promo:${user.id}`, 20, 15 * 60 * 1000)
     const body = await readJson(req)
     const fee = Math.max(0, Number(body.fee) || 0)
     const p = checkPromo(body.code, user.id, fee)

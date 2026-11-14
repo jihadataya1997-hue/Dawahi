@@ -3,10 +3,10 @@
 import { startSupervisorAlerts, notifySupervisors } from './supervisor.mjs'
 import { createServer } from 'node:http'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, writeFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, getSettings, UPLOADS_DIR } from './db.mjs'
-import { HttpError, bad, sha256, now, isPhone, isFullName, str, distanceKm, clientIp, rateLimit, readJson, send, log, hashSecret, verifySecret } from './lib.mjs'
+import { HttpError, bad, sha256, now, isPhone, isFullName, str, distanceKm, clientIp, rateLimit, readJson, send, log, hashSecret, verifySecret, isImageBytes } from './lib.mjs'
 import { adminRoute } from './admin.mjs'
 import { presenceRoute } from './live.mjs'
 import { addressesRoute } from './addresses.mjs'
@@ -40,11 +40,16 @@ function authenticate(req) {
   if (!token || token.length > 200) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
   const row = db
     .prepare(
-      `SELECT c.id, c.name, c.phone, c.blocked, c.must_set_password, c.password_hash, s.token_hash FROM sessions s
+      `SELECT c.id, c.name, c.phone, c.blocked, c.must_set_password, c.password_hash, s.token_hash, s.last_seen_at FROM sessions s
        JOIN customers c ON c.id = s.customer_id WHERE s.token_hash = ?`
     )
     .get(sha256(token))
   if (!row) throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
+  // الجلسة بتنتهي إذا ما انفتح التطبيق 6 أشهر
+  if (Date.parse(row.last_seen_at) < Date.now() - 180 * 864e5) {
+    db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(row.token_hash)
+    throw new HttpError(401, 'UNAUTHORIZED', 'Please sign in')
+  }
   if (row.blocked) throw new HttpError(403, 'BLOCKED', 'This account is suspended')
   db.prepare('UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?').run(now(), row.token_hash)
   return { id: row.id, name: row.name, phone: row.phone, must_set_password: row.must_set_password, password_hash: row.password_hash, tokenHash: row.token_hash }
@@ -66,6 +71,7 @@ async function savePhoto(dataUrl) {
   const m = typeof dataUrl === 'string' && /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
   if (!m) throw bad('INVALID', 'photo must be a JPEG, PNG or WebP image', 'photo')
   const buf = Buffer.from(m[2], 'base64')
+  if (!isImageBytes(buf, m[1])) throw bad('INVALID', 'Not a valid image', 'photo')
   if (buf.length > MAX_PHOTO) throw bad('TOO_LARGE', 'photo is too large', 'photo')
   const name = `${randomBytes(16).toString('hex')}.${m[1] === 'jpeg' ? 'jpg' : m[1]}`
   await writeFile(join(UPLOADS_DIR, name), buf)
@@ -299,7 +305,7 @@ async function route(req, res, url) {
     const name = str(body.name, 60, 'name', { required: true }).replace(/\s+/g, ' ')
     if (!isFullName(name)) throw bad('FULL_NAME', 'Please enter your full name (first and last name)', 'name')
     const phone = String(body.phone || '').replace(/\s/g, '')
-    if (!isPhone(phone)) throw bad('INVALID_PHONE', 'Phone must start with 09 and be 10 digits', 'phone')
+    if (!isPhone(phone) || phone.startsWith('0900')) throw bad('INVALID_PHONE', 'Phone must start with 09 and be 10 digits', 'phone')
     if (!isCustomerPassword(body.password)) throw bad('WEAK_PASSWORD', 'Password must be at least 6 characters', 'password')
     if (db.prepare('SELECT 1 FROM customers WHERE phone = ?').get(phone))
       throw new HttpError(409, 'PHONE_TAKEN', 'This phone is already registered, please sign in')
@@ -317,18 +323,14 @@ async function route(req, res, url) {
     rateLimit(`login:${clientIp(req)}`, 15, 10 * 60 * 1000)
     const body = await readJson(req)
     const phone = String(body.phone || '').replace(/\s/g, '')
-    if (!isPhone(phone)) throw bad('INVALID_PHONE', 'Phone must start with 09 and be 10 digits', 'phone')
+    if (!isPhone(phone) || phone.startsWith('0900')) throw bad('INVALID_PHONE', 'Phone must start with 09 and be 10 digits', 'phone')
     rateLimit(`login-phone:${phone}`, 8, 15 * 60 * 1000)
     const c = db.prepare('SELECT id, name, phone, blocked, password_hash, must_set_password FROM customers WHERE phone = ?').get(phone)
     if (!c) throw new HttpError(404, 'NOT_REGISTERED', 'No account with this phone, please register')
     if (c.blocked) throw new HttpError(403, 'BLOCKED', 'This account is suspended')
-    if (c.password_hash) {
-      if (!verifySecret(String(body.password || ''), c.password_hash)) throw new HttpError(400, 'WRONG_PASSWORD', 'Wrong password')
-    } else {
-      // حساب قديم من قبل كلمات السر: بيفوت هالمرة وبيطلب منه يحط كلمة سر فوراً
-      db.prepare('UPDATE customers SET must_set_password = 1 WHERE id = ?').run(c.id)
-      c.must_set_password = 1
-    }
+    // حساب قديم بدون كلمة سر: ما منفوّت بالرقم لحاله (أي حدا بيعرف الرقم كان فيه يفوت)، لازم الدعم يعطيه كلمة مؤقتة
+    if (!c.password_hash) throw new HttpError(400, 'NO_PASSWORD', 'Please contact support to set a password for this account')
+    if (!verifySecret(String(body.password || ''), c.password_hash)) throw new HttpError(400, 'WRONG_PASSWORD', 'Wrong password')
     log('info', 'login', { customerId: c.id })
     return send(res, 200, { token: newSession(c.id), user: publicUser(c) })
   }
@@ -413,6 +415,35 @@ async function route(req, res, url) {
     // باقي الأجهزة بتطلع من الحساب
     db.prepare('DELETE FROM sessions WHERE customer_id = ? AND token_hash != ?').run(user.id, user.tokenHash)
     return send(res, 200, { user: publicUser({ ...user, must_set_password: 0, password_hash: 'set' }) })
+  }
+
+  // حذف الحساب (شرط من Google Play): بنمسح بيانات الزبون الشخصية، والطلبات القديمة بتضل بدون بياناته للحسابات
+  if (m === 'DELETE' && pathname === '/api/me') {
+    rateLimit(`delacc:${user.id}`, 5, 15 * 60 * 1000)
+    const body = await readJson(req)
+    if (user.password_hash && !verifySecret(String(body.password || ''), user.password_hash))
+      throw new HttpError(400, 'WRONG_PASSWORD', 'Password is wrong')
+    const open = db.prepare(`SELECT 1 FROM orders WHERE customer_id = ? AND status NOT IN ('delivered','cancelled') LIMIT 1`).get(user.id)
+    if (open) throw new HttpError(409, 'ACTIVE_ORDER', 'You have an active order. Wait until it is finished or cancel it first')
+    const photos = db.prepare('SELECT photo FROM orders WHERE customer_id = ? AND photo IS NOT NULL').all(user.id).map((r) => r.photo)
+    db.exec('BEGIN')
+    try {
+      db.prepare(`UPDATE orders SET contact_phone = '', address = '', notes = '', photo = NULL, lat = 0, lng = 0 WHERE customer_id = ?`).run(user.id)
+      db.prepare(
+        `UPDATE customers SET phone = ?, name = 'حساب محذوف', password_hash = NULL, must_set_password = 0, points = 0, blocked = 1, updated_at = ? WHERE id = ?`
+      ).run('0900' + String(user.id % 1e6).padStart(6, '0'), now(), user.id)
+      db.prepare('DELETE FROM sessions WHERE customer_id = ?').run(user.id)
+      db.prepare('DELETE FROM customer_addresses WHERE customer_id = ?').run(user.id)
+      db.prepare(`DELETE FROM push_subscriptions WHERE owner_type = 'customer' AND owner_id = ?`).run(user.id)
+      db.prepare(`DELETE FROM native_push_tokens WHERE owner_type = 'customer' AND owner_id = ?`).run(user.id)
+      db.exec('COMMIT')
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
+    }
+    for (const ph of photos) await unlink(join(UPLOADS_DIR, ph)).catch(() => {})
+    log('info', 'customer account deleted', { customerId: user.id })
+    return send(res, 204)
   }
 
   if (m === 'POST' && pathname === '/api/auth/logout') {
