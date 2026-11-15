@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { LoaderCircle, Star, X } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
 import { useOrders } from '../orders/OrdersProvider'
@@ -76,8 +77,8 @@ export default function RateSheet({ order, onClose }) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-navy/40 animate-fade-in" role="dialog" aria-modal="true" aria-label={ar ? 'قيّم التوصيل' : 'Rate delivery'}>
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-navy/40 animate-fade-in" role="dialog" aria-modal="true" aria-label={ar ? 'قيّم التوصيل' : 'Rate delivery'}>
       <div className="w-full max-w-md rounded-t-[28px] bg-white px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-5 shadow-float">
         {done ? (
           <div className="py-8 text-center">
@@ -153,6 +154,7 @@ export default function RateSheet({ order, onClose }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -1,7 +1,8 @@
 import CourierCard from '../components/CourierCard'
 import { useState } from 'react'
-import { ClipboardList, Flame, ImageIcon, LoaderCircle, MapPin, ShoppingBag, Star } from 'lucide-react'
+import { ClipboardList, Flame, ImageIcon, LoaderCircle, MapPin, ShoppingBag, Star, MapPinned } from 'lucide-react'
 import RateSheet from '../components/RateSheet'
+import TrackSheet from '../components/TrackSheet'
 import { useLang } from '../i18n/LanguageProvider'
 import { useOrders, OPEN_STATUSES } from '../orders/OrdersProvider'
 import { errorText } from '../i18n/errorText'
@@ -62,6 +63,8 @@ function OrderCard({ order: o }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [rateOpen, setRateOpen] = useState(false)
+  const [trackOpen, setTrackOpen] = useState(false)
+  const canTrack = ['assigned', 'buying', 'on_the_way'].includes(o.status) && o.courierName
   const canRate = o.status === 'delivered' && o.courierName && !o.rating && Date.parse(o.updatedAt) > Date.now() - 7 * 864e5
 
   const date = new Date(o.createdAt).toLocaleString(lang === 'ar' ? 'ar-SY' : 'en-GB', {
@@ -117,6 +120,12 @@ function OrderCard({ order: o }) {
 
       <CourierCard order={o} />
       {OPEN_STATUSES.includes(o.status) && <Progress status={o.status} />}
+      {canTrack && (
+        <button onClick={() => setTrackOpen(true)} className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-sm font-extrabold text-white">
+          <MapPinned size={18} /> {lang === 'ar' ? 'شوف وين صار عامل التوصيل' : 'See where your courier is'}
+        </button>
+      )}
+      {trackOpen && <TrackSheet order={o} onClose={() => setTrackOpen(false)} />}
 
       {o.status === 'new' &&
         (confirming ? (

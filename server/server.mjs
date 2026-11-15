@@ -254,6 +254,30 @@ async function adminNewOrder(req, res) {
   if (res.statusCode < 400) recordAudit(req, actor, 'POST', '/api/admin/orders/new', { ...body, name: customer.name })
 }
 
+// تتبّع عامل التوصيل على الخريطة: بس لصاحب الطلب، وبس وقت الطلب شغّال
+function trackOrder(res, user, id) {
+  const o = db.prepare('SELECT id, status, lat, lng, courier_id, courier_name FROM orders WHERE id = ? AND customer_id = ?').get(id, user.id)
+  if (!o) throw new HttpError(404, 'NOT_FOUND', 'Order not found')
+  const active = ['assigned', 'buying', 'on_the_way'].includes(o.status) && o.courier_id
+  let courier = null
+  if (active) {
+    const c = db.prepare('SELECT lat, lng, loc_at FROM couriers WHERE id = ?').get(o.courier_id)
+    if (c?.lat != null && c.loc_at) {
+      const age = Date.now() - Date.parse(c.loc_at)
+      // موقع أقدم من 10 دقايق ما منعرضه (ممكن يكون غلط)
+      if (age < 10 * 60 * 1000)
+        courier = {
+          lat: c.lat,
+          lng: c.lng,
+          at: c.loc_at,
+          fresh: age < 2 * 60 * 1000,
+          km: Math.round(distanceKm({ lat: c.lat, lng: c.lng }, { lat: o.lat, lng: o.lng }) * 10) / 10,
+        }
+    }
+  }
+  send(res, 200, { status: o.status, active: !!active, courierName: o.courier_name || '', destination: { lat: o.lat, lng: o.lng }, courier })
+}
+
 // الزبون بيقيّم عامل التوصيل بعد ما يوصل الطلب (مرة وحدة، خلال 7 أيام)
 async function rateOrder(req, res, user, id) {
   rateLimit(`rate:${user.id}`, 30, 60 * 60 * 1000)
@@ -526,6 +550,8 @@ async function route(req, res, url) {
   if (mm && m === 'GET') return getOrder(res, user, Number(mm[1]))
   mm = /^\/api\/orders\/(\d{1,12})\/cancel$/.exec(pathname)
   if (mm && m === 'POST') return cancelOrder(res, user, Number(mm[1]))
+  mm = /^\/api\/orders\/(\d{1,12})\/track$/.exec(pathname)
+  if (mm && m === 'GET') return trackOrder(res, user, Number(mm[1]))
   mm = /^\/api\/orders\/(\d{1,12})\/rate$/.exec(pathname)
   if (mm && m === 'POST') return rateOrder(req, res, user, Number(mm[1]))
   mm = /^\/api\/uploads\/([^/]+)$/.exec(pathname)

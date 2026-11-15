@@ -1,4 +1,6 @@
-import { Phone, Search, ShoppingBag, Truck, UserCheck } from 'lucide-react'
+import { useState } from 'react'
+import { MapPinned, Phone, Search, ShoppingBag, Truck, UserCheck } from 'lucide-react'
+import TrackSheet from './TrackSheet'
 import { useLang } from '../i18n/LanguageProvider'
 import { OPEN_STATUSES } from '../orders/OrdersProvider'
 
@@ -13,6 +15,7 @@ const LABELS = { ar: ['البحث', 'قبول', 'شراء', 'بالطريق'], e
 /** حالة الطلب الحالي: شريط عائم فوق القائمة السفلية، بيبيّن وين صار الطلب بكل الصفحات */
 export default function FloatingOrder({ order, onOpen }) {
   const { lang } = useLang()
+  const [track, setTrack] = useState(false)
   if (!order) return null
   const ar = lang === 'ar'
   const st = STEPS[order.status] || STEPS.new
@@ -42,6 +45,11 @@ export default function FloatingOrder({ order, onOpen }) {
               </span>
             </span>
           </button>
+          {!searching && order.courierName && (
+            <button onClick={() => setTrack(true)} aria-label={ar ? 'شوف عامل التوصيل عالخريطة' : 'Track on map'} className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-lime px-3 text-xs font-black text-navy">
+              <MapPinned size={16} /> {ar ? 'تتبّع' : 'Track'}
+            </button>
+          )}
           {!searching && order.courierPhone && (
             <a href={`tel:${order.courierPhone}`} aria-label={ar ? 'اتصال بعامل التوصيل' : 'Call courier'} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15">
               <Phone size={17} />
@@ -57,6 +65,7 @@ export default function FloatingOrder({ order, onOpen }) {
           ))}
         </div>
       </div>
+      {track && <TrackSheet order={order} onClose={() => setTrack(false)} />}
     </div>
   )
 }
