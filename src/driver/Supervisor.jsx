@@ -408,7 +408,7 @@ function SupMap({ couriers, orders }) {
   const fitted = useRef(false)
   useEffect(() => {
     map.current = L.map(box.current, { zoomControl: false, attributionControl: false }).setView(HOME, 14)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map.current)
+    L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map.current)
     layer.current = L.layerGroup().addTo(map.current)
     return () => map.current.remove()
   }, [])

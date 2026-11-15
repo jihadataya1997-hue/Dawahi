@@ -38,7 +38,7 @@ export default function LocationPicker({ open, initial, onClose, onConfirm }) {
       [start.lat, start.lng],
       initial || loadLastLocation() ? 17 : 15
     )
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('/tiles/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap',
     }).addTo(map)
