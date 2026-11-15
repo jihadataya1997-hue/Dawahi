@@ -4,6 +4,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Check, Clock, ImagePlus, LoaderCircle, MapPinned, Megaphone, Plus, Power, Trash2, Undo2, Wrench, X, Zap } from 'lucide-react'
 import { adminApi, adminErrorText } from './adminApi'
+import { addHomeButton } from './mapHome'
 import { imageToDataUrl, inputCls, money } from './shared'
 
 const Card = ({ children, className = '' }) => <section className={`rounded-3xl bg-white p-5 shadow-soft ${className}`}>{children}</section>
@@ -357,6 +358,7 @@ function Zones({ data, onSaved }) {
   useEffect(() => {
     map.current = L.map(box.current, { attributionControl: false }).setView(ZONE_CENTER, 15)
     L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map.current)
+    addHomeButton(map.current, ZONE_CENTER, 15)
     layer.current = L.layerGroup().addTo(map.current)
     // كل كبسة عالخريطة بتزيد نقطة على حدود المنطقة المختارة
     map.current.on('click', (e) => {

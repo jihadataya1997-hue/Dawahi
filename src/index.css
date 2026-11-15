@@ -208,3 +208,9 @@ html.app-shell #root {
   opacity: 0.85;
   cursor: grab;
 }
+.leaflet-bar a.map-home-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b1fe0;
+}

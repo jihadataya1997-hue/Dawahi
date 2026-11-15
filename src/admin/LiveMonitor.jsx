@@ -3,6 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Bike, ClipboardList, Download, Eye, Flame, Radio, ShoppingBag, Smartphone, Truck, Wallet, WifiOff } from 'lucide-react'
 import { adminApi } from './adminApi'
+import { addHomeButton } from './mapHome'
 import { currency } from './shared'
 
 // شاشة المراقبة الحية: تتحدّث كل ثانيتين، والعدّادات تمشي كل ثانية
@@ -212,6 +213,7 @@ function LiveMap({ couriers, orders, focus }) {
   useEffect(() => {
     map.current = L.map(box.current, { zoomControl: true, attributionControl: false }).setView(HOME, 14)
     L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map.current)
+    addHomeButton(map.current, HOME, 14)
     layer.current = L.layerGroup().addTo(map.current)
     const ro = new ResizeObserver(() => map.current?.invalidateSize())
     ro.observe(box.current)
