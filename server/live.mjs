@@ -61,7 +61,7 @@ export async function presenceRoute(req, res) {
 
 /** POST /api/courier/location — موقع العامل وهو متصل */
 export async function courierLocation(req, res, me) {
-  rateLimit(`loc:${me.id}`, 30, 60 * 1000)
+  rateLimit(`loc:${me.id}`, 60, 60 * 1000)
   const { lat, lng, accuracy } = await readJson(req)
   if (typeof lat !== 'number' || typeof lng !== 'number' || Math.abs(lat) > 90 || Math.abs(lng) > 180)
     throw bad('INVALID', 'bad location', 'lat')

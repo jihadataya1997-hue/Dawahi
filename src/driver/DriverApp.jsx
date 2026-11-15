@@ -180,14 +180,14 @@ function ringOnce() {
 }
 
 // إبقاء الشاشة مضاءة طالما العامل "متاح" والتطبيق مفتوح
-// يرسل موقع العامل للإدارة كل ~20 ثانية طالما هو متاح لاستقبال الطلبات
+// يرسل موقع العامل كل ~5 ثواني طالما هو متاح (للمراقبة وتتبّع الزبون)
 function useShareLocation(enabled) {
   useEffect(() => {
     if (!enabled || !navigator.geolocation) return
     let last = 0
     let latest = null
     const push = () => {
-      if (!latest || Date.now() - last < 15000) return
+      if (!latest || Date.now() - last < 5000) return
       last = Date.now()
       const { latitude: lat, longitude: lng, accuracy } = latest.coords
       api('/location', { method: 'POST', body: { lat, lng, accuracy } }).catch(() => {})

@@ -64,7 +64,8 @@ public class DriverService extends Service {
     private static final int ID_ONLINE = 1001;
     private static final int ID_OFFER = 1002;
     private static final long POLL_SEC = 4;
-    private static final long LOCATION_SEC = 20;
+    // الموقع بينبعت مع كل دورة (كل 4 ثواني تقريباً) لحتى الزبون يشوف عامل التوصيل عم يتحرك
+    private static final long LOCATION_MS = 3_500;
     private static final long RING_MAX_MS = 90_000; // سقف أمان؛ عادةً بتوقف لما ينقبل العرض أو ينتهي وقته
 
     static volatile boolean running = false;
@@ -182,9 +183,9 @@ public class DriverService extends Service {
         if (locationManager == null) return;
         try {
             if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER))
-                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10_000, 10, locationListener, Looper.getMainLooper());
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3_000, 5, locationListener, Looper.getMainLooper());
             if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER))
-                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 15_000, 20, locationListener, Looper.getMainLooper());
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5_000, 10, locationListener, Looper.getMainLooper());
         } catch (Exception e) {
             Log.w(TAG, "location updates failed", e);
         }
@@ -232,7 +233,7 @@ public class DriverService extends Service {
         }
         long now = System.currentTimeMillis();
         Location l = lastLocation;
-        if (l != null && now - lastLocationSent >= LOCATION_SEC * 1000) {
+        if (l != null && now - lastLocationSent >= LOCATION_MS) {
             lastLocationSent = now;
             try {
                 JSONObject body = new JSONObject();
