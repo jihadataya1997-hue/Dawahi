@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import InboxSheet, { useInbox } from './components/InboxSheet'
 import BottomNav from './components/BottomNav'
 import FloatingOrder from './components/FloatingOrder'
+import RateSheet, { orderToRate } from './components/RateSheet'
 import HomeScreen from './screens/HomeScreen'
 import GasOrderSheet from './components/GasOrderSheet'
 import CustomOrderSheet from './components/CustomOrderSheet'
@@ -45,6 +46,12 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
   const stores = useStores()
   const [storeOpen, setStoreOpen] = useState(null)
   const clearToast = useCallback(() => setToast(''), [])
+  // بعد ما يوصل الطلب منسأل الزبون يقيّم عامل التوصيل (مرة وحدة)
+  const { orders } = useOrders()
+  const [rating, setRating] = useState(null)
+  const [rateClosed, setRateClosed] = useState(() => new Set())
+  const pending = orderToRate(orders)
+  const toRate = rating || (pending && !rateClosed.has(pending.id) ? pending : null)
   // خدمة موقّفة مؤقتاً من الإدارة؟ منبيّن السبب بدل ما نفتح الطلب
   const pausedNote = (id) => {
     const s = services.find((x) => x.id === id)
@@ -106,6 +113,15 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
       <PromoPopup onAction={onBanner} />
       <UpdateNotice />
       <Toast text={toast} onDone={clearToast} />
+      {!custom && !inboxOpen && (
+        <RateSheet
+          order={toRate}
+          onClose={() => {
+            if (toRate) setRateClosed((x) => new Set(x).add(toRate.id))
+            setRating(null)
+          }}
+        />
+      )}
 
       <GasOrderSheet open={gasOpen} onClose={() => setGasOpen(false)} />
       <StoreSheet store={storeOpen} onClose={() => setStoreOpen(null)} onCheckout={checkout} />

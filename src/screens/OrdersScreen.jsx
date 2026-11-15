@@ -1,6 +1,7 @@
 import CourierCard from '../components/CourierCard'
 import { useState } from 'react'
-import { ClipboardList, Flame, ImageIcon, LoaderCircle, MapPin, ShoppingBag } from 'lucide-react'
+import { ClipboardList, Flame, ImageIcon, LoaderCircle, MapPin, ShoppingBag, Star } from 'lucide-react'
+import RateSheet from '../components/RateSheet'
 import { useLang } from '../i18n/LanguageProvider'
 import { useOrders, OPEN_STATUSES } from '../orders/OrdersProvider'
 import { errorText } from '../i18n/errorText'
@@ -60,6 +61,8 @@ function OrderCard({ order: o }) {
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [rateOpen, setRateOpen] = useState(false)
+  const canRate = o.status === 'delivered' && o.courierName && !o.rating && Date.parse(o.updatedAt) > Date.now() - 7 * 864e5
 
   const date = new Date(o.createdAt).toLocaleString(lang === 'ar' ? 'ar-SY' : 'en-GB', {
     day: 'numeric',
@@ -135,6 +138,23 @@ function OrderCard({ order: o }) {
             {t('ordersExtra.cancel')}
           </button>
         ))}
+      {o.rating ? (
+        <p className="mt-3 flex items-center gap-1.5 text-xs font-bold text-navy/55">
+          <span className="flex" aria-label={`${o.rating.stars}/5`}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Star key={n} size={14} className={n <= o.rating.stars ? 'text-amber-400' : 'text-navy/15'} fill="currentColor" strokeWidth={1.5} />
+            ))}
+          </span>
+          {lang === 'ar' ? 'قيّمت هالتوصيل' : 'You rated this delivery'}
+        </p>
+      ) : (
+        canRate && (
+          <button onClick={() => setRateOpen(true)} className="mt-3 flex items-center gap-1.5 rounded-full bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-700">
+            <Star size={14} fill="currentColor" /> {lang === 'ar' ? 'قيّم التوصيل' : 'Rate delivery'}
+          </button>
+        )
+      )}
+      {rateOpen && <RateSheet order={o} onClose={() => setRateOpen(false)} />}
       {error && <p className="mt-2 text-xs font-bold text-rose-600">{error}</p>}
     </li>
   )

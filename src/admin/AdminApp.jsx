@@ -41,6 +41,7 @@ import {
   Trash2,
   History,
   PhoneCall,
+  Star,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import { disablePush, enablePush, pushState, registerSW } from '../push'
@@ -51,6 +52,7 @@ import AppControlPanel from './AppControlPanel'
 import MyAccount from './MyAccount'
 import AuditLog from './AuditLog'
 import NewOrder from './NewOrder'
+import Ratings, { RATING_TAG_AR, Stars } from './Ratings'
 
 // المستخدم الحالي وصلاحياته
 export const MeContext = createContext({ perms: [] })
@@ -260,6 +262,7 @@ const ALL_NAV = [
   { id: 'live', label: 'المراقبة الحية', Icon: Radar, perm: 'orders.view' },
   { id: 'overview', label: 'الرئيسية', Icon: LayoutDashboard, perm: 'orders.view' },
   { id: 'orders', label: 'الطلبات', Icon: ClipboardList, perm: 'orders.view' },
+  { id: 'ratings', label: 'التقييمات والشكاوى', Icon: Star, perm: 'orders.view' },
   { id: 'couriers', label: 'عمال التوصيل', Icon: Bike, perm: 'couriers.manage' },
   { id: 'customers', label: 'الزبائن', Icon: Users, perm: 'customers.view' },
   { id: 'banners', label: 'الإعلانات', Icon: Image, perm: 'content.manage' },
@@ -418,6 +421,7 @@ function Shell({ me, onLogout }) {
           {section === 'live' && <LiveMonitor onOpenOrder={setSelected} />}
           {section === 'account' && <MyAccount me={me} />}
           {section === 'audit' && <AuditLog />}
+          {section === 'ratings' && <Ratings onOpenOrder={setSelected} />}
           {section === 'control' && <AppControlPanel can={(p) => me.perms.includes(p)} />}
           {section === 'overview' && <Overview stats={stats} onGo={go} onOpenOrder={setSelected} />}
           {section === 'orders' && <OrdersBoard key={boardKey} onOpen={setSelected} />}
@@ -885,6 +889,16 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
               )}
               {o.notes && <p className="mt-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">📝 {o.notes}</p>}
             </section>
+
+            {o.rating && (
+              <section className={`mt-4 rounded-2xl p-3 ${o.rating.stars <= 2 ? 'bg-rose-50' : 'bg-navy-50'}`}>
+                <p className="flex items-center gap-2 text-xs font-bold text-navy/50">
+                  تقييم الزبون <Stars n={o.rating.stars} />
+                </p>
+                {o.rating.tags.length > 0 && <p className="mt-1.5 text-sm font-bold">{o.rating.tags.map((t) => RATING_TAG_AR[t] || t).join('، ')}</p>}
+                {o.rating.note && <p className="mt-1 text-sm text-navy/75">«{o.rating.note}»</p>}
+              </section>
+            )}
 
             {/* العنوان */}
             <section className="mt-4">
@@ -1476,6 +1490,12 @@ function Couriers() {
                     <p className="font-bold">
                       {c.name} <span className="text-xs font-normal text-navy/50">({c.openOrders} طلبات مفتوحة)</span>
                     </p>
+                    {c.ratingCount > 0 && (
+                      <p className="flex items-center gap-1.5 text-[11px] text-navy/55">
+                        <Stars n={Math.round(c.ratingAvg)} size={12} />
+                        <span className={`num-zap ${c.ratingAvg < 3.5 ? 'text-rose-600' : ''}`}>{c.ratingAvg.toFixed(1)}</span> من {c.ratingCount} تقييم
+                      </p>
+                    )}
                     <p className="text-[11px] text-navy/50">
                       <span dir="ltr" className="font-en">{c.phone}</span> • {c.online ? 'متاح' : 'غير متاح'} •{' '}
                       {c.push ? 'الإشعارات مفعّلة' : 'الإشعارات غير مفعّلة'}

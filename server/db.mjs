@@ -451,6 +451,14 @@ const MIGRATIONS = [
   );
   CREATE INDEX idx_admin_audit_staff ON admin_audit(staff_id, id);
   `,
+  `
+  -- تقييم الزبون لعامل التوصيل بعد ما يوصل الطلب
+  ALTER TABLE orders ADD COLUMN rating INTEGER CHECK (rating BETWEEN 1 AND 5);
+  ALTER TABLE orders ADD COLUMN rating_tags TEXT;
+  ALTER TABLE orders ADD COLUMN rating_note TEXT;
+  ALTER TABLE orders ADD COLUMN rated_at TEXT;
+  CREATE INDEX idx_orders_rated ON orders(rated_at) WHERE rating IS NOT NULL;
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

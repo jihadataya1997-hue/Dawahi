@@ -100,6 +100,10 @@ export async function courierRoute(req, res, url) {
       push: hasSubscription('courier', me.id),
       load: courierLoad(me.id),
       max: getSettings().max_orders_per_courier,
+      // معدل تقييم الزبائن آخر 90 يوم (بدون تفاصيل مين قيّم)
+      rating: db
+        .prepare(`SELECT ROUND(AVG(rating), 1) AS avg, COUNT(*) AS count FROM orders WHERE courier_id = ? AND rating IS NOT NULL AND rated_at > ?`)
+        .get(me.id, new Date(Date.now() - 90 * 864e5).toISOString()),
     })
   }
 

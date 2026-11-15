@@ -116,6 +116,17 @@ export function toOrder(r, events) {
   }
 }
 
+// تقييم الطلب (للزبون والإدارة بس، عامل التوصيل ما بيشوف تقييم كل زبون)
+export const RATING_TAGS = ['fast', 'polite', 'accurate', 'communicative', 'late', 'wrong', 'damaged', 'rude', 'no_contact']
+export function ratingOf(r) {
+  if (!r.rating) return null
+  let tags = []
+  try {
+    tags = JSON.parse(r.rating_tags || '[]')
+  } catch {}
+  return { stars: r.rating, tags, note: r.rating_note || '', at: r.rated_at }
+}
+
 // رمز الدخول (PIN) لشباب التوصيل — يُخزّن مشفّراً فقط
 import { randomBytes as _rb, scryptSync, timingSafeEqual as _tse } from 'node:crypto'
 export const isPin = (p) => typeof p === 'string' && /^\d{4,6}$/.test(p)

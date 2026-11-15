@@ -62,12 +62,17 @@ export function OrdersProvider({ children }) {
     setOrders((list) => list.map((o) => (o.id === id ? d.order : o)))
   }, [])
 
+  const rateOrder = useCallback(async (id, payload) => {
+    const d = await api(`/orders/${id}/rate`, { method: 'POST', body: payload })
+    setOrders((list) => list.map((o) => (o.id === id ? d.order : o)))
+  }, [])
+
   const activeOrder = orders.find((o) => OPEN_STATUSES.includes(o.status)) || null
   hasOpen.current = !!activeOrder
 
   const value = useMemo(
-    () => ({ orders, loaded, pricing, activeOrder, refresh, createOrder, cancelOrder }),
-    [orders, loaded, pricing, activeOrder, refresh, createOrder, cancelOrder]
+    () => ({ orders, loaded, pricing, activeOrder, refresh, createOrder, cancelOrder, rateOrder }),
+    [orders, loaded, pricing, activeOrder, refresh, createOrder, cancelOrder, rateOrder]
   )
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }

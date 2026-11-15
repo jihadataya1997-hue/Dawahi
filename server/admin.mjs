@@ -3,7 +3,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, getSettings, UPLOADS_DIR } from './db.mjs'
-import { HttpError, bad, sha256, now, str, isPhone, isPin, hashPin, isPassword, hashSecret, verifySecret, clientIp, rateLimit, readJson, send, log, toOrder } from './lib.mjs'
+import { HttpError, bad, sha256, now, str, isPhone, isPin, hashPin, isPassword, hashSecret, verifySecret, clientIp, rateLimit, readJson, send, log, toOrder, ratingOf } from './lib.mjs'
 import { hasSubscription, notify, removeSubscription, saveSubscription } from './push.mjs'
 import { BACKUP_DIR, isBackupName, listBackups, runBackup } from './backup.mjs'
 import { cancelOffers, courierLoad, nudge } from './dispatch.mjs'
@@ -147,6 +147,7 @@ const withCustomer = (r, events) => ({
   customer: { name: r.customer_name, phone: r.customer_phone },
   courierPhone: r.courier_phone || '',
   photo: r.photo || null,
+  rating: ratingOf(r),
 })
 
 function damascusMidnightUtc() {
@@ -244,6 +245,35 @@ async function adminRouteInner(req, res, url) {
   }
   if (mustSetupMfa && !['/api/admin/security', '/api/admin/mfa/setup', '/api/admin/mfa/enable', '/api/admin/logout', '/api/admin/password'].includes(pathname))
     throw new HttpError(403, 'MFA_SETUP_REQUIRED', 'Enable two-step verification first')
+
+  // تقييمات الزبائن لعمال التوصيل
+  if (m === 'GET' && pathname === '/api/admin/ratings') {
+    need('orders.view')
+    const q = url.searchParams
+    const where = ['o.rating IS NOT NULL']
+    const args = []
+    if (q.get('filter') === 'low') where.push('o.rating <= 3')
+    if (/^\d+$/.test(q.get('courier') || '')) (where.push('o.courier_id = ?'), args.push(Number(q.get('courier'))))
+    const before = q.get('before') || ''
+    if (/^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(before)) (where.push('o.rated_at < ?'), args.push(before))
+    const rows = db
+      .prepare(`${ORDER_WITH_CUSTOMER} WHERE ${where.join(' AND ')} ORDER BY o.rated_at DESC LIMIT 60`)
+      .all(...args)
+    const since = new Date(Date.now() - 30 * 864e5).toISOString()
+    const summary = db
+      .prepare(
+        `SELECT COUNT(*) AS count, ROUND(AVG(rating), 2) AS avg, SUM(rating <= 2) AS bad,
+           SUM(rating = 5) AS s5, SUM(rating = 4) AS s4, SUM(rating = 3) AS s3, SUM(rating = 2) AS s2, SUM(rating = 1) AS s1
+         FROM orders WHERE rating IS NOT NULL AND rated_at > ?`
+      )
+      .get(since)
+    const delivered = db.prepare(`SELECT COUNT(*) AS n FROM orders WHERE status = 'delivered' AND updated_at > ?`).get(since).n
+    return send(res, 200, {
+      items: rows.map((r) => ({ id: r.id, number: `D-${1000 + r.id}`, courierId: r.courier_id, courierName: r.courier_name, customer: r.customer_name, ...ratingOf(r) })),
+      summary: { ...summary, delivered },
+      more: rows.length === 60,
+    })
+  }
 
   // سجل نشاط الفريق
   if (m === 'GET' && pathname === '/api/admin/audit') {
@@ -650,10 +680,12 @@ async function adminRouteInner(req, res, url) {
         .prepare(
           `SELECT c.id, c.name, c.phone, c.active, c.online, c.is_supervisor AS supervisor, c.last_seen_at AS lastSeen, c.created_at AS createdAt,
              (SELECT COUNT(*) FROM orders o WHERE o.courier_id = c.id AND o.status IN ('assigned','buying','on_the_way')) AS openOrders,
-             EXISTS (SELECT 1 FROM push_subscriptions p WHERE p.owner_type = 'courier' AND p.owner_id = c.id) AS push
+             EXISTS (SELECT 1 FROM push_subscriptions p WHERE p.owner_type = 'courier' AND p.owner_id = c.id) AS push,
+             (SELECT ROUND(AVG(o.rating), 1) FROM orders o WHERE o.courier_id = c.id AND o.rating IS NOT NULL AND o.rated_at > ?) AS ratingAvg,
+             (SELECT COUNT(*) FROM orders o WHERE o.courier_id = c.id AND o.rating IS NOT NULL AND o.rated_at > ?) AS ratingCount
            FROM couriers c ORDER BY c.active DESC, c.name`
         )
-        .all()
+        .all(...Array(2).fill(new Date(Date.now() - 90 * 864e5).toISOString()))
       return send(res, 200, { couriers: rows.map((r) => ({ ...r, active: !!r.active, online: !!r.online, push: !!r.push, supervisor: !!r.supervisor })) })
     }
     if (m === 'POST') {

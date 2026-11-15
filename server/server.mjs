@@ -13,7 +13,7 @@ import { presenceRoute } from './live.mjs'
 import { addressesRoute } from './addresses.mjs'
 import { removeNativeToken, saveNativeToken } from './fcm.mjs'
 const NOISY = new Set(['/api/presence', '/api/courier/location', '/api/admin/live'])
-import { toOrder } from './lib.mjs'
+import { toOrder, ratingOf, RATING_TAGS } from './lib.mjs'
 import { priceCart, publicStores } from './stores.mjs'
 import { courierPublic } from './courierProfile.mjs'
 import { applyPerks, recordPerks, releasePerks, customerPromoRoute } from './promo.mjs'
@@ -254,11 +254,37 @@ async function adminNewOrder(req, res) {
   if (res.statusCode < 400) recordAudit(req, actor, 'POST', '/api/admin/orders/new', { ...body, name: customer.name })
 }
 
+// الزبون بيقيّم عامل التوصيل بعد ما يوصل الطلب (مرة وحدة، خلال 7 أيام)
+async function rateOrder(req, res, user, id) {
+  rateLimit(`rate:${user.id}`, 30, 60 * 60 * 1000)
+  const body = await readJson(req)
+  const stars = Number(body.stars)
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) throw bad('INVALID', 'Choose 1 to 5 stars', 'stars')
+  const tags = Array.isArray(body.tags) ? [...new Set(body.tags.filter((t) => RATING_TAGS.includes(t)))].slice(0, 6) : []
+  const note = str(body.note, 300, 'note')
+  const row = db.prepare('SELECT * FROM orders WHERE id = ? AND customer_id = ?').get(id, user.id)
+  if (!row) throw new HttpError(404, 'NOT_FOUND', 'Order not found')
+  if (row.status !== 'delivered' || !row.courier_id) throw new HttpError(409, 'NOT_DELIVERED', 'You can rate after the order is delivered')
+  if (row.rating) throw new HttpError(409, 'ALREADY_RATED', 'You already rated this order')
+  if (Date.parse(row.updated_at) < Date.now() - 7 * 864e5) throw new HttpError(409, 'TOO_LATE', 'Rating period has ended')
+  db.prepare('UPDATE orders SET rating = ?, rating_tags = ?, rating_note = ?, rated_at = ? WHERE id = ?').run(stars, JSON.stringify(tags), note, now(), id)
+  log('info', 'order rated', { orderId: id, courierId: row.courier_id, stars })
+  if (stars <= 2)
+    notify('admin', 0, {
+      title: `⚠️ تقييم ${stars} نجمة للطلب D-${1000 + id}`,
+      body: `${row.courier_name || 'عامل التوصيل'}${note ? `: ${note.slice(0, 90)}` : ''}`,
+      url: '/admin',
+      tag: `rating-${id}`,
+    })
+  const fresh = db.prepare('SELECT * FROM orders WHERE id = ?').get(id)
+  send(res, 200, { order: withCourier(fresh) })
+}
+
 // الزبون بيشوف اسم عامل التوصيل ورقمه وصورته أول ما يقبل الطلب
 function withCourier(row, events) {
   const o = toOrder(row, events)
   if (!row.courier_id || !['assigned', 'buying', 'on_the_way', 'delivered'].includes(row.status)) return o
-  return { ...o, courierPhone: row.courier_phone || '', courier: courierPublic(row.courier_id) }
+  return { ...o, courierPhone: row.courier_phone || '', courier: courierPublic(row.courier_id), rating: ratingOf(row) }
 }
 
 function listOrders(res, user, url) {
@@ -266,7 +292,7 @@ function listOrders(res, user, url) {
   const rows = db
     .prepare('SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC LIMIT ?')
     .all(user.id, limit)
-  send(res, 200, { orders: rows.map(withCourier) })
+  send(res, 200, { orders: rows.map((r) => withCourier(r)) })
 }
 
 function getOrder(res, user, id) {
@@ -500,6 +526,8 @@ async function route(req, res, url) {
   if (mm && m === 'GET') return getOrder(res, user, Number(mm[1]))
   mm = /^\/api\/orders\/(\d{1,12})\/cancel$/.exec(pathname)
   if (mm && m === 'POST') return cancelOrder(res, user, Number(mm[1]))
+  mm = /^\/api\/orders\/(\d{1,12})\/rate$/.exec(pathname)
+  if (mm && m === 'POST') return rateOrder(req, res, user, Number(mm[1]))
   mm = /^\/api\/uploads\/([^/]+)$/.exec(pathname)
   if (mm && m === 'GET') return getPhoto(res, user, mm[1])
 

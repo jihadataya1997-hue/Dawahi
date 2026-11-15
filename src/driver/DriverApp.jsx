@@ -19,6 +19,7 @@ import {
   Share,
   ShoppingBag,
   SquarePlus,
+  Star,
 } from 'lucide-react'
 import { api, errText, getToken, photoUrl, setLoggedOutHandler, setToken } from './driverApi'
 import { disablePush, enablePush, isIOS, pushState } from '../push'
@@ -256,7 +257,7 @@ function Home({ onLogout }) {
   const refreshMe = useCallback(() => {
     api('/me')
       .then((d) => {
-        setMe({ ...d.courier, wallet: d.wallet })
+        setMe({ ...d.courier, wallet: d.wallet, rating: d.rating })
         setLoad(d.load)
         setMax(d.max || 3)
       })
@@ -354,6 +355,7 @@ function Home({ onLogout }) {
             {!zapp && <InstallCard />}
             {me && <AvailabilityCard me={me} load={load} max={max} onChange={refreshMe} />}
             {me?.wallet && <WalletCard wallet={me.wallet} load={load} />}
+            {me?.rating?.count > 0 && <RatingCard rating={me.rating} />}
           </>
         )}
         {me?.online && (
@@ -420,6 +422,26 @@ function WalletCard({ wallet, load }) {
             ? `عليك ${fmt(-wallet.balance)} للإدارة. عمولة التطبيق ${fmt(wallet.commission)} عن كل طلب.`
             : `بيكفي لـ ${wallet.ordersLeft} طلب. عمولة التطبيق ${fmt(wallet.commission)} عن كل طلب واصل.`}
       </p>
+    </div>
+  )
+}
+
+// معدل تقييم الزبائن لعامل التوصيل (بدون تفاصيل مين قيّم)
+function RatingCard({ rating }) {
+  const avg = rating.avg
+  return (
+    <div className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft">
+      <span className="num-zap text-3xl">{avg.toFixed(1)}</span>
+      <div className="flex-1">
+        <span className="flex" aria-label={`${avg} من 5`}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <Star key={n} size={16} className={n <= Math.round(avg) ? 'text-amber-400' : 'text-navy/15'} fill="currentColor" strokeWidth={1.5} />
+          ))}
+        </span>
+        <p className="mt-0.5 text-xs text-navy/55">
+          تقييم الزبائن إلك من {rating.count} طلب{avg >= 4.5 ? '. شغل ممتاز!' : avg < 3.5 ? '. انتبه للتأخير والتعامل مع الزبون.' : ''}
+        </p>
+      </div>
     </div>
   )
 }
