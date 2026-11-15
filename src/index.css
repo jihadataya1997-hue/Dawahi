@@ -194,3 +194,17 @@ html.app-shell #root {
 .leaflet-tooltip.zone-tip::before {
   display: none;
 }
+.zone-pt {
+  background: #c6f432;
+  border: 3px solid #4b1fe0;
+  border-radius: 999px;
+  cursor: grab;
+  box-shadow: 0 1px 4px rgba(26, 19, 64, 0.35);
+}
+.zone-mid {
+  background: #fff;
+  border: 2px solid #4b1fe0;
+  border-radius: 999px;
+  opacity: 0.85;
+  cursor: grab;
+}

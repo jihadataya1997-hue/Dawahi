@@ -377,14 +377,37 @@ function Zones({ data, onSaved }) {
     const g = layer.current
     if (!g) return
     g.clearLayers()
+    const setPoints = (pts) => setZones((zs) => zs.map((z, i) => (i === selRef.current ? { ...z, points: pts } : z)))
+    const round = (ll) => [+ll.lat.toFixed(6), +ll.lng.toFixed(6)]
     zones.forEach((z, i) => {
       const on = i === sel
+      let poly = null
       if (z.points.length >= 2)
-        L.polygon(z.points, { color: on ? '#4B1FE0' : '#8b84b0', weight: on ? 3 : 2, fillOpacity: on ? 0.25 : 0.1, dashArray: z.enabled === false ? '6 6' : null, interactive: !on })
+        poly = L.polygon(z.points, { color: on ? '#4B1FE0' : '#8b84b0', weight: on ? 3 : 2, fillOpacity: on ? 0.25 : 0.1, dashArray: z.enabled === false ? '6 6' : null, interactive: !on })
           .on('click', () => setSel(i))
           .bindTooltip(`${z.name || 'بدون اسم'} +${z.extra || 0}`, { direction: 'center', permanent: z.points.length >= 3, className: 'zone-tip' })
           .addTo(g)
-      if (on) z.points.forEach((p) => L.circleMarker(p, { radius: 5, color: '#4B1FE0', fillColor: '#C6F432', fillOpacity: 1, weight: 2, interactive: false }).addTo(g))
+      if (!on) return
+      // كل نقطة بتتسحب لمكان جديد، وكبسة مطوّلة (أو كليك يمين) بتحذفها
+      z.points.forEach((p, k) => {
+        L.marker(p, { draggable: true, icon: L.divIcon({ className: 'zone-pt', iconSize: [18, 18] }), title: 'اسحب النقطة لتحركها' })
+          .on('drag', (e) => {
+            if (!poly) return
+            const pts = z.points.map((q, n) => (n === k ? round(e.target.getLatLng()) : q))
+            poly.setLatLngs(pts)
+          })
+          .on('dragend', (e) => setPoints(z.points.map((q, n) => (n === k ? round(e.target.getLatLng()) : q))))
+          .on('contextmenu', () => setPoints(z.points.filter((_, n) => n !== k)))
+          .addTo(g)
+      })
+      // نقطة صغيرة بنص كل ضلع: اسحبها لتزيد زاوية جديدة بهالمكان
+      if (z.points.length >= 3)
+        z.points.forEach((p, k) => {
+          const q = z.points[(k + 1) % z.points.length]
+          L.marker([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], { draggable: true, icon: L.divIcon({ className: 'zone-mid', iconSize: [12, 12] }), title: 'اسحبها لتزيد نقطة' })
+            .on('dragend', (e) => setPoints([...z.points.slice(0, k + 1), round(e.target.getLatLng()), ...z.points.slice(k + 1)]))
+            .addTo(g)
+        })
     })
   }, [zones, sel])
 
@@ -442,7 +465,7 @@ function Zones({ data, onSaved }) {
               </div>
               <p className={`rounded-xl px-3 py-2 text-xs font-bold ${cur.points.length >= 3 ? 'bg-brand-50 text-brand' : 'bg-amber-50 text-amber-700'}`}>
                 {cur.points.length >= 3
-                  ? `الحدود مرسومة (${cur.points.length} نقاط). فيك تزيد نقاط بالكبس عالخريطة.`
+                  ? `الحدود مرسومة (${cur.points.length} نقاط). اسحب أي نقطة لتحركها، أو اسحب النقطة الصغيرة بنص الضلع لتزيد زاوية. كليك يمين (أو ضغطة مطوّلة) عالنقطة بيحذفها.`
                   : `اكبس عالخريطة حول المنطقة لترسم حدودها (${cur.points.length} من 3 نقاط على الأقل).`}
               </p>
               <div className="flex gap-2">
