@@ -550,6 +550,7 @@ function IconBtn({ children, label, danger, ...p }) {
 export function Announcements() {
   const [data, setData] = useState(null)
   const [form, setForm] = useState({ title: '', body: '' })
+  const [audience, setAudience] = useState('customers') // الزبائن أو عمال التوصيل
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState('')
@@ -565,8 +566,12 @@ export function Announcements() {
     setBusy(true)
     setError('')
     try {
-      const r = await adminApi('/announcements', { method: 'POST', body: form })
-      setResult(`تم الإرسال إلى ${r.customers} زبون مفعّل الإشعارات، وسيظهر لبقية الزبائن داخل التطبيق.`)
+      const r = await adminApi('/announcements', { method: 'POST', body: { ...form, audience } })
+      setResult(
+        audience === 'couriers'
+          ? `تم الإرسال إلى ${r.couriers} عامل توصيل. بيوصل كإشعار على الموبايل للي التطبيق شغّال عندهم، وللباقيين أول ما يصيروا متاحين.`
+          : `تم الإرسال إلى ${r.customers} زبون مفعّل الإشعارات، وسيظهر لبقية الزبائن داخل التطبيق.`
+      )
       setForm({ title: '', body: '' })
       setConfirm(false)
       load()
@@ -585,11 +590,27 @@ export function Announcements() {
     <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
       <Card>
         <h2 className="flex items-center gap-2 font-extrabold">
-          <Megaphone size={18} className="text-brand" /> إرسال إشعار لكل الزبائن
+          <Megaphone size={18} className="text-brand" /> إرسال إشعار
         </h2>
+        <div className="mt-3 flex gap-2">
+          {[
+            ['customers', 'لكل الزبائن'],
+            ['couriers', 'لكل عمال التوصيل'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => (setAudience(id), setConfirm(false), setResult(''))}
+              className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${audience === id ? 'bg-brand text-white' : 'bg-navy-50 text-navy/60'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {data && (
-          <p className="mt-1 text-xs text-navy/50">
-            يصل إشعاراً على الموبايل إلى {data.reach} زبون من أصل {data.customers}، ويظهر للجميع في صندوق الإشعارات داخل التطبيق.
+          <p className="mt-2 text-xs text-navy/50">
+            {audience === 'couriers'
+              ? `بيوصل لـ ${data.couriers} عامل توصيل: إشعار على الموبايل للي التطبيق شغّال عندهم، وللباقيين أول ما يصيروا متاحين.`
+              : `يصل إشعاراً على الموبايل إلى ${data.reach} زبون من أصل ${data.customers}، ويظهر للجميع في صندوق الإشعارات داخل التطبيق.`}
           </p>
         )}
         <div className="mt-4 space-y-3">
@@ -629,7 +650,7 @@ export function Announcements() {
                 تراجع
               </button>
               <button onClick={send} disabled={busy} className="flex flex-[2] items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-sm font-extrabold text-white">
-                {busy ? <LoaderCircle size={18} className="animate-spin" /> : 'تأكيد الإرسال للجميع'}
+                {busy ? <LoaderCircle size={18} className="animate-spin" /> : audience === 'couriers' ? 'تأكيد الإرسال لعمال التوصيل' : 'تأكيد الإرسال للجميع'}
               </button>
             </div>
           ) : (

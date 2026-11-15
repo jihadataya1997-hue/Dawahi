@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { db, getContent, getSettings, MEDIA_DIR } from './db.mjs'
 import { HttpError, bad, now, str, isPhone, rateLimit, readJson, send, log, hashSecret, isImageBytes } from './lib.mjs'
 import { notify } from './push.mjs'
+import { queueCourierMessage } from './supervisor.mjs'
 
 const SERVICE_IDS = ['restaurants', 'supermarket', 'gas', 'diesel', 'pharmacy', 'library']
 const THEMES = ['orange', 'navy', 'green', 'sky', 'rose', 'purple']
@@ -460,6 +461,7 @@ export async function contentAdminRoute(req, res, url, need) {
            WHERE p.owner_type = 'customer' AND c.blocked = 0`
         ).get().n,
         customers: db.prepare('SELECT COUNT(*) AS n FROM customers WHERE blocked = 0').get().n,
+        couriers: db.prepare('SELECT COUNT(*) AS n FROM couriers WHERE active = 1').get().n,
       })
       return true
     }
@@ -468,6 +470,18 @@ export async function contentAdminRoute(req, res, url, need) {
       const body = await readJson(req)
       const title = str(body.title, 80, 'title', { required: true })
       const text = str(body.body, 300, 'body')
+      // إشعار لعمال التوصيل: بيوصل للتطبيق عن طريق الخدمة بالخلفية + إشعارات المتصفح
+      if (body.audience === 'couriers') {
+        const list = db.prepare('SELECT id FROM couriers WHERE active = 1').all()
+        const tag = `ann-c-${Date.now()}`
+        for (const { id } of list) {
+          queueCourierMessage(id, title, text, tag)
+          notify('courier', id, { title, body: text, url: '/driver', tag })
+        }
+        log('info', 'courier announcement sent', { couriers: list.length })
+        send(res, 201, { couriers: list.length })
+        return true
+      }
       const r = db.prepare('INSERT INTO announcements (title, body, created_at) VALUES (?, ?, ?)').run(title, text, now())
       const ids = db
         .prepare(

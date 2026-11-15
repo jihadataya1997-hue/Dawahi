@@ -1,6 +1,6 @@
 // سيرفر ضواحي — Node.js بدون مكتبات خارجية
 // تشغيل: node server/server.mjs   (المنفذ PORT، مكان البيانات DATA_DIR)
-import { startSupervisorAlerts, notifySupervisors } from './supervisor.mjs'
+import { startSupervisorAlerts, notifySupervisors, queueCourierMessage } from './supervisor.mjs'
 import { createServer } from 'node:http'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readFile, writeFile, unlink } from 'node:fs/promises'
@@ -588,6 +588,22 @@ server.listen(PORT, () => log('info', 'dawahi api listening', { port: PORT }))
 scheduleBackups()
 startDispatcher()
 startSupervisorAlerts()
+
+// إشعار لمرة وحدة لكل عمال التوصيل: في تحديث جديد للتطبيق (الموقع كل 5 ثواني)
+{
+  const KEY = 'once_driver_update_261115'
+  if (!db.prepare('SELECT 1 FROM settings WHERE key = ?').get(KEY)) {
+    const list = db.prepare('SELECT id FROM couriers WHERE active = 1').all()
+    for (const { id } of list) {
+      const title = 'تحديث جديد لتطبيق عامل التوصيل'
+      const body = 'افتح التطبيق واكبس "تحديث"، أو نزّل النسخة الجديدة من zapp.prodev.cloud/apk/zapp-driver.apk'
+      queueCourierMessage(id, title, body, 'upd-261115')
+      notify('courier', id, { title, body, url: '/driver', tag: 'upd-261115' })
+    }
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, 1)').run(KEY)
+    log('info', 'driver update notice queued', { couriers: list.length })
+  }
+}
 
 for (const sig of ['SIGTERM', 'SIGINT']) {
   process.on(sig, () => {

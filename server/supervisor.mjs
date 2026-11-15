@@ -190,6 +190,13 @@ const STALE = {
 const reminded = new Map() // `${orderId}:${status}` -> عدد التذكيرات
 const pending = new Map() // courierId -> [{ id, title, body }] للتطبيق (الخدمة بالخلفية)
 
+/** رسالة لعامل التوصيل بتطلع إشعار من الخدمة بالخلفية بأول مرة بيسأل فيها السيرفر */
+export function queueCourierMessage(courierId, title, body, id = `msg-${Date.now()}`) {
+  const q = pending.get(courierId) || []
+  q.push({ id: `${id}-${courierId}`, title, body })
+  pending.set(courierId, q.slice(-5))
+}
+
 /** للخدمة بالخلفية: التذكيرات يلي لسا ما وصلت للموبايل (بتنحذف بعد ما تنقرا) */
 export function takeReminders(courierId) {
   const list = pending.get(courierId) || []
