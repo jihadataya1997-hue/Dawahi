@@ -1,6 +1,8 @@
 // التحكم بالتطبيق مباشرة: وضع الصيانة، تشغيل وإيقاف الأقسام، تسعير الذروة، النافذة المنبثقة
-import { useEffect, useState } from 'react'
-import { Check, Clock, ImagePlus, LoaderCircle, Megaphone, Plus, Power, Trash2, Wrench, X, Zap } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import { Check, Clock, ImagePlus, LoaderCircle, MapPinned, Megaphone, Plus, Power, Trash2, Undo2, Wrench, X, Zap } from 'lucide-react'
 import { adminApi, adminErrorText } from './adminApi'
 import { imageToDataUrl, inputCls, money } from './shared'
 
@@ -119,6 +121,7 @@ export default function AppControlPanel({ can }) {
         {content && <Services data={data} onSaved={setData} />}
         {content && <HomeSections data={data} onSaved={setData} />}
         {pricing && <Peak data={data} onSaved={setData} />}
+        {pricing && <Zones data={data} onSaved={setData} />}
         {content && <Popup data={data} onSaved={setData} />}
       </div>
     </div>
@@ -328,6 +331,151 @@ function Peak({ data, onSaved }) {
         <Plus size={15} /> أضف موعد ذروة
       </button>
       <Save busy={busy} saved={saved} onClick={() => save({ peak: { ...f, extra } })} />
+      <Err>{error}</Err>
+    </Card>
+  )
+}
+
+/* ───────── المناطق البعيدة ───────── */
+const ZONE_CENTER = [33.5375, 36.2165] // ضاحية قدسيا
+function Zones({ data, onSaved }) {
+  const [zones, setZones] = useState(data.controls.zones || [])
+  const [sel, setSel] = useState(0)
+  const { busy, saved, error, save } = useSaver((d) => {
+    onSaved(d)
+    setZones(d.controls.zones || [])
+  })
+  const box = useRef(null)
+  const map = useRef(null)
+  const layer = useRef(null)
+  const selRef = useRef(sel)
+  selRef.current = sel
+
+  const cur = zones[sel]
+  const patch = (p) => setZones((zs) => zs.map((z, i) => (i === selRef.current ? { ...z, ...p } : z)))
+
+  useEffect(() => {
+    map.current = L.map(box.current, { attributionControl: false }).setView(ZONE_CENTER, 15)
+    L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map.current)
+    layer.current = L.layerGroup().addTo(map.current)
+    // كل كبسة عالخريطة بتزيد نقطة على حدود المنطقة المختارة
+    map.current.on('click', (e) => {
+      setZones((zs) =>
+        zs.map((z, i) => (i === selRef.current ? { ...z, points: [...z.points, [+e.latlng.lat.toFixed(6), +e.latlng.lng.toFixed(6)]] } : z))
+      )
+    })
+    const ro = new ResizeObserver(() => map.current?.invalidateSize())
+    ro.observe(box.current)
+    return () => {
+      ro.disconnect()
+      map.current.remove()
+    }
+  }, [])
+
+  // نرسم كل المناطق: المختارة بنفسجي غامق، الباقي باهت
+  useEffect(() => {
+    const g = layer.current
+    if (!g) return
+    g.clearLayers()
+    zones.forEach((z, i) => {
+      const on = i === sel
+      if (z.points.length >= 2)
+        L.polygon(z.points, { color: on ? '#4B1FE0' : '#8b84b0', weight: on ? 3 : 2, fillOpacity: on ? 0.25 : 0.1, dashArray: z.enabled === false ? '6 6' : null, interactive: !on })
+          .on('click', () => setSel(i))
+          .bindTooltip(`${z.name || 'بدون اسم'} +${z.extra || 0}`, { direction: 'center', permanent: z.points.length >= 3, className: 'zone-tip' })
+          .addTo(g)
+      if (on) z.points.forEach((p) => L.circleMarker(p, { radius: 5, color: '#4B1FE0', fillColor: '#C6F432', fillOpacity: 1, weight: 2, interactive: false }).addTo(g))
+    })
+  }, [zones, sel])
+
+  const add = () => {
+    setZones((zs) => [...zs, { id: '', name: '', extra: 50, enabled: true, points: [] }])
+    setSel(zones.length)
+  }
+  const remove = () => {
+    setZones((zs) => zs.filter((_, i) => i !== sel))
+    setSel(0)
+  }
+  const fit = (z) => z?.points.length >= 3 && map.current?.fitBounds(L.latLngBounds(z.points), { padding: [30, 30], maxZoom: 17 })
+
+  return (
+    <Card className="lg:col-span-2">
+      <Head
+        Icon={MapPinned}
+        title="مناطق بأجرة توصيل أعلى"
+        sub="ارسم المنطقة البعيدة عالخريطة وحدد قديش بتنزاد الأجرة. أي طلب موقعه جوّا المنطقة بتنزاد أجرته لحالها، والزبون بيشوفها قبل ما يأكد."
+      />
+      <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
+        <div className="space-y-3">
+          <ul className="space-y-1.5">
+            {zones.map((z, i) => (
+              <li key={i}>
+                <button
+                  onClick={() => (setSel(i), fit(z))}
+                  className={`flex w-full items-center gap-2 rounded-2xl border px-3 py-2.5 text-start text-sm font-bold ${i === sel ? 'border-brand bg-brand-50' : 'border-navy/10'}`}
+                >
+                  <span className="min-w-0 flex-1 truncate">{z.name || 'منطقة بدون اسم'}</span>
+                  <span className="num-zap text-xs text-brand">+{money(Number(z.extra) || 0)}</span>
+                  {z.enabled === false && <span className="rounded-full bg-navy/10 px-2 py-0.5 text-[10px]">موقّفة</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            onClick={add}
+            className="flex w-full items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-navy/15 py-2.5 text-xs font-bold text-navy/60"
+          >
+            <Plus size={15} /> أضف منطقة
+          </button>
+
+          {cur && (
+            <div className="space-y-3 rounded-2xl border border-navy/10 p-3">
+              <Field label="اسم المنطقة" hint="بيشوفه الزبون جنب الأجرة">
+                <input className={inputCls} maxLength={40} placeholder="مثلاً: السكن الشبابي - الجزر البعيدة" value={cur.name} onChange={(e) => patch({ name: e.target.value })} />
+              </Field>
+              <Field label="الزيادة على الأجرة" hint={`الأجرة العادية ${money(data.fee.base)}، بهالمنطقة بتصير ${money(data.fee.base + (Number(cur.extra) || 0))}`}>
+                <input type="number" min={0} inputMode="numeric" className={inputCls} value={cur.extra} onChange={(e) => patch({ extra: e.target.value })} />
+              </Field>
+              <div className="flex items-center gap-3">
+                <span className="flex-1 text-sm font-bold">مفعّلة</span>
+                <Switch on={cur.enabled !== false} onChange={(v) => patch({ enabled: v })} label="تفعيل المنطقة" />
+              </div>
+              <p className={`rounded-xl px-3 py-2 text-xs font-bold ${cur.points.length >= 3 ? 'bg-brand-50 text-brand' : 'bg-amber-50 text-amber-700'}`}>
+                {cur.points.length >= 3
+                  ? `الحدود مرسومة (${cur.points.length} نقاط). فيك تزيد نقاط بالكبس عالخريطة.`
+                  : `اكبس عالخريطة حول المنطقة لترسم حدودها (${cur.points.length} من 3 نقاط على الأقل).`}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => patch({ points: cur.points.slice(0, -1) })}
+                  disabled={!cur.points.length}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-navy/5 py-2 text-xs font-bold disabled:opacity-40"
+                >
+                  <Undo2 size={14} /> تراجع عن نقطة
+                </button>
+                <button
+                  onClick={() => patch({ points: [] })}
+                  disabled={!cur.points.length}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-navy/5 py-2 text-xs font-bold disabled:opacity-40"
+                >
+                  <X size={14} /> امسح الحدود
+                </button>
+              </div>
+              <button onClick={remove} className="flex w-full items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold text-rose-600 hover:bg-rose-50">
+                <Trash2 size={14} /> احذف المنطقة
+              </button>
+            </div>
+          )}
+        </div>
+        <div ref={box} className="leaflet-isolate h-[26rem] overflow-hidden rounded-2xl border border-navy/10 lg:h-[34rem]" />
+      </div>
+      <Save
+        busy={busy}
+        saved={saved}
+        onClick={() => save({ zones: zones.map((z) => ({ ...z, extra: Number(z.extra) || 0 })) })}
+      >
+        حفظ المناطق
+      </Save>
       <Err>{error}</Err>
     </Card>
   )

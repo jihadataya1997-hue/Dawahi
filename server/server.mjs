@@ -100,7 +100,7 @@ function validateOrder(body, user) {
   // التطبيق بالصيانة أو الخدمة متوقفة مؤقتاً؟
   const category = kind === 'gas' ? 'gas' : CATEGORIES.includes(body.category) ? body.category : 'any'
   assertOrderingOpen(category)
-  const fee = currentDeliveryFee(s)
+  const fee = currentDeliveryFee(s, undefined, { lat, lng })
   const base = {
     kind,
     clientKey,
@@ -112,6 +112,7 @@ function validateOrder(body, user) {
     notes: str(body.notes, 500, 'notes'),
     deliveryFee: fee.fee,
     peakExtra: fee.extra,
+    zone: fee.zone,
   }
 
   // طلب من مطعم شريك: الأصناف والأسعار من القائمة
@@ -129,6 +130,7 @@ function validateOrder(body, user) {
         cart: c.lines,
         itemsTotal: c.total,
         ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}),
+        ...(base.zone ? { zone: base.zone } : {}),
       },
     }
   }
@@ -139,7 +141,7 @@ function validateOrder(body, user) {
     if (!items && !body.photo) throw bad('ITEMS_REQUIRED', 'Write your order or attach a photo', 'items')
     const storeMode = body.storeMode === 'specific' ? 'specific' : 'any'
     const storeName = storeMode === 'specific' ? str(body.storeName, 120, 'storeName') : ''
-    return { ...base, category, details: { items, storeMode, storeName, ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}) } }
+    return { ...base, category, details: { items, storeMode, storeName, ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}), ...(base.zone ? { zone: base.zone } : {}) } }
   }
 
   // gas
@@ -157,7 +159,7 @@ function validateOrder(body, user) {
   const estimate = base.deliveryFee + prices.gasPrice * qty + prices.emptyCylinderPrice * qty + prices.stairsFee
   // سعر ما حددته الإدارة (صفر) → بيتحدد وقت التوصيل
   const priceUnknown = !prices.gasPrice || (gasType === 'buy' && !prices.emptyCylinderPrice) || (stairsFloors > 0 && !s.stairs_fee_per_floor)
-  return { ...base, category: 'gas', details: { qty, gasType, elevator, prices, estimate, ...(priceUnknown ? { priceUnknown: true } : {}), ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}) } }
+  return { ...base, category: 'gas', details: { qty, gasType, elevator, prices, estimate, ...(priceUnknown ? { priceUnknown: true } : {}), ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}), ...(base.zone ? { zone: base.zone } : {}) } }
 }
 
 async function createOrder(req, res, user) {

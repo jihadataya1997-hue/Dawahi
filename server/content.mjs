@@ -45,6 +45,8 @@ const DEFAULT_CONTROLS = {
   maintenance: { enabled: false, title: 'التطبيق قيد الصيانة', message: 'نعمل على تحسين الخدمة، ونعود خلال وقت قصير.' },
   peak: { manual: false, extra: 50, label: 'أوقات الذروة', schedule: [] },
   home: { banners: true, shortcuts: true, howItWorks: true },
+  // مناطق بعيدة إلها زيادة على أجرة التوصيل: [{ id, name, extra, enabled, points: [[lat, lng], ...] }]
+  zones: [],
   popup: { enabled: false, id: 0, title: '', body: '', image: null, buttonText: '', action: 'none', actionValue: '', frequency: 'once' },
 }
 const POPUP_FREQ = ['once', 'daily', 'always']
@@ -60,7 +62,30 @@ export function getControls() {
     peak: { ...DEFAULT_CONTROLS.peak, ...saved.peak },
     popup: { ...DEFAULT_CONTROLS.popup, ...saved.popup },
     home: { ...DEFAULT_CONTROLS.home, ...saved.home },
+    zones: Array.isArray(saved.zones) ? saved.zones : [],
   }
+}
+
+/** هل النقطة جوّا المضلع؟ (ray casting) */
+function inPolygon(lat, lng, points) {
+  let inside = false
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const [yi, xi] = points[i]
+    const [yj, xj] = points[j]
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+/** المنطقة البعيدة يلي فيها الموقع (إذا بأكتر من وحدة: الأغلى) */
+export function zoneFor(loc, zones = getControls().zones) {
+  if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return null
+  let best = null
+  for (const z of zones) {
+    if (z.enabled === false || !z.extra || !Array.isArray(z.points) || z.points.length < 3) continue
+    if (inPolygon(loc.lat, loc.lng, z.points) && (!best || z.extra > best.extra)) best = z
+  }
+  return best ? { id: best.id, name: best.name, extra: best.extra } : null
 }
 
 /** هل نحن الآن بوقت ذروة؟ (يدوي، أو حسب الجدول بتوقيت دمشق) */
@@ -78,10 +103,12 @@ export function peakState(peak = getControls().peak) {
   return { active: false }
 }
 
-/** أجرة التوصيل الفعلية الآن (الأساسية + زيادة الذروة) */
-export function currentDeliveryFee(s = getSettings(), controls = getControls()) {
+/** أجرة التوصيل الفعلية الآن (الأساسية + زيادة الذروة + زيادة المنطقة البعيدة إذا في موقع) */
+export function currentDeliveryFee(s = getSettings(), controls = getControls(), loc = null) {
   const p = peakState(controls.peak)
-  return { fee: s.delivery_fee + (p.active ? controls.peak.extra : 0), base: s.delivery_fee, peak: p, extra: p.active ? controls.peak.extra : 0 }
+  const extra = p.active ? controls.peak.extra : 0
+  const zone = zoneFor(loc, controls.zones)
+  return { fee: s.delivery_fee + extra + (zone?.extra || 0), base: s.delivery_fee, peak: p, extra, zone }
 }
 
 /** حالة كل خدمة: on شغّالة، paused متوقفة مؤقتاً (تظهر باهتة)، hidden مخفية */
@@ -126,6 +153,7 @@ export function publicApp() {
         }
       : null,
     firstOrderFree: s.first_order_free === 1,
+    zones: ctl.zones.filter((z) => z.enabled !== false && z.extra > 0).map((z) => ({ id: z.id, name: z.name, extra: z.extra, points: z.points })),
     pricing: {
       deliveryFee: fee.fee,
       baseDeliveryFee: fee.base,
@@ -333,6 +361,26 @@ export async function contentAdminRoute(req, res, url, need) {
           actionValue,
           frequency: POPUP_FREQ.includes(p.frequency) ? p.frequency : 'once',
         }
+      }
+      if (b.zones !== undefined) {
+        need('pricing.manage')
+        if (!Array.isArray(b.zones) || b.zones.length > 30) throw bad('INVALID', 'Too many zones', 'zones')
+        ctl.zones = b.zones.map((z, i) => {
+          const name = str(z.name, 40, 'name')
+          if (!name) throw bad('INVALID', 'Each zone needs a name', 'zones')
+          const extra = Number(z.extra)
+          if (!Number.isInteger(extra) || extra < 0 || extra > 1000000) throw bad('INVALID', 'Invalid zone amount', 'zones')
+          if (!Array.isArray(z.points) || z.points.length < 3 || z.points.length > 80)
+            throw bad('INVALID', `Zone "${name}" needs at least 3 points on the map`, 'zones')
+          const points = z.points.map((p) => {
+            const lat = Math.round(Number(p?.[0]) * 1e6) / 1e6
+            const lng = Math.round(Number(p?.[1]) * 1e6) / 1e6
+            if (!(lat > 32 && lat < 35 && lng > 35 && lng < 38)) throw bad('INVALID', 'Zone point is outside the area', 'zones')
+            return [lat, lng]
+          })
+          const id = typeof z.id === "string" && /^[a-z0-9]{4,20}$/.test(z.id) ? z.id : `z${Date.now().toString(36)}${i}`
+          return { id, name, extra, enabled: z.enabled !== false, points }
+        })
       }
       if (b.home !== undefined) {
         need('content.manage')

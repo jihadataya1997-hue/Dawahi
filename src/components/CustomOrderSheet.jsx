@@ -29,6 +29,7 @@ import { errorText } from '../i18n/errorText'
 import LocationPicker, { LocationField, loadLastLocation } from './LocationPicker'
 import { useAddresses } from '../addresses/AddressesProvider'
 import { AddressChooser, fromAddress } from '../addresses/AddressChooser'
+import { zoneFor } from '../lib/zones'
 
 // اختصارات فوق صندوق الكتابة: بتحدد نوع المحل وبتكتب بداية الطلب إذا الصندوق فاضي
 const QUICK = [
@@ -71,7 +72,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
   const L = (a, e) => (ar ? a : e)
   const { user } = useAuth()
   const { createOrder, orders, loaded } = useOrders()
-  const { pricing, money, services, peak, firstOrderFree } = useAppConfig()
+  const { pricing, money, services, peak, firstOrderFree, zones } = useAppConfig()
   // أول طلب للزبون: التوصيل ببلاش (السيرفر بيطبّقها لحاله)
   const firstFree = !!firstOrderFree && loaded && !orders.some((o) => o.status !== 'cancelled') && pricing.deliveryFee > 0
   const { addresses, defaultAddress, add: addAddress } = useAddresses()
@@ -149,7 +150,10 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
   }
 
   const savedAddress = addresses.find((a) => a.id === order.addressId)
-  const fee = firstFree ? 0 : Math.max(0, pricing.deliveryFee - perk.discount)
+  // منطقة بعيدة؟ بتنزاد أجرتها
+  const zone = zoneFor(zones, order.location)
+  const fullFee = pricing.deliveryFee + (zone?.extra || 0)
+  const fee = firstFree ? 0 : Math.max(0, fullFee - perk.discount)
 
   const submit = async () => {
     if (!cart && !order.items.trim() && !order.photo) return setError(L('اكتب شو بدك، أو صوّر الورقة', 'Write your order or add a photo'))
@@ -369,7 +373,7 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
                   <Gift size={18} className="shrink-0" /> {L('أول طلب إلك: التوصيل ببلاش!', 'Your first order: free delivery!')}
                 </p>
               ) : (
-                (showPromo || perk.discount > 0 || perk.usePoints) && <PromoBox fee={pricing.deliveryFee} value={perk} onChange={setPerk} />
+                (showPromo || perk.discount > 0 || perk.usePoints) && <PromoBox fee={fullFee} value={perk} onChange={setPerk} />
               )}
             </div>
 
@@ -380,9 +384,10 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
                 <span className="text-navy/60">
                   {cart ? L('الأكل', 'Food') + ` ${money(cart.total)} + ` : L('ثمن الأغراض متل سعر المحل + ', 'Shop price + ')}
                   {L('توصيل', 'delivery')}{' '}
-                  {(perk.discount > 0 || firstFree) && <s className="text-navy/35">{money(pricing.deliveryFee)}</s>}{' '}
+                  {(perk.discount > 0 || firstFree) && <s className="text-navy/35">{money(fullFee)}</s>}{' '}
                   <b className="text-navy">{firstFree ? L('ببلاش', 'Free') : money(fee)}</b>
                   {peak ? <span className="text-brand"> · {peak.label}</span> : null}
+                  {zone && !firstFree ? <span className="text-brand"> · {zone.name} (+{money(zone.extra)})</span> : null}
                 </span>
                 <span className="font-bold text-navy/50">{L('الدفع عند الاستلام', 'Cash on delivery')}</span>
               </div>

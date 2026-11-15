@@ -180,3 +180,17 @@ html.app-shell #root {
   html[data-theme='auto'] .text-amber-700 { color: #fbbf24; }
   html[data-theme='auto'] .shadow-soft { box-shadow: 0 4px 20px -8px rgb(0 0 0 / 0.5); }
 }
+
+/* اسم المنطقة البعيدة عالخريطة (لوحة الإدارة) */
+.leaflet-tooltip.zone-tip {
+  background: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 2px 8px;
+  font: 800 11px Cairo, sans-serif;
+  color: #1a1340;
+  box-shadow: 0 2px 8px rgba(26, 19, 64, 0.2);
+}
+.leaflet-tooltip.zone-tip::before {
+  display: none;
+}
