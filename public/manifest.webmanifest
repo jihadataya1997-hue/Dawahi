@@ -3,7 +3,7 @@
   "name": "ZAPP Delivery",
   "short_name": "ZAPP",
   "description": "خدمات ضاحية قدسيا في تطبيق واحد",
-  "start_url": "/",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

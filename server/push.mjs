@@ -52,6 +52,9 @@ export const hasSubscription = (ownerType, ownerId) =>
  * payload: { title, body, url, tag }
  */
 export function notify(ownerType, ownerId, payload) {
+  // تطبيق الزبون صار على /app (الصفحة / صارت صفحة تعريف)
+  if (ownerType === 'customer' && typeof payload.url === 'string' && /^\/(\?|$)/.test(payload.url))
+    payload = { ...payload, url: '/app' + payload.url.slice(1) }
   // تنبيهات الإدارة تصل لكل أجهزة فريق الإدارة (المالك والمشرفين)
   const subs =
     ownerType === 'admin'

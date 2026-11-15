@@ -1,8 +1,8 @@
 // Service Worker لضواحي: يفتح التطبيق بدون نت + يستقبل التنبيهات والتطبيق مسكّر
-const CACHE = 'zapp-v18'
+const CACHE = 'zapp-v19'
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/index.html', '/manifest.webmanifest', '/icon-192.png'])))
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/app', '/index.html', '/manifest.webmanifest', '/icon-192.png'])))
   self.skipWaiting()
 })
 
@@ -38,7 +38,7 @@ self.addEventListener('push', (e) => {
   } catch {
     data = { title: 'ZAPP', body: e.data ? e.data.text() : '' }
   }
-  const url = data.url || '/'
+  const url = data.url || '/app'
   const isDriver = url.startsWith('/driver')
   e.waitUntil(
     self.registration.showNotification(data.title || 'ZAPP', {
@@ -58,7 +58,7 @@ self.addEventListener('push', (e) => {
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close()
-  const url = e.notification.data?.url || '/'
+  const url = e.notification.data?.url || '/app'
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       const same = list.find((c) => new URL(c.url).pathname.startsWith(url === '/' ? '/' : url) && 'focus' in c)
