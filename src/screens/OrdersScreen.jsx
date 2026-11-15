@@ -145,7 +145,7 @@ function OrderCard({ order: o }) {
               <Star key={n} size={14} className={n <= o.rating.stars ? 'text-amber-400' : 'text-navy/15'} fill="currentColor" strokeWidth={1.5} />
             ))}
           </span>
-          {lang === 'ar' ? 'قيّمت هالتوصيل' : 'You rated this delivery'}
+          {lang === 'ar' ? 'تم تقييم هذا التوصيل' : 'You rated this delivery'}
         </p>
       ) : (
         canRate && (

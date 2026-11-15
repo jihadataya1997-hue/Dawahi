@@ -7,11 +7,11 @@ import { useOrders } from '../orders/OrdersProvider'
 const GOOD = ['fast', 'polite', 'accurate', 'communicative']
 const BAD = ['late', 'wrong', 'damaged', 'rude', 'no_contact']
 const TAG = {
-  ar: { fast: 'سريع', polite: 'محترم ولطيف', accurate: 'جاب الطلب مزبوط', communicative: 'اتصل وأكّد', late: 'تأخر كتير', wrong: 'غلط بالطلب', damaged: 'أغراض خربانة', rude: 'تعامل سيء', no_contact: 'ما اتصل فيني' },
+  ar: { fast: 'سرعة التوصيل', polite: 'حسن التعامل', accurate: 'دقة الطلب', communicative: 'التواصل الجيد', late: 'تأخر في التوصيل', wrong: 'خطأ في الطلب', damaged: 'منتجات تالفة', rude: 'سوء التعامل', no_contact: 'عدم التواصل' },
   en: { fast: 'Fast', polite: 'Polite', accurate: 'Order was right', communicative: 'Kept me updated', late: 'Very late', wrong: 'Wrong items', damaged: 'Damaged items', rude: 'Rude', no_contact: "Didn't call me" },
 }
 const STAR_TEXT = {
-  ar: ['', 'سيء كتير', 'مش منيح', 'مقبول', 'منيح', 'ممتاز'],
+  ar: ['', 'سيئ جداً', 'سيئ', 'مقبول', 'جيد', 'ممتاز'],
   en: ['', 'Very bad', 'Bad', 'Okay', 'Good', 'Excellent'],
 }
 
@@ -70,7 +70,7 @@ export default function RateSheet({ order, onClose }) {
       setDone(true)
       setTimeout(onClose, 1400)
     } catch {
-      setError(ar ? 'ما زبط الإرسال، جرّب مرة تانية' : 'Could not send, try again')
+      setError(ar ? 'تعذّر الإرسال، يرجى المحاولة مرة أخرى' : 'Could not send, try again')
     } finally {
       setBusy(false)
     }
@@ -84,16 +84,16 @@ export default function RateSheet({ order, onClose }) {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-lime text-navy">
               <Star size={26} fill="currentColor" />
             </div>
-            <p className="mt-3 text-lg font-extrabold">{ar ? 'شكراً على تقييمك!' : 'Thanks for your rating!'}</p>
-            <p className="mt-1 text-sm text-navy/55">{ar ? 'رأيك بيساعدنا نحسّن الخدمة' : 'It helps us improve'}</p>
+            <p className="mt-3 text-lg font-extrabold">{ar ? 'شكراً لتقييمك' : 'Thanks for your rating!'}</p>
+            <p className="mt-1 text-sm text-navy/55">{ar ? 'يساعدنا رأيك على تحسين الخدمة' : 'It helps us improve'}</p>
           </div>
         ) : (
           <>
             <div className="flex items-start gap-3">
               <div className="flex-1">
-                <p className="text-lg font-extrabold">{ar ? 'كيف كان التوصيل؟' : 'How was your delivery?'}</p>
+                <p className="text-lg font-extrabold">{ar ? 'كيف كانت تجربة التوصيل؟' : 'How was your delivery?'}</p>
                 <p className="mt-0.5 text-sm text-navy/55">
-                  {ar ? `طلبك ${order.number} مع ${order.courierName}` : `Order ${order.number} with ${order.courierName}`}
+                  {ar ? `الطلب ${order.number} مع عامل التوصيل ${order.courierName}` : `Order ${order.number} with ${order.courierName}`}
                 </p>
               </div>
               <button onClick={skip} aria-label={ar ? 'لاحقاً' : 'Later'} className="flex h-9 w-9 items-center justify-center rounded-full bg-navy-50">
@@ -118,7 +118,7 @@ export default function RateSheet({ order, onClose }) {
 
             {options.length > 0 && (
               <div className="mt-4 animate-fade-in">
-                <p className="mb-2 text-xs font-bold text-navy/50">{stars >= 4 ? (ar ? 'شو عجبك؟' : 'What went well?') : ar ? 'شو المشكلة؟' : 'What went wrong?'}</p>
+                <p className="mb-2 text-xs font-bold text-navy/50">{stars >= 4 ? (ar ? 'ما الذي أعجبك؟' : 'What went well?') : ar ? 'ما المشكلة؟' : 'What went wrong?'}</p>
                 <div className="flex flex-wrap gap-2">
                   {options.map((t) => (
                     <button
@@ -136,7 +136,7 @@ export default function RateSheet({ order, onClose }) {
                   maxLength={300}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder={stars >= 4 ? (ar ? 'كلمة حلوة لعامل التوصيل؟ (اختياري)' : 'Anything to add? (optional)') : ar ? 'احكيلنا شو صار (اختياري)' : 'Tell us what happened (optional)'}
+                  placeholder={stars >= 4 ? (ar ? 'أضف ملاحظة (اختياري)' : 'Anything to add? (optional)') : ar ? 'صف المشكلة (اختياري)' : 'Tell us what happened (optional)'}
                   className="mt-3 w-full resize-none rounded-2xl bg-navy-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand/30"
                 />
               </div>
@@ -148,7 +148,7 @@ export default function RateSheet({ order, onClose }) {
               disabled={!stars || busy}
               className="mt-4 flex w-full items-center justify-center rounded-2xl bg-brand py-3.5 text-sm font-extrabold text-white disabled:opacity-40"
             >
-              {busy ? <LoaderCircle size={18} className="animate-spin" /> : ar ? 'أرسل التقييم' : 'Send rating'}
+              {busy ? <LoaderCircle size={18} className="animate-spin" /> : ar ? 'إرسال التقييم' : 'Send rating'}
             </button>
           </>
         )}

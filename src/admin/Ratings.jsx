@@ -3,8 +3,8 @@ import { LoaderCircle, RefreshCw, Star } from 'lucide-react'
 import { adminApi, adminErrorText } from './adminApi'
 
 export const RATING_TAG_AR = {
-  fast: 'سريع', polite: 'محترم ولطيف', accurate: 'جاب الطلب مزبوط', communicative: 'اتصل وأكّد',
-  late: 'تأخر كتير', wrong: 'غلط بالطلب', damaged: 'أغراض خربانة', rude: 'تعامل سيء', no_contact: 'ما اتصل بالزبون',
+  fast: 'سرعة التوصيل', polite: 'حسن التعامل', accurate: 'دقة الطلب', communicative: 'التواصل الجيد',
+  late: 'تأخر في التوصيل', wrong: 'خطأ في الطلب', damaged: 'منتجات تالفة', rude: 'سوء التعامل', no_contact: 'عدم التواصل',
 }
 const BAD = new Set(['late', 'wrong', 'damaged', 'rude', 'no_contact'])
 
