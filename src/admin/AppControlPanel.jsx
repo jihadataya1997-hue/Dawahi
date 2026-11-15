@@ -4,7 +4,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Check, Clock, ImagePlus, LoaderCircle, MapPinned, Megaphone, Plus, Power, Trash2, Undo2, Wrench, X, Zap } from 'lucide-react'
 import { adminApi, adminErrorText } from './adminApi'
-import { addHomeButton } from './mapHome'
+import { addHomeButton } from '../lib/mapHome'
 import { imageToDataUrl, inputCls, money } from './shared'
 
 const Card = ({ children, className = '' }) => <section className={`rounded-3xl bg-white p-5 shadow-soft ${className}`}>{children}</section>

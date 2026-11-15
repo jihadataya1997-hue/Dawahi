@@ -3,7 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Bike, ClipboardList, Download, Eye, Flame, Radio, ShoppingBag, Smartphone, Truck, Wallet, WifiOff } from 'lucide-react'
 import { adminApi } from './adminApi'
-import { addHomeButton } from './mapHome'
+import { addHomeButton } from '../lib/mapHome'
 import { currency } from './shared'
 
 // شاشة المراقبة الحية: تتحدّث كل ثانيتين، والعدّادات تمشي كل ثانية

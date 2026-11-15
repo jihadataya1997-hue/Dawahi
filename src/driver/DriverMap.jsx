@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css'
 import { Flame, LocateFixed, Navigation, Phone, ShoppingBag } from 'lucide-react'
 import { STOP_COLORS, bestOrder, fmtKm, googleDirUrl, km, multiStopUrl, openGoogleMaps } from './route'
 import { api } from './driverApi'
+import { QUDSAYA, addHomeButton } from '../lib/mapHome'
 
 const STATUS = { assigned: 'جديد', buying: 'قيد الشراء', on_the_way: 'في الطريق' }
 
@@ -84,6 +85,7 @@ export default function DriverMap({ orders, focusId }) {
   useEffect(() => {
     map.current = L.map(box.current, { zoomControl: false, attributionControl: true }).setView([33.5335, 36.2235], 14)
     L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map.current)
+    addHomeButton(map.current, QUDSAYA, 14)
     layer.current = L.layerGroup().addTo(map.current)
     return () => map.current.remove()
   }, [])

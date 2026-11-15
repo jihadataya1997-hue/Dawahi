@@ -3,6 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { AlertTriangle, ArrowLeftRight, Ban, Copy, LoaderCircle, MapPin, MessageCircle, Phone, Share2, X } from 'lucide-react'
 import { api, errText } from './driverApi'
+import { addHomeButton } from '../lib/mapHome'
 
 const HOME = [33.5375, 36.2165]
 const STATE = {
@@ -409,6 +410,7 @@ function SupMap({ couriers, orders }) {
   useEffect(() => {
     map.current = L.map(box.current, { zoomControl: false, attributionControl: false }).setView(HOME, 14)
     L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map.current)
+    addHomeButton(map.current, HOME, 14)
     layer.current = L.layerGroup().addTo(map.current)
     return () => map.current.remove()
   }, [])
