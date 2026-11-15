@@ -39,6 +39,8 @@ import {
   UtensilsCrossed,
   Wallet,
   Trash2,
+  History,
+  PhoneCall,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import { disablePush, enablePush, pushState, registerSW } from '../push'
@@ -47,6 +49,8 @@ import { AppContent, Announcements, Banners, Customers, Team } from './sections'
 import LiveMonitor from './LiveMonitor'
 import AppControlPanel from './AppControlPanel'
 import MyAccount from './MyAccount'
+import AuditLog from './AuditLog'
+import NewOrder from './NewOrder'
 
 // المستخدم الحالي وصلاحياته
 export const MeContext = createContext({ perms: [] })
@@ -267,6 +271,7 @@ const ALL_NAV = [
   { id: 'accounts', label: 'الحسابات', Icon: Wallet, perm: 'accounts.manage' },
   { id: 'promos', label: 'كودات الحسم والنقاط', Icon: Gift, perm: 'pricing.manage' },
   { id: 'team', label: 'الفريق والصلاحيات', Icon: ShieldCheck, perm: 'staff.manage' },
+  { id: 'audit', label: 'سجل النشاط', Icon: History, perm: 'staff.manage' },
   { id: 'backups', label: 'النسخ الاحتياطي', Icon: Database, perm: 'backups.manage' },
   { id: 'account', label: 'حسابي وكلمة السر', Icon: KeyRound, perm: null },
 ]
@@ -412,6 +417,7 @@ function Shell({ me, onLogout }) {
         <main className={`mx-auto p-4 pb-16 lg:p-8 ${section === 'live' ? 'max-w-[1400px]' : 'max-w-5xl'}`}>
           {section === 'live' && <LiveMonitor onOpenOrder={setSelected} />}
           {section === 'account' && <MyAccount me={me} />}
+          {section === 'audit' && <AuditLog />}
           {section === 'control' && <AppControlPanel can={(p) => me.perms.includes(p)} />}
           {section === 'overview' && <Overview stats={stats} onGo={go} onOpenOrder={setSelected} />}
           {section === 'orders' && <OrdersBoard key={boardKey} onOpen={setSelected} />}
@@ -548,6 +554,7 @@ function OrdersBoard({ onOpen }) {
   const [picking, setPicking] = useState(false) // وضع اختيار طلبات للحذف
   const [picked, setPicked] = useState(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [newOrder, setNewOrder] = useState(false) // طلب هاتفي
   const togglePick = (id) =>
     setPicked((s) => {
       const n = new Set(s)
@@ -585,7 +592,18 @@ function OrdersBoard({ onOpen }) {
   }, [load])
   return (
     <div>
-      <div className="flex gap-2">
+      {newOrder && (
+        <NewOrder
+          onClose={() => setNewOrder(false)}
+          onCreated={(o) => {
+            setNewOrder(false)
+            setTab('open')
+            load()
+            o && onOpen?.(o)
+          }}
+        />
+      )}
+      <div className="flex flex-wrap gap-2">
         {[
           ['open', 'المفتوحة'],
           ['done', 'تم توصيلها'],
@@ -599,15 +617,23 @@ function OrdersBoard({ onOpen }) {
             {label}
           </button>
         ))}
+        {can('orders.manage') && (
+          <button
+            onClick={() => setNewOrder(true)}
+            className="ms-auto flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-bold text-white shadow-soft"
+          >
+            <PhoneCall size={15} /> طلب هاتفي
+          </button>
+        )}
         {can('orders.delete') && (
           <button
             onClick={() => (setPicking(!picking), setPicked(new Set()))}
-            className={`ms-auto rounded-full px-4 py-2 text-sm font-bold ${picking ? 'bg-rose-600 text-white' : 'bg-white text-rose-600 shadow-soft'}`}
+            className={`${can('orders.manage') ? '' : 'ms-auto '}rounded-full px-4 py-2 text-sm font-bold ${picking ? 'bg-rose-600 text-white' : 'bg-white text-rose-600 shadow-soft'}`}
           >
             {picking ? 'إلغاء التحديد' : 'حذف طلبات'}
           </button>
         )}
-        <button onClick={load} aria-label="تحديث" className={`${can('orders.delete') ? '' : 'ms-auto '}flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-soft`}>
+        <button onClick={load} aria-label="تحديث" className={`${can('orders.delete') || can('orders.manage') ? '' : 'ms-auto '}flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-soft`}>
           <RefreshCw size={16} />
         </button>
       </div>
@@ -674,6 +700,7 @@ function OrderRow({ order: o, onOpen, picked = null }) {
             <p className="flex items-center gap-2 text-sm font-extrabold">
               <span className="num-zap">{o.number}</span>
               <span className="rounded-md bg-navy-50 px-1.5 py-0.5 text-[10px] font-bold text-navy/60">{CATEGORY[o.category]}</span>
+              {o.details?.via === 'phone' && <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-[10px] font-bold text-brand">هاتفي</span>}
             </p>
             <p className="truncate text-xs text-navy/60">
               {o.customer.name} • {timeAgo(o.createdAt)}
@@ -813,6 +840,7 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
               <span className={`rounded-full px-2.5 py-1 font-bold ${STATUS[o.status].cls}`}>{STATUS[o.status].label}</span>
               <span className="rounded-full bg-navy-50 px-2.5 py-1 font-bold">{CATEGORY[o.category]}</span>
+              {o.details?.via === 'phone' && <span className="rounded-full bg-brand-50 px-2.5 py-1 font-bold text-brand">طلب هاتفي</span>}
               <span className="text-navy/50">{new Date(o.createdAt).toLocaleString('ar-SY')}</span>
             </div>
 

@@ -67,9 +67,10 @@ export async function readJson(req) {
     if (size > MAX_BODY) throw new HttpError(413, 'TOO_LARGE', 'Request is too large')
     chunks.push(c)
   }
-  if (!size) return {}
+  if (!size) return (req._json = {})
   try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    // منحتفظ بنسخة لسجل النشاط
+    return (req._json = JSON.parse(Buffer.concat(chunks).toString('utf8')))
   } catch {
     throw new HttpError(400, 'BAD_JSON', 'Invalid JSON')
   }

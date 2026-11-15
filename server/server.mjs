@@ -7,7 +7,8 @@ import { readFile, writeFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, getSettings, UPLOADS_DIR } from './db.mjs'
 import { HttpError, bad, sha256, now, isPhone, isFullName, str, distanceKm, clientIp, rateLimit, readJson, send, log, hashSecret, verifySecret, isImageBytes } from './lib.mjs'
-import { adminRoute } from './admin.mjs'
+import { adminRoute, requireAdmin } from './admin.mjs'
+import { recordAudit } from './audit.mjs'
 import { presenceRoute } from './live.mjs'
 import { addressesRoute } from './addresses.mjs'
 import { removeNativeToken, saveNativeToken } from './fcm.mjs'
@@ -162,10 +163,11 @@ function validateOrder(body, user) {
   return { ...base, category: 'gas', details: { qty, gasType, elevator, prices, estimate, ...(priceUnknown ? { priceUnknown: true } : {}), ...(base.peakExtra ? { peakExtra: base.peakExtra } : {}), ...(base.zone ? { zone: base.zone } : {}) } }
 }
 
-async function createOrder(req, res, user) {
-  rateLimit(`order:${user.id}`, 20, 60 * 60 * 1000)
-  const body = await readJson(req)
+async function createOrder(req, res, user, opts = {}) {
+  if (!opts.body) rateLimit(`order:${user.id}`, 20, 60 * 60 * 1000)
+  const body = opts.body || (await readJson(req))
   const o = validateOrder(body, user)
+  if (opts.via) o.details.via = opts.via
 
   // نفس الطلب أُرسل قبل؟ نرجّع الموجود بدل ما نكرره
   const existing = db.prepare('SELECT * FROM orders WHERE customer_id = ? AND client_key = ?').get(user.id, o.clientKey)
@@ -192,7 +194,7 @@ async function createOrder(req, res, user) {
       .run(user.id, o.clientKey, o.kind, o.category, JSON.stringify(o.details), o.lat, o.lng, o.address, o.floor,
         o.contactPhone, o.notes, photo, o.deliveryFee, ts, ts)
     db.prepare(`INSERT INTO order_events (order_id, status, actor, created_at) VALUES (?, 'new', ?, ?)`).run(
-      r.lastInsertRowid, `customer:${user.id}`, ts)
+      r.lastInsertRowid, opts.actor || `customer:${user.id}`, ts)
     recordPerks(Number(r.lastInsertRowid), user.id, perks)
     row = db.prepare('SELECT * FROM orders WHERE id = ?').get(r.lastInsertRowid)
     db.exec('COMMIT')
@@ -202,7 +204,7 @@ async function createOrder(req, res, user) {
   }
   log('info', 'order created', { orderId: row.id, customerId: user.id, kind: row.kind })
   notify('admin', 0, {
-    title: `🔔 طلب جديد D-${1000 + row.id}`,
+    title: `🔔 طلب ${opts.via === 'phone' ? 'هاتفي ' : ''}جديد D-${1000 + row.id}`,
     body: `${user.name}: ${o.kind === 'gas' ? `غاز (${o.details.qty} جرة)` : (o.details.items || 'طلب مرفق بصورة').slice(0, 80)}`,
     url: '/admin',
     tag: `order-${row.id}`,
@@ -217,6 +219,39 @@ async function createOrder(req, res, user) {
       log('error', 'dispatch failed', { orderId: row.id, err: err?.stack || String(err) })
     }
   })
+}
+
+async function adminNewOrder(req, res) {
+  const actor = requireAdmin(req, 'orders.manage')
+  rateLimit(`admin-order:${actor.staffId ?? 'owner'}`, 60, 60 * 60 * 1000)
+  const body = await readJson(req)
+  const phone = String(body.phone || '').replace(/\s/g, '')
+  if (!isPhone(phone) || phone.startsWith('0900')) throw bad('INVALID_PHONE', 'Phone must start with 09 and be 10 digits', 'phone')
+  let customer = db.prepare('SELECT * FROM customers WHERE phone = ?').get(phone)
+  if (customer?.blocked) throw new HttpError(403, 'CUSTOMER_BLOCKED', 'This customer is blocked')
+  if (!customer) {
+    // زبون جديد ما عنده التطبيق: منفتحله حساب برقمه (بلا كلمة سر لحتى يطلب كلمة مؤقتة من الدعم)
+    const name = str(body.name, 60, 'name', { required: true })
+    const ts = now()
+    const r = db.prepare('INSERT INTO customers (phone, name, created_at, updated_at) VALUES (?, ?, ?, ?)').run(phone, name, ts, ts)
+    customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(r.lastInsertRowid)
+    log('info', 'customer created by staff', { customerId: customer.id, staffId: actor.staffId })
+  }
+  const orderBody = {
+    kind: 'custom',
+    clientKey: str(body.clientKey, 64, 'clientKey', { required: true }),
+    category: body.category,
+    items: body.items,
+    storeMode: body.storeName ? 'specific' : 'any',
+    storeName: body.storeName,
+    location: body.location,
+    address: body.address,
+    floor: body.floor,
+    notes: body.notes,
+    contactPhone: phone,
+  }
+  await createOrder(req, res, customer, { body: orderBody, via: 'phone', actor: actor.isOwner ? 'admin' : `staff:${actor.staffId}` })
+  if (res.statusCode < 400) recordAudit(req, actor, 'POST', '/api/admin/orders/new', { ...body, name: customer.name })
 }
 
 // الزبون بيشوف اسم عامل التوصيل ورقمه وصورته أول ما يقبل الطلب
@@ -349,6 +384,9 @@ async function route(req, res, url) {
 
   // تطبيق شب التوصيل — له تسجيل دخول خاص
   if (pathname.startsWith('/api/courier/')) return courierRoute(req, res, url)
+
+  // طلب هاتفي/واتساب بيدخله موظف من لوحة الإدارة باسم الزبون
+  if (m === 'POST' && pathname === '/api/admin/orders/new') return adminNewOrder(req, res)
 
   // واجهة الإدارة (لوحة التحكم) — لها تسجيل دخول خاص
   if (pathname.startsWith('/api/admin/')) return adminRoute(req, res, url)

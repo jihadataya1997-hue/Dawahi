@@ -15,6 +15,7 @@ import { courierProfileRoute } from './courierProfile.mjs'
 import { adminWalletRoute, chargeCommission } from './wallet.mjs'
 import { adminPromoRoute, awardPoints, releasePerks } from './promo.mjs'
 import { liveSnapshot } from './live.mjs'
+import { listAudit, recordAudit, shouldAudit } from './audit.mjs'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
 const SESSION_DAYS = 30
@@ -155,7 +156,26 @@ function damascusMidnightUtc() {
   return new Date(d.getTime() - 3 * 3600 * 1000).toISOString()
 }
 
+// كل تعديل ناجح بلوحة الإدارة بينسجّل بسجل النشاط
 export async function adminRoute(req, res, url) {
+  if (!shouldAudit(req.method, url.pathname)) return adminRouteInner(req, res, url)
+  let actor = null
+  try {
+    actor = authAdmin(req)
+  } catch {}
+  await adminRouteInner(req, res, url)
+  if (actor && res.statusCode < 400) recordAudit(req, actor, req.method, url.pathname, req._json)
+}
+
+/** للمسارات يلي برّا ملف الإدارة: بيتحقق من الدخول والصلاحية */
+export function requireAdmin(req, perm) {
+  const me = authAdmin(req)
+  if (!me.isOwner && requireStaffMfa() && !getMfa(`staff:${me.staffId}`)) throw new HttpError(403, 'MFA_SETUP_REQUIRED', 'Enable two-step verification first')
+  if (perm && !me.perms.includes(perm)) throw new HttpError(403, 'FORBIDDEN', 'You do not have permission')
+  return me
+}
+
+async function adminRouteInner(req, res, url) {
   const { pathname } = url
   const m = req.method
 
@@ -224,6 +244,27 @@ export async function adminRoute(req, res, url) {
   }
   if (mustSetupMfa && !['/api/admin/security', '/api/admin/mfa/setup', '/api/admin/mfa/enable', '/api/admin/logout', '/api/admin/password'].includes(pathname))
     throw new HttpError(403, 'MFA_SETUP_REQUIRED', 'Enable two-step verification first')
+
+  // سجل نشاط الفريق
+  if (m === 'GET' && pathname === '/api/admin/audit') {
+    need('staff.manage')
+    return send(res, 200, listAudit(url))
+  }
+
+  // إدخال طلب هاتفي: نجيب الزبون من رقمه مع عناوينه وآخر موقع طلب منه
+  if (m === 'GET' && pathname === '/api/admin/customer-lookup') {
+    need('orders.manage')
+    const phone = String(url.searchParams.get('phone') || '').replace(/\s/g, '')
+    if (!isPhone(phone)) return send(res, 200, { customer: null })
+    const c = db.prepare('SELECT id, name, phone, blocked FROM customers WHERE phone = ?').get(phone)
+    if (!c) return send(res, 200, { customer: null })
+    const addresses = db
+      .prepare('SELECT id, label, lat, lng, details, floor FROM customer_addresses WHERE customer_id = ? ORDER BY is_default DESC, id DESC LIMIT 10')
+      .all(c.id)
+    const last = db.prepare('SELECT lat, lng, address, floor FROM orders WHERE customer_id = ? AND lat <> 0 ORDER BY id DESC LIMIT 1').get(c.id)
+    const orders = db.prepare('SELECT COUNT(*) AS n FROM orders WHERE customer_id = ?').get(c.id).n
+    return send(res, 200, { customer: { id: c.id, name: c.name, blocked: !!c.blocked, orders }, addresses, last: last || null })
+  }
 
   // تغيير كلمة السر (المالك أو أي موظف لحسابه هو)
   if (m === 'POST' && pathname === '/api/admin/password') {

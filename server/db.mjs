@@ -436,6 +436,21 @@ const MIGRATIONS = [
   -- تذكير عامل التوصيل إذا طوّل بتغيير حالة الطلب (بالدقايق، 0 = بدون تذكير)
   INSERT OR IGNORE INTO settings (key, value) VALUES ('remind_assigned_min', '10'), ('remind_buying_min', '30'), ('remind_way_min', '25');
   `,
+  `
+  -- سجل نشاط الفريق بلوحة الإدارة
+  CREATE TABLE admin_audit (
+    id        INTEGER PRIMARY KEY,
+    at        TEXT NOT NULL,
+    staff_id  INTEGER,
+    actor     TEXT NOT NULL,
+    method    TEXT NOT NULL,
+    path      TEXT NOT NULL,
+    action    TEXT NOT NULL,
+    detail    TEXT,
+    ip        TEXT
+  );
+  CREATE INDEX idx_admin_audit_staff ON admin_audit(staff_id, id);
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')
