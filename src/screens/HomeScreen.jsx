@@ -21,8 +21,6 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
   // اختصارات سريعة: كلها بتفتح نفس "اكتب طلبك" مع نوع المحل محدد (أو طلب الغاز)
   const quick = QUICK.filter((q) => services.some((s) => s.id === q.id))
   const paused = (id) => services.find((s) => s.id === id)?.paused
-  const gas = quick.find((q) => q.id === 'gas')
-  const rest = quick.filter((q) => q.id !== 'gas')
   const subOf = (q) =>
     paused(q.id)
       ? ar ? 'متوقف مؤقتاً' : 'Paused for now'
@@ -138,31 +136,17 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
         {/* ٥) المطاعم الشريكة: بتطلع لحالها أول ما الإدارة تنشر مطعم */}
         {restaurants}
 
-        {/* ٦) الخدمات: جرة الغاز كبيرة، والباقي حولها */}
+        {/* ٦) الخدمات: كلها بنفس الشكل */}
         {show('shortcuts') && quick.length > 0 && (
           <section>
             <h2 className="mb-3 text-lg font-black">{ar ? 'منجيبلك من أي محل بالضاحية' : 'We bring it from any shop'}</h2>
             <div className="grid grid-cols-2 gap-2.5">
-              {gas && (
-                <button
-                  onClick={() => onService('gas')}
-                  className={`relative flex flex-col justify-between overflow-hidden rounded-[1.5rem] bg-lime p-4 text-start text-navy active:scale-[0.98] ${rest.length >= 2 ? 'row-span-2 min-h-[11.5rem]' : 'col-span-2 min-h-[7rem]'} ${paused('gas') ? 'opacity-55' : ''}`}
-                >
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-navy text-lime">
-                    <Flame size={24} />
-                  </span>
-                  <span>
-                    <span className="block text-2xl font-black leading-tight">{ar ? 'جرة غاز' : 'Gas cylinder'}</span>
-                    <span className="block text-xs font-bold text-navy/60">{subOf(gas)}</span>
-                  </span>
-                </button>
-              )}
-              {rest.map((q, i) => (
+              {quick.map((q, i) => (
                 <button
                   key={q.id}
                   onClick={() => onService(q.id)}
                   className={`flex min-h-[5.5rem] flex-col justify-between gap-2 rounded-[1.5rem] bg-white p-3.5 text-start shadow-soft active:scale-[0.98] ${
-                    i === rest.length - 1 && (rest.length - (gas && rest.length >= 2 ? 2 : 0)) % 2 === 1 ? 'col-span-2' : ''
+                    i === quick.length - 1 && quick.length % 2 === 1 ? 'col-span-2' : ''
                   } ${paused(q.id) ? 'opacity-55' : ''}`}
                 >
                   <q.Icon size={22} strokeWidth={2.2} className="text-brand" />

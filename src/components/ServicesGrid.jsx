@@ -5,7 +5,7 @@ import { useAppConfig } from '../config/AppConfigProvider'
 export const SERVICES = [
   { id: 'restaurants', Icon: UtensilsCrossed, color: 'bg-rose-50 text-rose-500' },
   { id: 'supermarket', Icon: ShoppingCart, color: 'bg-emerald-50 text-emerald-600' },
-  { id: 'gas', Icon: Flame, color: 'bg-brand-50 text-brand', featured: true },
+  { id: 'gas', Icon: Flame, color: 'bg-brand-50 text-brand' },
   { id: 'diesel', Icon: Fuel, color: 'bg-amber-50 text-amber-600' },
   { id: 'pharmacy', Icon: Pill, color: 'bg-sky-50 text-sky-600' },
   { id: 'library', Icon: BookOpen, color: 'bg-violet-50 text-violet-600' },

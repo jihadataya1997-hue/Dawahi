@@ -243,13 +243,12 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
                     <div className="scrollbar-hide -mx-5 flex gap-2 overflow-x-auto px-5">
                       {quick.map((q) => {
                         const on = order.category === q.id
-                        const hot = q.id === 'gas' || q.id === 'diesel'
                         return (
                           <button
                             key={q.id}
                             onClick={() => pickQuick(q)}
                             className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-extrabold transition active:scale-95 ${
-                              on ? 'bg-brand text-white' : hot ? 'bg-lime text-navy' : 'bg-navy-50 text-navy/70'
+                              on ? 'bg-brand text-white' : 'bg-navy-50 text-navy/70'
                             }`}
                           >
                             <q.Icon size={15} />
