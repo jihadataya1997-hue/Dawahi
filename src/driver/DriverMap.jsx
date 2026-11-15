@@ -83,7 +83,7 @@ export default function DriverMap({ orders, focusId }) {
 
   // إنشاء الخريطة مرة واحدة
   useEffect(() => {
-    map.current = L.map(box.current, { zoomControl: false, attributionControl: true }).setView([33.5335, 36.2235], 14)
+    map.current = L.map(box.current, { zoomControl: false, attributionControl: true }).setView([33.5403, 36.1931], 14)
     L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map.current)
     addHomeButton(map.current, QUDSAYA, 14)
     layer.current = L.layerGroup().addTo(map.current)

@@ -1,7 +1,7 @@
 import L from 'leaflet'
 
 // زر عالخريطة بيرجّعها لمركز ضاحية قدسيا
-export const QUDSAYA = [33.5375, 36.2165]
+export const QUDSAYA = [33.5403, 36.1931]
 
 export function addHomeButton(map, center = QUDSAYA, zoom = 15) {
   const Ctl = L.Control.extend({

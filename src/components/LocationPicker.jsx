@@ -5,7 +5,7 @@ import { Check, LoaderCircle, LocateFixed, MapPin, X } from 'lucide-react'
 import { useLang } from '../i18n/LanguageProvider'
 
 // مركز ضاحية قدسيا تقريباً — نقطة البداية إذا ما في موقع محفوظ
-export const QUDSAYA_CENTER = { lat: 33.5335, lng: 36.2235 }
+export const QUDSAYA_CENTER = { lat: 33.5403, lng: 36.1931 }
 const KEY = 'dawahi.lastLocation'
 
 export function loadLastLocation() {

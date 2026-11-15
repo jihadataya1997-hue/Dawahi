@@ -26,7 +26,7 @@ const PORT = Number(process.env.PORT || 3000)
 const MAX_PHOTO = 2.5 * 1024 * 1024
 
 // منطقة الخدمة: دائرة حول ضاحية قدسيا
-const SERVICE_CENTER = { lat: 33.5335, lng: 36.2235 }
+const SERVICE_CENTER = { lat: 33.5403, lng: 36.1931 }
 const SERVICE_RADIUS_KM = 25
 
 const CATEGORIES = ['any', 'restaurants', 'supermarket', 'pharmacy', 'library', 'diesel', 'gas', 'other']

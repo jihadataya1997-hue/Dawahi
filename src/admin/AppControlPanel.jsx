@@ -338,7 +338,7 @@ function Peak({ data, onSaved }) {
 }
 
 /* ───────── المناطق البعيدة ───────── */
-const ZONE_CENTER = [33.5375, 36.2165] // ضاحية قدسيا
+const ZONE_CENTER = [33.5403, 36.1931] // ضاحية قدسيا
 function Zones({ data, onSaved }) {
   const [zones, setZones] = useState(data.controls.zones || [])
   const [sel, setSel] = useState(0)

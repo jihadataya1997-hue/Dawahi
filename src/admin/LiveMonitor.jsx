@@ -8,7 +8,7 @@ import { currency } from './shared'
 
 // شاشة المراقبة الحية: تتحدّث كل ثانيتين، والعدّادات تمشي كل ثانية
 const POLL_MS = 2000
-const HOME = [33.5375, 36.2165] // ضاحية قدسيا
+const HOME = [33.5403, 36.1931] // ضاحية قدسيا
 
 const STATUS = {
   new: { label: 'بانتظار عامل', dot: '#E5484D', chip: 'bg-red-50 text-red-600' },

@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowLeftRight, Ban, Copy, LoaderCircle, MapPin, Message
 import { api, errText } from './driverApi'
 import { addHomeButton } from '../lib/mapHome'
 
-const HOME = [33.5375, 36.2165]
+const HOME = [33.5403, 36.1931]
 const STATE = {
   free: { label: 'متاح', chip: 'bg-emerald-100 text-emerald-700', dot: '#10B981' },
   busy: { label: 'مشغول', chip: 'bg-amber-100 text-amber-700', dot: '#F59E0B' },
