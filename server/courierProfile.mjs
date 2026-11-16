@@ -90,7 +90,7 @@ export async function createCourierWithDocs(b) {
   const phone = String(b.phone || '').replace(/\s/g, '')
   if (!isPhone(phone)) throw bad('INVALID_PHONE', 'Phone must be 09xxxxxxxx', 'phone')
   if (db.prepare('SELECT 1 FROM couriers WHERE phone = ?').get(phone)) throw new HttpError(409, 'PHONE_TAKEN', 'This phone is already a courier')
-  if (!b.docs?.front || !b.docs?.back) throw bad('DOCS_REQUIRED', 'ID card front and back are required', 'docs')
+  const docsIn = b.docs && typeof b.docs === 'object' ? b.docs : {} // الوثائق اختيارية، بتنضاف بعدين من لوحة الإدارة
   const vehicle = str(b.vehicle, 80, 'vehicle')
   const nationalId = str(b.nationalId, 30, 'nationalId')
   const homeAddress = str(b.homeAddress, 200, 'homeAddress')
@@ -100,8 +100,8 @@ export async function createCourierWithDocs(b) {
     if (photo) saved.push(join(MEDIA_DIR, photo))
     const docs = {}
     for (const [k, col] of Object.entries(DOCS)) {
-      if (!b.docs[k]) continue
-      docs[col] = await saveImage(b.docs[k], PRIVATE_DIR)
+      if (!docsIn[k]) continue
+      docs[col] = await saveImage(docsIn[k], PRIVATE_DIR)
       saved.push(join(PRIVATE_DIR, docs[col]))
     }
     const pin = String(randomInt(100000, 1000000))
@@ -110,7 +110,7 @@ export async function createCourierWithDocs(b) {
         `INSERT INTO couriers (name, phone, pin_hash, photo, vehicle, national_id, home_address, id_front, id_back, license_doc)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(name, phone, hashPin(pin), photo, vehicle, nationalId, homeAddress, docs.id_front, docs.id_back, docs.license_doc ?? null)
+      .run(name, phone, hashPin(pin), photo, vehicle, nationalId, homeAddress, docs.id_front ?? null, docs.id_back ?? null, docs.license_doc ?? null)
     return { id: Number(r.lastInsertRowid), name, phone, pin }
   } catch (err) {
     // إذا فشل شي، منمسح الصور يلي انحفظت

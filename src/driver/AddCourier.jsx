@@ -78,7 +78,7 @@ export default function AddCourier({ onClose, onAdded }) {
   const [copied, setCopied] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: k === 'phone' ? e.target.value.replace(/[^\d]/g, '') : e.target.value }))
 
-  const ready = f.name.trim().split(/\s+/).length >= 2 && /^09\d{8}$/.test(f.phone) && docs.front && docs.back
+  const ready = f.name.trim().split(/\s+/).length >= 2 && /^09\d{8}$/.test(f.phone)
 
   async function submit(e) {
     e.preventDefault()
@@ -88,7 +88,7 @@ export default function AddCourier({ onClose, onAdded }) {
     try {
       const d = await api('/sup/couriers', {
         method: 'POST',
-        body: { ...f, photo: photo || undefined, docs: { front: docs.front, back: docs.back, license: docs.license || undefined } },
+        body: { ...f, photo: photo || undefined, docs: { front: docs.front || undefined, back: docs.back || undefined, license: docs.license || undefined } },
       })
       setMade(d.courier)
       onAdded?.()
@@ -180,15 +180,15 @@ export default function AddCourier({ onClose, onAdded }) {
               className="w-full rounded-xl bg-navy-50 px-3.5 py-3 font-en text-sm outline-none focus:ring-2 focus:ring-brand/30 rtl:text-end"
             />
             <div className="grid grid-cols-2 gap-2">
-              <input value={f.vehicle} onChange={set('vehicle')} maxLength={80} placeholder="الموتور (النوع واللون)" className="rounded-xl bg-navy-50 px-3.5 py-3 text-sm outline-none" />
-              <input value={f.nationalId} onChange={set('nationalId')} maxLength={30} placeholder="الرقم الوطني" className="rounded-xl bg-navy-50 px-3.5 py-3 text-sm outline-none" />
+              <input value={f.vehicle} onChange={set('vehicle')} maxLength={80} placeholder="الموتور (اختياري)" className="rounded-xl bg-navy-50 px-3.5 py-3 text-sm outline-none" />
+              <input value={f.nationalId} onChange={set('nationalId')} maxLength={30} placeholder="الرقم الوطني (اختياري)" className="rounded-xl bg-navy-50 px-3.5 py-3 text-sm outline-none" />
             </div>
-            <input value={f.homeAddress} onChange={set('homeAddress')} maxLength={200} placeholder="عنوان السكن" className="w-full rounded-xl bg-navy-50 px-3.5 py-3 text-sm outline-none" />
+            <input value={f.homeAddress} onChange={set('homeAddress')} maxLength={200} placeholder="عنوان السكن (اختياري)" className="w-full rounded-xl bg-navy-50 px-3.5 py-3 text-sm outline-none" />
 
-            <p className="pt-1 text-xs font-bold text-navy/55">الوثائق (صوّرها بالكاميرا)</p>
+            <p className="pt-1 text-xs font-bold text-navy/55">الوثائق والمعلومات الباقية اختيارية، فيك تضيفها هلق أو بعدين</p>
             <div className="grid grid-cols-2 gap-2">
-              <PhotoField label="الهوية - وجه" required value={docs.front} onChange={(v) => setDocs((d) => ({ ...d, front: v }))} />
-              <PhotoField label="الهوية - ضهر" required value={docs.back} onChange={(v) => setDocs((d) => ({ ...d, back: v }))} />
+              <PhotoField label="الهوية - وجه" hint="اختياري" value={docs.front} onChange={(v) => setDocs((d) => ({ ...d, front: v }))} />
+              <PhotoField label="الهوية - ضهر" hint="اختياري" value={docs.back} onChange={(v) => setDocs((d) => ({ ...d, back: v }))} />
               <PhotoField label="رخصة السواقة" hint="اختياري" value={docs.license} onChange={(v) => setDocs((d) => ({ ...d, license: v }))} />
               <PhotoField label="صورته الشخصية" hint="بتطلع للزبون" Icon={Camera} value={photo} onChange={setPhoto} />
             </div>
