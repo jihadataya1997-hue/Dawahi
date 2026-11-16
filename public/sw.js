@@ -1,5 +1,5 @@
 // Service Worker لضواحي: يفتح التطبيق بدون نت + يستقبل التنبيهات والتطبيق مسكّر
-const CACHE = 'zapp-v20'
+const CACHE = 'zapp-v21'
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/app', '/index.html', '/manifest.webmanifest', '/icon-192.png'])))

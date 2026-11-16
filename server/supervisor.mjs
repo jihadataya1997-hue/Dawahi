@@ -1,7 +1,11 @@
 // وضع المشرف داخل تطبيق السائقين: يشوف السائقين والطلبات، يحوّل الطلبات، ويعمل السائق متاح/غير متاح
 // (إلغاء الطلبات بيضل للإدارة بس)
 import { db } from './db.mjs'
-import { HttpError, bad, now, readJson, send, log, toOrder } from './lib.mjs'
+import { HttpError, bad, now, readJson, send, log, toOrder, ratingOf } from './lib.mjs'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { PRIVATE_DIR } from './db.mjs'
+import { courierWallet } from './wallet.mjs'
 import { releasePerks } from './promo.mjs'
 import { notify } from './push.mjs'
 import { cancelOffers, nudge } from './dispatch.mjs'
@@ -27,6 +31,20 @@ export async function supervisorRoute(req, res, url, me) {
     recordAudit(req, { staffId: null, name: `المشرف ${me.name}` }, 'POST', pathname, { name: c.name, phone: c.phone, vehicle: body.vehicle || '' })
     notify('admin', 0, { title: '👤 عامل توصيل جديد', body: `${me.name} أضاف ${c.name} (${c.phone})`, url: '/admin', tag: `courier-${c.id}` })
     return send(res, 201, { courier: c })
+  }
+
+  // ملف عامل التوصيل الكامل: معلوماته، وثائقه، أرقامه، الطلبات اللي إجته وشو صار فيها
+  let cm = /^\/api\/courier\/sup\/couriers\/(\d{1,9})$/.exec(pathname)
+  if (cm && m === 'GET') return send(res, 200, courierFile(Number(cm[1])))
+  cm = /^\/api\/courier\/sup\/couriers\/(\d{1,9})\/doc\/(front|back|license)$/.exec(pathname)
+  if (cm && m === 'GET') {
+    const col = { front: 'id_front', back: 'id_back', license: 'license_doc' }[cm[2]]
+    const name = db.prepare(`SELECT ${col} AS f FROM couriers WHERE id = ?`).get(Number(cm[1]))?.f
+    if (!name) throw new HttpError(404, 'NOT_FOUND', 'Document not found')
+    const buf = await readFile(join(PRIVATE_DIR, name))
+    const type = name.endsWith('.png') ? 'image/png' : name.endsWith('.webp') ? 'image/webp' : 'image/jpeg'
+    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'private, no-store', 'Content-Length': buf.length })
+    return res.end(buf)
   }
 
   if (m === 'GET' && pathname === '/api/courier/sup/overview') {
@@ -264,3 +282,114 @@ setInterval(() => {
     log('error', 'stale check failed', { err: err.message })
   }
 }, 60_000).unref()
+
+const DAY_MS = 86400e3
+function courierFile(id) {
+  const c = db.prepare('SELECT * FROM couriers WHERE id = ?').get(id)
+  if (!c) throw new HttpError(404, 'NOT_FOUND', 'Courier not found')
+  const since = (days) => new Date(Date.now() - days * DAY_MS).toISOString()
+  // بداية اليوم بتوقيت دمشق
+  const today = new Date(new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10) + 'T00:00:00+03:00').toISOString()
+  const delivered = (from) =>
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n, COALESCE(SUM(o.delivery_fee), 0) AS fees FROM orders o
+         WHERE o.courier_id = ? AND o.status = 'delivered' AND o.updated_at >= ?`
+      )
+      .get(id, from)
+  const offers = (from) =>
+    db
+      .prepare(
+        `SELECT COUNT(*) AS total, SUM(status = 'accepted') AS accepted, SUM(status = 'declined') AS declined,
+                SUM(status = 'expired') AS expired FROM order_offers WHERE courier_id = ? AND created_at >= ?`
+      )
+      .get(id, from)
+  const rating = db
+    .prepare(`SELECT ROUND(AVG(rating), 1) AS avg, COUNT(*) AS n FROM orders WHERE courier_id = ? AND rating IS NOT NULL AND rated_at >= ?`)
+    .get(id, since(90))
+  const cancelled = db.prepare(`SELECT COUNT(*) AS n FROM orders WHERE courier_id = ? AND status = 'cancelled' AND updated_at >= ?`).get(id, since(30)).n
+  const open = db.prepare(`SELECT COUNT(*) AS n FROM orders WHERE courier_id = ? AND status IN ('assigned','buying','on_the_way')`).get(id).n
+  const first = db.prepare(`SELECT MIN(updated_at) AS at FROM orders WHERE courier_id = ? AND status = 'delivered'`).get(id).at
+
+  // آخر الطلبات اللي اشتغلها
+  const orders = db
+    .prepare(
+      `SELECT o.*, (SELECT MIN(created_at) FROM order_events e WHERE e.order_id = o.id AND e.status = 'assigned') AS assigned_at,
+              (SELECT MAX(created_at) FROM order_events e WHERE e.order_id = o.id AND e.status = 'delivered') AS delivered_at
+       FROM orders o WHERE o.courier_id = ? ORDER BY o.id DESC LIMIT 40`
+    )
+    .all(id)
+    .map((r) => {
+      const d = JSON.parse(r.details || '{}')
+      const mins = r.assigned_at && r.delivered_at ? Math.round((Date.parse(r.delivered_at) - Date.parse(r.assigned_at)) / 60000) : null
+      return {
+        id: r.id,
+        number: num(r.id),
+        status: r.status,
+        category: r.category,
+        kind: r.kind,
+        what: r.kind === 'gas' ? `${d.qty || 1} جرة غاز` : (typeof d.items === 'string' ? d.items : Array.isArray(d.items) ? d.items.map((i) => i.name).join('، ') : '') || 'طلب مرفق بصورة',
+        fee: r.delivery_fee,
+        createdAt: r.created_at,
+        deliveredAt: r.delivered_at,
+        minutes: mins,
+        rating: ratingOf(r),
+      }
+    })
+
+  // كل العروض اللي وصلته (قبل/رفض/ما رد)
+  const offerList = db
+    .prepare(
+      `SELECT f.order_id, f.status, f.created_at, f.responded_at, o.category, o.delivery_fee FROM order_offers f
+       JOIN orders o ON o.id = f.order_id WHERE f.courier_id = ? ORDER BY f.id DESC LIMIT 40`
+    )
+    .all(id)
+    .map((f) => ({
+      orderId: f.order_id,
+      number: num(f.order_id),
+      status: f.status,
+      category: f.category,
+      fee: f.delivery_fee,
+      at: f.created_at,
+      seconds: f.responded_at ? Math.round((Date.parse(f.responded_at) - Date.parse(f.created_at)) / 1000) : null,
+    }))
+
+  const n = (o) => ({ total: o.total || 0, accepted: o.accepted || 0, declined: o.declined || 0, expired: o.expired || 0 })
+  const o30 = n(offers(since(30)))
+  const locFresh = c.loc_at && Date.parse(c.loc_at) > Date.now() - 10 * 60_000
+  return {
+    courier: {
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+      active: !!c.active,
+      online: !!c.online,
+      supervisor: !!c.is_supervisor,
+      photo: c.photo ? `/api/media/${c.photo}` : null,
+      vehicle: c.vehicle,
+      nationalId: c.national_id,
+      homeAddress: c.home_address,
+      notes: c.notes,
+      docs: { front: !!c.id_front, back: !!c.id_back, license: !!c.license_doc },
+      createdAt: c.created_at,
+      lastSeen: c.last_seen_at,
+      lastAssigned: c.last_assigned_at,
+      firstDelivery: first,
+      location: locFresh ? { lat: c.lat, lng: c.lng, at: c.loc_at, accuracy: c.loc_accuracy } : null,
+      locationAt: c.loc_at,
+      wallet: courierWallet(id),
+    },
+    stats: {
+      today: delivered(today),
+      week: delivered(since(7)),
+      month: delivered(since(30)),
+      all: delivered('0000'),
+      open,
+      cancelled30: cancelled,
+      offers30: { ...o30, acceptRate: o30.total ? Math.round((o30.accepted / o30.total) * 100) : null },
+      rating: { avg: rating.avg, count: rating.n },
+    },
+    orders,
+    offers: offerList,
+  }
+}

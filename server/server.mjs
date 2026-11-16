@@ -591,14 +591,14 @@ startSupervisorAlerts()
 
 // إشعار لمرة وحدة لكل عمال التوصيل: في تحديث جديد للتطبيق (الموقع كل 5 ثواني)
 {
-  const KEY = 'once_driver_update_261115'
+  const KEY = 'once_driver_update_261116'
   if (!db.prepare('SELECT 1 FROM settings WHERE key = ?').get(KEY)) {
     const list = db.prepare('SELECT id FROM couriers WHERE active = 1').all()
     for (const { id } of list) {
-      const title = 'تحديث جديد لتطبيق عامل التوصيل'
-      const body = 'افتح التطبيق واكبس "تحديث"، أو نزّل النسخة الجديدة من zapp.prodev.cloud/apk/zapp-driver.apk'
-      queueCourierMessage(id, title, body, 'upd-261115')
-      notify('courier', id, { title, body, url: '/driver', tag: 'upd-261115' })
+      const title = '🔔 نسخة جديدة من تطبيق عامل التوصيل'
+      const body = 'صار في شكل جديد لإشعار الطلبات الجديدة. نزّل النسخة الجديدة من zapp.prodev.cloud/apk/zapp-driver.apk وثبّتها فوق القديمة'
+      queueCourierMessage(id, title, body, 'upd-261116')
+      notify('courier', id, { title, body, url: '/driver', tag: 'upd-261116' })
     }
     db.prepare('INSERT INTO settings (key, value) VALUES (?, 1)').run(KEY)
     log('info', 'driver update notice queued', { couriers: list.length })
