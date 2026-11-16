@@ -255,7 +255,7 @@ function Home({ onLogout }) {
   const [load, setLoad] = useState(0)
   const [max, setMax] = useState(3)
   const refreshMe = useCallback(() => {
-    api('/me')
+    return api('/me')
       .then((d) => {
         setMe({ ...d.courier, wallet: d.wallet, rating: d.rating })
         setLoad(d.load)
@@ -294,7 +294,22 @@ function Home({ onLogout }) {
     else zapp.stop().catch(() => {})
   }, [zapp, me?.online, me])
   const load_ = loadOrders
+  // زر التحديث: بيلف وقت التحميل، وبيبين "تم التحديث" لحتى يعرف إنه انكبس
+  const [refreshing, setRefreshing] = useState(false)
+  const [flash, setFlash] = useState('')
+  const refreshAll = async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    window.dispatchEvent(new Event('zapp:refresh')) // شاشة المشرف بتتحدّث كمان
+    await Promise.all([loadOrders(), refreshMe()]).catch(() => {})
+    setRefreshing(false)
+    setFlash('تم التحديث ✓')
+    setTimeout(() => setFlash(''), 1800)
+  }
+  const [askLogout, setAskLogout] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   const logout = async () => {
+    setLoggingOut(true)
     await zapp?.stop().catch(() => {})
     await disablePush((endpoint) => api('/push', { method: 'DELETE', body: { endpoint } })).catch(() => {})
     await api('/logout', { method: 'POST' }).catch(() => {})
@@ -304,6 +319,22 @@ function Home({ onLogout }) {
 
   return (
     <div className="mx-auto min-h-full max-w-md pb-10" onClick={unlockSound}>
+      {askLogout && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-navy/50" onClick={() => !loggingOut && setAskLogout(false)}>
+          <div className="pb-safe w-full max-w-md rounded-t-3xl bg-white p-5" role="dialog" aria-modal="true" aria-label="تسجيل الخروج" onClick={(e) => e.stopPropagation()}>
+            <p className="text-lg font-extrabold">بدك تطلع من حسابك؟</p>
+            <p className="mt-1 text-sm text-navy/55">بعد الخروج ما رح توصلك طلبات لحتى ترجع تفوت برقمك والرمز السري.</p>
+            <div className="mt-4 flex gap-2">
+              <button onClick={() => setAskLogout(false)} disabled={loggingOut} className="flex-1 rounded-2xl bg-navy-50 py-3 text-sm font-bold">
+                لا، خليني
+              </button>
+              <button onClick={logout} disabled={loggingOut} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose-600 py-3 text-sm font-extrabold text-white">
+                {loggingOut ? <LoaderCircle size={18} className="animate-spin" /> : 'إيه، اطلع'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="speed-bg pt-safe sticky top-0 z-20 rounded-b-[2rem] bg-navy px-4 pb-5 pt-4 text-white shadow-lg">
         <div className="flex items-center gap-3">
           <img src="/driver-192.png" alt="" className="h-11 w-11 rounded-2xl" />
@@ -311,13 +342,26 @@ function Home({ onLogout }) {
             <p className="text-xs text-white/50">مرحباً</p>
             <p className="truncate font-extrabold">{me?.name || '...'}</p>
           </div>
-          <button onClick={loadOrders} aria-label="تحديث" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
-            <RefreshCw size={18} />
+          <button
+            onClick={refreshAll}
+            aria-label="تحديث"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 transition active:scale-90 active:bg-white/25"
+          >
+            <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
           </button>
-          <button onClick={logout} aria-label="خروج" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
+          <button
+            onClick={() => setAskLogout(true)}
+            aria-label="خروج"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 transition active:scale-90 active:bg-white/25"
+          >
             <LogOut size={18} className="-scale-x-100" />
           </button>
         </div>
+        {flash && (
+          <p role="status" className="pointer-events-none fixed inset-x-0 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-50 mx-auto w-fit animate-fade-in rounded-full bg-lime px-5 py-2 text-sm font-extrabold text-navy shadow-lg">
+            {flash}
+          </p>
+        )}
         <nav className={`mt-4 grid gap-1 rounded-2xl bg-white/10 p-1 ${me?.supervisor ? 'grid-cols-4' : 'grid-cols-3'}`}>
           {[
             ['active', 'طلباتي'],

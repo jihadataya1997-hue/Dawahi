@@ -45,7 +45,12 @@ export default function Supervisor() {
   useEffect(() => {
     load()
     const id = setInterval(() => document.visibilityState === 'visible' && load(), 15000)
-    return () => clearInterval(id)
+    // زر التحديث فوق
+    window.addEventListener('zapp:refresh', load)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('zapp:refresh', load)
+    }
   }, [load])
 
   const setOnline = async (c) => {
