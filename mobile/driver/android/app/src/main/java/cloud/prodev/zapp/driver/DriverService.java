@@ -81,6 +81,7 @@ public class DriverService extends Service {
     private LocationManager locationManager;
     private volatile Location lastLocation;
     private long lastLocationSent = 0;
+    private Location lastSentLocation = null;
     private int failures = 0;
     private int ticks = 0;
 
@@ -233,8 +234,11 @@ public class DriverService extends Service {
         }
         long now = System.currentTimeMillis();
         Location l = lastLocation;
-        if (l != null && now - lastLocationSent >= LOCATION_MS) {
+        // منبعت الموقع كل 4 ثواني بس إذا تحرّك أكتر من 10 متر، وإذا واقف كل 30 ثانية (توفير نت للشبكات الضعيفة)
+        boolean moved = lastSentLocation == null || (l != null && l.distanceTo(lastSentLocation) >= 10);
+        if (l != null && now - lastLocationSent >= (moved ? LOCATION_MS : 30_000)) {
             lastLocationSent = now;
+            lastSentLocation = l;
             try {
                 JSONObject body = new JSONObject();
                 body.put("lat", l.getLatitude());

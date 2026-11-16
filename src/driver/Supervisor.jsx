@@ -44,7 +44,7 @@ export default function Supervisor() {
   }, [])
   useEffect(() => {
     load()
-    const id = setInterval(() => document.visibilityState === 'visible' && load(), 10000)
+    const id = setInterval(() => document.visibilityState === 'visible' && load(), 15000)
     return () => clearInterval(id)
   }, [load])
 
