@@ -19,7 +19,7 @@
 //    + حمولة الشب أقل من الحد) — إذا أي شرط فشل، القبول بيرفض بدل ما يتكرر.
 // ─────────────────────────────────────────────────────────────
 import { hasCredit, walletConfig } from './wallet.mjs'
-import { db, getSettings } from './db.mjs'
+import { db, getContent, getSettings } from './db.mjs'
 import { distanceKm, log, now } from './lib.mjs'
 import { notify } from './push.mjs'
 
@@ -138,7 +138,7 @@ export function dispatchOrder(orderId) {
     const d = JSON.parse(o.details)
     log('info', 'offer created', { orderId: o.id, courierId: offer.courier.id, load: offer.courier.load, round: o.dispatch_round })
     notify('courier', offer.courier.id, {
-      title: `🔔 طلب جديد ${num(o.id)} — ${CATEGORY_AR[o.category] || ''}`,
+      title: offerTitle(offer.courier.id, o),
       body: `${o.kind === 'gas' ? `${d.qty} جرة غاز` : (d.items || 'طلب مرفق بصورة').slice(0, 80)}\nلديك ${Math.round(timeoutMs / 1000)} ثانية لقبوله`,
       url: '/driver',
       tag: `offer-${o.id}`,
@@ -281,3 +281,15 @@ export const nudge = () =>
     } catch {}
     tick()
   })
+
+// عنوان إشعار العرض: "طلب جديد · 1.2 كم · 200 ل.س" (بدون عنوان الزبون قبل القبول)
+function offerTitle(courierId, o) {
+  const parts = ['🔔 طلب جديد']
+  const c = db.prepare('SELECT lat, lng, loc_at FROM couriers WHERE id = ?').get(courierId)
+  if (c?.lat != null && c.loc_at && Date.parse(c.loc_at) > Date.now() - 10 * 60_000) {
+    parts.push(`${Math.round(distanceKm({ lat: c.lat, lng: c.lng }, { lat: o.lat, lng: o.lng }) * 10) / 10} كم`)
+  }
+  if (o.delivery_fee != null) parts.push(`${new Intl.NumberFormat('en-US').format(o.delivery_fee)} ${getContent().currency_label || 'ل.س'}`)
+  if (parts.length === 1) parts.push(CATEGORY_AR[o.category] || '')
+  return parts.join(' · ')
+}

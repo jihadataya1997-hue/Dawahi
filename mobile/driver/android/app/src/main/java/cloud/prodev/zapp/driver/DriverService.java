@@ -377,17 +377,34 @@ public class DriverService extends Service {
         return sb.toString();
     }
 
+    private static String categoryLabel(String c) {
+        switch (c == null ? "" : c) {
+            case "restaurants": return "مطعم";
+            case "supermarket": return "سوبرماركت";
+            case "pharmacy": return "صيدلية";
+            case "library": return "مكتبة";
+            case "diesel": return "مازوت";
+            case "gas": return "غاز";
+            case "any": return "أي محل";
+            default: return "طلب";
+        }
+    }
+
     /* ───────── الرنّة ───────── */
     private void ring(JSONObject offer) {
         JSONObject order = offer.optJSONObject("order");
         String number = order != null ? order.optString("number", "") : "";
-        String text = "طلب جديد بانتظارك، افتح التطبيق لتقبله";
+        // العنوان: "طلب جديد · 1.2 كم · 200 ل.س" (بدون عنوان ولا اسم ولا رقم الزبون قبل القبول)
+        StringBuilder title = new StringBuilder("طلب جديد");
+        if (!offer.isNull("km") && offer.has("km")) title.append(" · ").append(offer.optDouble("km")).append(" كم");
+        if (offer.has("fee")) title.append(" · ").append(offer.optLong("fee")).append(" ").append(offer.optString("currency", "ل.س"));
+        String text = "افتح التطبيق لتشوف الطلب";
         if (order != null) {
             JSONObject d = order.optJSONObject("details");
+            String cat = categoryLabel(order.optString("category"));
             if ("gas".equals(order.optString("kind"))) text = "غاز · " + (d != null ? d.optInt("qty", 1) : 1) + " جرة";
-            else if (d != null && !d.optString("items").isEmpty()) text = d.optString("items");
-            String addr = order.optString("address", "");
-            if (!addr.isEmpty()) text += "\n" + addr;
+            else if (d != null && !d.optString("items").isEmpty() && d.opt("items") instanceof String) text = cat + " · " + d.optString("items");
+            else text = cat + (order.optBoolean("hasPhoto") ? " · طلب مرفق بصورة" : "");
         }
         PendingIntent open = openAppIntent();
         String offerId = offer.optString("offerId");
@@ -396,7 +413,7 @@ public class DriverService extends Service {
         NotificationCompat.Builder b = new NotificationCompat.Builder(this, CH_OFFERS)
             .setSmallIcon(R.drawable.ic_stat_zapp)
             .setColor(0xFF4B1FE0)
-            .setContentTitle("🔔 طلب جديد " + number)
+            .setContentTitle(title.toString())
             .setContentText(text)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
@@ -408,7 +425,7 @@ public class DriverService extends Service {
         Notification n;
         try {
             // شكل "مكالمة واردة": بيضل ظاهر مع زرين قبول ورفض
-            androidx.core.app.Person caller = new androidx.core.app.Person.Builder().setName("ZAPP · " + number).setImportant(true).build();
+            androidx.core.app.Person caller = new androidx.core.app.Person.Builder().setName(title.toString()).setImportant(true).build();
             b.setStyle(NotificationCompat.CallStyle.forIncomingCall(caller, declinePi, acceptPi).setIsVideo(false));
             n = b.build();
         } catch (Exception e) {

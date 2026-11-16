@@ -6,8 +6,8 @@ import { supervisorRoute, supFeed, takeReminders } from './supervisor.mjs'
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { db, getSettings, UPLOADS_DIR } from './db.mjs'
-import { HttpError, sha256, now, clientIp, rateLimit, readJson, send, log, toOrder, verifyPin } from './lib.mjs'
+import { db, getContent, getSettings, UPLOADS_DIR } from './db.mjs'
+import { HttpError, sha256, now, clientIp, rateLimit, readJson, send, log, toOrder, verifyPin, distanceKm } from './lib.mjs'
 import { hasSubscription, notify, removeSubscription, saveSubscription } from './push.mjs'
 import { acceptOffer, courierLoad, declineOffer, nudge } from './dispatch.mjs'
 
@@ -21,6 +21,13 @@ const STATUS_AR = {
   buying: 'عامل التوصيل يشتري أغراضك الآن',
   on_the_way: 'طلبك في الطريق إليك',
   delivered: 'تم توصيل طلبك',
+}
+
+// المسافة التقريبية من عامل التوصيل لعند الزبون (إذا موقعه معروف من آخر 10 دقايق)
+function offerKm(courierId, order) {
+  const c = db.prepare('SELECT lat, lng, loc_at FROM couriers WHERE id = ?').get(courierId)
+  if (c?.lat == null || !c.loc_at || Date.parse(c.loc_at) < Date.now() - 10 * 60_000) return null
+  return Math.round(distanceKm({ lat: c.lat, lng: c.lng }, { lat: order.lat, lng: order.lng }) * 10) / 10
 }
 
 function authCourier(req) {
@@ -139,11 +146,15 @@ export async function courierRoute(req, res, url) {
       ...(url.searchParams.get('native') === '1' ? { reminders: takeReminders(me.id) } : {}),
       offers: rows.map((r) => {
         const o = toOrder(r)
-        // قبل القبول: ما منعطي رقم الزبون ولا عنوانه التفصيلي
+        // قبل القبول: لا عنوان ولا موقع ولا اسم ولا رقم. بس تفاصيل الطلب، والمسافة التقريبية، وأجرة التوصيل
+        const { via, zone, peakExtra, ...details } = o.details || {}
         return {
           offerId: r.offer_id,
           expiresAt: r.expires_at,
-          order: { id: o.id, number: o.number, kind: o.kind, category: o.category, details: o.details, location: o.location, floor: o.floor, hasPhoto: o.hasPhoto, createdAt: o.createdAt },
+          km: offerKm(me.id, r),
+          fee: r.delivery_fee,
+          currency: getContent().currency_label || 'ل.س',
+          order: { id: o.id, number: o.number, kind: o.kind, category: o.category, details, hasPhoto: o.hasPhoto, createdAt: o.createdAt },
         }
       }),
     })

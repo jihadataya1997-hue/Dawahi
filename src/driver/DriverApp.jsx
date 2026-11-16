@@ -175,7 +175,7 @@ function ringOnce() {
     if (!audioCtx) return
     loadRing()
     if (!playRing()) return
-    navigator.vibrate?.([400, 150, 400])
+    navigator.vibrate?.([600, 200, 600, 200, 600])
   } catch {}
 }
 
@@ -582,15 +582,16 @@ function Offers({ onAccepted }) {
             setSoundBlocked(false)
             ringOnce()
           }}
-          className="w-full rounded-2xl bg-amber-50 p-3 text-sm font-bold text-amber-800"
+          className="fixed inset-x-5 bottom-[calc(env(safe-area-inset-bottom)+8.5rem)] z-[61] rounded-2xl bg-amber-50 p-3 text-sm font-bold text-amber-800 shadow-lg"
         >
           اضغط هنا لتفعيل صوت الرنين
         </button>
       )}
-      {live.map((o) => (
+      {live.slice(0, 1).map((o) => (
         <OfferCard
           key={o.offerId}
           offer={o}
+          more={live.length - 1}
           secondsLeft={Math.ceil((new Date(o.expiresAt).getTime() - (Date.now() + skew)) / 1000)}
           onDone={(accepted) => {
             setOffers((list) => list.filter((x) => x.offerId !== o.offerId))
@@ -603,10 +604,17 @@ function Offers({ onAccepted }) {
   )
 }
 
-function OfferCard({ offer, secondsLeft, onDone }) {
+// الطلب الجديد: شاشة كاملة متل المكالمة. قبل القبول ما في عنوان ولا اسم ولا رقم، بس الطلب والمسافة والأجرة
+const offerTotals = new Map() // offerId -> الوقت الكلي (لدائرة العداد)
+function OfferCard({ offer, secondsLeft, onDone, more = 0 }) {
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const o = offer.order
+  if (!offerTotals.has(offer.offerId)) offerTotals.set(offer.offerId, Math.max(secondsLeft, 1))
+  const total = offerTotals.get(offer.offerId)
+  const left = Math.max(0, secondsLeft)
+  const frac = Math.min(1, left / total)
+  const urgent = left <= 10
   const respond = async (action) => {
     setBusy(action)
     setError('')
@@ -621,44 +629,83 @@ function OfferCard({ offer, secondsLeft, onDone }) {
       setBusy('')
     }
   }
+  const store = o.kind === 'custom' ? (o.details.storeMode === 'specific' && o.details.storeName ? `من ${o.details.storeName}` : 'من أقرب محل') : ''
+  const what =
+    o.kind === 'gas'
+      ? `${o.details.qty} جرة غاز، ${o.details.gasType === 'buy' ? 'شراء جرة جديدة' : 'تبديل'}`
+      : o.kind === 'cart' && Array.isArray(o.details.items)
+        ? o.details.items.map((i) => `${i.qty} × ${i.name}`).join('، ')
+        : o.details.items || 'طلب مرفق بصورة'
+  const R = 52
+  const C = 2 * Math.PI * R
   return (
-    <article className="overflow-hidden rounded-3xl bg-navy text-white shadow-float ring-4 ring-brand animate-fade-in">
-      <div className="flex items-center gap-3 bg-brand px-4 py-3">
-        <span className="text-lg">🔔</span>
-        <span className="flex-1 font-extrabold">طلب جديد لك: {o.number}</span>
-        <span className="flex items-center gap-1 rounded-full bg-navy/30 px-2.5 py-1 font-en text-sm font-bold">
-          <Clock size={14} /> {secondsLeft}
-        </span>
-      </div>
-      <div className="p-4">
-        <p className="text-xs font-bold text-brand">
-          {CATEGORY[o.category]}
-          {o.kind === 'custom' && (o.details.storeMode === 'specific' && o.details.storeName ? `، من ${o.details.storeName}` : '، من أقرب محل')}
-        </p>
-        <p className="mt-1 line-clamp-4 whitespace-pre-line text-sm">
-          {o.kind === 'gas'
-            ? `${o.details.qty} جرة، ${o.details.gasType === 'buy' ? 'شراء جرة جديدة' : 'تبديل'}${o.floor ? `، الطابق ${o.floor}${o.details.elevator ? '' : ' بدون مصعد'}` : ''}`
-            : o.details.items || 'طلب مرفق بصورة'}
-        </p>
-        {error && <p className="mt-2 rounded-xl bg-rose-500/30 px-3 py-2 text-center text-xs font-bold">{error}</p>}
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <button
-            onClick={() => respond('decline')}
-            disabled={!!busy}
-            className="flex items-center justify-center gap-1 rounded-2xl bg-white/10 py-3.5 text-sm font-bold disabled:opacity-60"
-          >
-            {busy === 'decline' ? <LoaderCircle size={16} className="animate-spin" /> : <><X size={16} /> رفض</>}
-          </button>
-          <button
-            onClick={() => respond('accept')}
-            disabled={!!busy}
-            className="col-span-2 btn-zap flex items-center justify-center gap-2 bg-emerald-500 py-3.5 text-sm font-extrabold disabled:opacity-60"
-          >
-            {busy === 'accept' ? <LoaderCircle size={18} className="animate-spin" /> : <><Check size={18} /> قبول الطلب</>}
-          </button>
+    <div className="fixed inset-0 z-[60] flex flex-col bg-brand text-white animate-fade-in" role="alertdialog" aria-modal="true" aria-label={`طلب جديد ${o.number}`}>
+      <div className="pt-safe flex flex-1 flex-col overflow-y-auto px-5 pb-4">
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-sm font-bold text-white/80">
+            طلب جديد · <span className="font-en">{o.number}</span>
+          </span>
+          <span className="rounded-full bg-navy/25 px-3 py-1 text-xs font-bold">{CATEGORY[o.category] || 'طلب'}</span>
         </div>
+
+        <div className="relative mx-auto mt-6 h-36 w-36" role="timer" aria-label={`باقي ${left} ثانية`}>
+          <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden="true">
+            <circle cx="60" cy="60" r={R} fill="none" stroke="rgb(26 19 64 / 0.3)" strokeWidth="10" />
+            <circle
+              cx="60"
+              cy="60"
+              r={R}
+              fill="none"
+              stroke={urgent ? '#FB7185' : '#C6F432'}
+              strokeWidth="10"
+              strokeLinecap="round"
+              strokeDasharray={C}
+              strokeDashoffset={C * (1 - frac)}
+              style={{ transition: 'stroke-dashoffset 1s linear, stroke .3s' }}
+            />
+          </svg>
+          <span className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className={`num-zap text-5xl leading-none ${urgent ? 'text-rose-200' : ''}`}>{left}</span>
+            <span className="mt-1 text-xs text-white/70">ثانية</span>
+          </span>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-2.5">
+          <div className="rounded-2xl bg-navy/25 px-3 py-3 text-center">
+            <span className="block text-3xl font-black leading-tight">{offer.km != null ? <span className="font-en">{offer.km}</span> : '—'}</span>
+            <span className="text-xs text-white/75">{offer.km != null ? 'كم تقريباً لعند الزبون' : 'المسافة غير معروفة'}</span>
+          </div>
+          <div className="rounded-2xl bg-navy/25 px-3 py-3 text-center">
+            <span className="block text-3xl font-black leading-tight text-lime">
+              <span className="font-en">{new Intl.NumberFormat('en-US').format(offer.fee || 0)}</span>
+            </span>
+            <span className="text-xs text-white/75">أجرة التوصيل {offer.currency || currency.label}</span>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-2xl bg-white p-4 text-navy">
+          {store && <p className="text-xs font-bold text-brand">{store}</p>}
+          <p className="mt-1 line-clamp-5 whitespace-pre-line text-base font-bold leading-relaxed">{what}</p>
+          {o.hasPhoto && <p className="mt-2 text-xs font-bold text-navy/55">📷 فيه صورة مرفقة بالطلب</p>}
+          <p className="mt-2 text-[11px] text-navy/45">العنوان ومعلومات الزبون بتبين بعد القبول</p>
+        </div>
+        {more > 0 && <p className="mt-3 text-center text-xs font-bold text-white/80">وفي كمان {more} طلب ناطرك بعد هاد</p>}
+        {error && <p className="mt-3 rounded-xl bg-rose-500/40 px-3 py-2 text-center text-sm font-bold">{error}</p>}
       </div>
-    </article>
+
+      <div className="pb-safe px-5 pb-5">
+        <button
+          onClick={() => respond('accept')}
+          disabled={!!busy}
+          className="flex w-full items-center justify-center gap-2 rounded-3xl bg-lime py-5 text-xl font-black text-navy shadow-lg transition active:scale-[0.98] disabled:opacity-60"
+        >
+          {busy === 'accept' ? <LoaderCircle size={24} className="animate-spin" /> : <><Check size={26} strokeWidth={3} /> قبول الطلب</>}
+        </button>
+        <button onClick={() => respond('decline')} disabled={!!busy} className="mt-2 w-full py-3 text-sm font-bold text-white/75 disabled:opacity-60">
+          {busy === 'decline' ? <LoaderCircle size={16} className="mx-auto animate-spin" /> : 'رفض'}
+        </button>
+      </div>
+    </div>
   )
 }
 
