@@ -14,6 +14,7 @@ const named = (label, n) => (n ? `${label} «${n}»` : label)
 
 // [method, regex, (match, body) => وصف بالعربي]
 const RULES = [
+  ['POST', /^\/api\/courier\/sup\/couriers$/, (_, b) => named('إضافة عامل توصيل مع وثائقه (من تطبيق المشرف)', b.name)],
   ['POST', /^\/api\/admin\/orders\/new$/, (_, b) => `إدخال طلب للزبون ${b.name || ''} (${b.phone || ''})`],
   ['POST', /^\/api\/admin\/orders\/delete$/, (_, b) => `حذف طلبات نهائياً: ${(b.ids || []).map(orderNo).join('، ')}`],
   [null, /^\/api\/admin\/orders\/(\d+)\/status$/, (m, b) => `تغيير حالة الطلب ${orderNo(m[1])} إلى «${STATUS_AR[b.status] || b.status}»${b.reason ? ` (السبب: ${b.reason})` : ''}`],
@@ -134,7 +135,8 @@ export function listAudit(url) {
   const before = Number(q.get('before'))
   if (before > 0) (where.push('id < ?'), args.push(before))
   const staff = q.get('staff')
-  if (staff === 'owner') where.push('staff_id IS NULL')
+  if (staff === 'owner') where.push("staff_id IS NULL AND actor = 'المالك'")
+  else if (staff?.startsWith('name:')) (where.push('staff_id IS NULL AND actor = ?'), args.push(staff.slice(5, 80)))
   else if (/^\d+$/.test(staff || '')) (where.push('staff_id = ?'), args.push(Number(staff)))
   const text = (q.get('q') || '').trim().slice(0, 60)
   if (text) (where.push('(action LIKE ? OR detail LIKE ?)'), args.push(`%${text}%`, `%${text}%`))
@@ -144,7 +146,7 @@ export function listAudit(url) {
   const people = db.prepare('SELECT DISTINCT staff_id AS id, actor AS name FROM admin_audit ORDER BY actor').all()
   return {
     items: rows.map((r) => ({ id: r.id, at: r.at, staffId: r.staff_id, actor: r.actor, action: r.action, detail: r.detail ? JSON.parse(r.detail) : null, ip: r.ip })),
-    people: people.map((p) => ({ id: p.id === null ? 'owner' : p.id, name: p.name })),
+    people: people.map((p) => ({ id: p.id !== null ? p.id : p.name === 'المالك' ? 'owner' : `name:${p.name}`, name: p.name })),
     more: rows.length === limit,
   }
 }

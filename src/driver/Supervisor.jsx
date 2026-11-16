@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { AlertTriangle, ArrowLeftRight, Ban, Copy, LoaderCircle, MapPin, MessageCircle, Phone, Share2, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeftRight, Ban, Copy, LoaderCircle, MapPin, MessageCircle, Phone, Share2, UserPlus, X } from 'lucide-react'
 import { api, errText } from './driverApi'
 import { addHomeButton } from '../lib/mapHome'
+import AddCourier from './AddCourier'
 
 const HOME = [33.5403, 36.1931]
 const STATE = {
@@ -31,6 +32,7 @@ export default function Supervisor() {
   const [moving, setMoving] = useState(null) // الطلب يلي عم ينحوّل
   const [detail, setDetail] = useState(null) // الطلب المفتوح بالتفاصيل
   const [busy, setBusy] = useState('')
+  const [adding, setAdding] = useState(false) // إضافة عامل توصيل جديد
 
   const load = useCallback(async () => {
     try {
@@ -152,7 +154,12 @@ export default function Supervisor() {
       </section>
 
       <section>
-        <h2 className="mb-2 font-extrabold">السائقين ({data.couriers.length})</h2>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-extrabold">السائقين ({data.couriers.length})</h2>
+          <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-bold text-white">
+            <UserPlus size={15} /> إضافة عامل توصيل
+          </button>
+        </div>
         <ul className="divide-y divide-navy/5 rounded-2xl bg-white shadow-soft">
           {couriers.map((c) => (
             <li key={c.id} className="flex items-center gap-3 px-3 py-2.5">
@@ -187,6 +194,8 @@ export default function Supervisor() {
           ))}
         </ul>
       </section>
+
+      {adding && <AddCourier onClose={() => setAdding(false)} onAdded={load} />}
 
       {detail && (
         <OrderDetail

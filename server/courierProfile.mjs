@@ -2,7 +2,8 @@
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { db, MEDIA_DIR, PRIVATE_DIR } from './db.mjs'
-import { HttpError, str, readJson, send, log } from './lib.mjs'
+import { randomInt } from 'node:crypto'
+import { HttpError, bad, str, readJson, send, log, isPhone, isFullName, hashPin } from './lib.mjs'
 import { saveImage } from './content.mjs'
 
 const DOCS = { front: 'id_front', back: 'id_back', license: 'license_doc' }
@@ -77,4 +78,43 @@ export async function courierProfileRoute(req, res, url, need) {
     return true
   }
   return false
+}
+
+/**
+ * عامل توصيل جديد مع وثائقه (بيستعملها المشرف من تطبيق التوصيل).
+ * الرمز السري بيتولّد هون (6 أرقام) وبيرجع مرة وحدة بس لحتى المشرف يبعته للعامل.
+ */
+export async function createCourierWithDocs(b) {
+  const name = str(b.name, 60, 'name', { required: true }).replace(/\s+/g, ' ')
+  if (!isFullName(name)) throw bad('FULL_NAME', 'Enter first and last name', 'name')
+  const phone = String(b.phone || '').replace(/\s/g, '')
+  if (!isPhone(phone)) throw bad('INVALID_PHONE', 'Phone must be 09xxxxxxxx', 'phone')
+  if (db.prepare('SELECT 1 FROM couriers WHERE phone = ?').get(phone)) throw new HttpError(409, 'PHONE_TAKEN', 'This phone is already a courier')
+  if (!b.docs?.front || !b.docs?.back) throw bad('DOCS_REQUIRED', 'ID card front and back are required', 'docs')
+  const vehicle = str(b.vehicle, 80, 'vehicle')
+  const nationalId = str(b.nationalId, 30, 'nationalId')
+  const homeAddress = str(b.homeAddress, 200, 'homeAddress')
+  const saved = []
+  try {
+    const photo = b.photo ? await saveImage(b.photo) : null
+    if (photo) saved.push(join(MEDIA_DIR, photo))
+    const docs = {}
+    for (const [k, col] of Object.entries(DOCS)) {
+      if (!b.docs[k]) continue
+      docs[col] = await saveImage(b.docs[k], PRIVATE_DIR)
+      saved.push(join(PRIVATE_DIR, docs[col]))
+    }
+    const pin = String(randomInt(100000, 1000000))
+    const r = db
+      .prepare(
+        `INSERT INTO couriers (name, phone, pin_hash, photo, vehicle, national_id, home_address, id_front, id_back, license_doc)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(name, phone, hashPin(pin), photo, vehicle, nationalId, homeAddress, docs.id_front, docs.id_back, docs.license_doc ?? null)
+    return { id: Number(r.lastInsertRowid), name, phone, pin }
+  } catch (err) {
+    // إذا فشل شي، منمسح الصور يلي انحفظت
+    await Promise.all(saved.map((p) => rm(p, { force: true }).catch(() => {})))
+    throw err
+  }
 }

@@ -6,6 +6,9 @@ import { releasePerks } from './promo.mjs'
 import { notify } from './push.mjs'
 import { cancelOffers, nudge } from './dispatch.mjs'
 import { liveSnapshot } from './live.mjs'
+import { createCourierWithDocs } from './courierProfile.mjs'
+import { recordAudit } from './audit.mjs'
+import { rateLimit } from './lib.mjs'
 
 const num = (id) => `D-${1000 + id}`
 const ALERT_AFTER_MIN = 5
@@ -14,6 +17,17 @@ export async function supervisorRoute(req, res, url, me) {
   if (!me.is_supervisor) throw new HttpError(403, 'FORBIDDEN', 'Supervisor only')
   const { pathname } = url
   const m = req.method
+
+  // المشرف بيضيف عامل توصيل جديد مع وثائقه، وبيرجعله الرمز السري ليبعته للعامل
+  if (m === 'POST' && pathname === '/api/courier/sup/couriers') {
+    rateLimit(`sup-add:${me.id}`, 20, 24 * 3600 * 1000)
+    const body = await readJson(req)
+    const c = await createCourierWithDocs(body)
+    log('info', 'courier created by supervisor', { courierId: c.id, supervisorId: me.id })
+    recordAudit(req, { staffId: null, name: `المشرف ${me.name}` }, 'POST', pathname, { name: c.name, phone: c.phone, vehicle: body.vehicle || '' })
+    notify('admin', 0, { title: '👤 عامل توصيل جديد', body: `${me.name} أضاف ${c.name} (${c.phone})`, url: '/admin', tag: `courier-${c.id}` })
+    return send(res, 201, { courier: c })
+  }
 
   if (m === 'GET' && pathname === '/api/courier/sup/overview') {
     const snap = liveSnapshot()
