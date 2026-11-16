@@ -122,6 +122,25 @@ export async function courierRoute(req, res, url) {
   // موقع العامل للمراقبة الحية
   if (m === 'POST' && pathname === '/api/courier/location') return courierLocation(req, res, me)
 
+  // تطبيق الأندرويد بيبعت حالة إعدادات الموبايل (لحتى المشرف يعرف مين ناقصه شي)
+  if (m === 'POST' && pathname === '/api/courier/device') {
+    const b = await readJson(req)
+    const flag = (v) => (v === true ? true : v === false ? false : null)
+    const d = {
+      notifications: flag(b.notifications),
+      location: flag(b.location),
+      gps: flag(b.gps),
+      battery: flag(b.batteryExempt),
+      fullScreen: flag(b.fullScreen),
+      autostart: flag(b.autostart),
+      brand: String(b.brand || '').slice(0, 30),
+      android: Number.isInteger(b.sdk) ? b.sdk : null,
+      version: String(b.version || '').slice(0, 20),
+    }
+    db.prepare('UPDATE couriers SET device = ?, device_at = ? WHERE id = ?').run(JSON.stringify(d), now(), me.id)
+    return send(res, 200, { ok: true })
+  }
+
   // متاح / غير متاح لاستقبال الطلبات
   if (m === 'POST' && pathname === '/api/courier/online') {
     const { online } = await readJson(req)

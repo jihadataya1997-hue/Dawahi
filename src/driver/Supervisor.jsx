@@ -277,6 +277,11 @@ export default function Supervisor() {
                         : "ما فتح التطبيق بعد"}
                     {c.orders ? ` · معه ${c.orders} طلب` : ""}
                   </span>
+                  {c.setupMissing?.length > 0 && (
+                    <span className="mt-0.5 block truncate rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                      ⚠️ ناقصه: {c.setupMissing.join("، ")}
+                    </span>
+                  )}
                   <span className="block text-[11px] font-bold text-brand">
                     عرض الملف الكامل
                   </span>

@@ -459,6 +459,11 @@ const MIGRATIONS = [
   ALTER TABLE orders ADD COLUMN rated_at TEXT;
   CREATE INDEX idx_orders_rated ON orders(rated_at) WHERE rating IS NOT NULL;
   `,
+  `
+  -- حالة إعدادات موبايل عامل التوصيل (الإشعارات، الموقع، الخلفية...) ليشوفها المشرف
+  ALTER TABLE couriers ADD COLUMN device TEXT;
+  ALTER TABLE couriers ADD COLUMN device_at TEXT;
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

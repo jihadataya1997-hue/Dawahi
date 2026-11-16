@@ -302,6 +302,48 @@ export default function CourierFile({ courierId, onClose }) {
               {c.notes && <Row l="ملاحظات" v={c.notes} />}
             </div>
 
+            {/* إعدادات الموبايل */}
+            <div className="rounded-2xl bg-white p-3 shadow-soft">
+              <p className="text-sm font-extrabold">جاهزية الموبايل</p>
+              {c.device ? (
+                <>
+                  <ul className="mt-2 grid grid-cols-2 gap-1.5 text-xs font-bold">
+                    {[
+                      ["notifications", "الإشعارات"],
+                      ["location", "إذن الموقع"],
+                      ["gps", "الـGPS"],
+                      ["battery", "الشغل بالخلفية"],
+                      ["autostart", "التشغيل التلقائي"],
+                      ["fullScreen", "شاشة القفل"],
+                    ]
+                      .filter(([k]) => c.device[k] != null)
+                      .map(([k, l]) => (
+                        <li
+                          key={k}
+                          className={`rounded-lg px-2 py-1.5 ${c.device[k] ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
+                        >
+                          {c.device[k] ? "✓" : "✗"} {l}
+                        </li>
+                      ))}
+                  </ul>
+                  <p className="mt-2 text-[11px] text-navy/45">
+                    {[
+                      c.device.brand,
+                      c.device.android ? `أندرويد API ${c.device.android}` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}{" "}
+                    · آخر فحص {ago(c.device.at)}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-xs text-navy/50">
+                  ما منعرف لهلق. بتبين لما يفتح النسخة الجديدة من تطبيق عامل
+                  التوصيل.
+                </p>
+              )}
+            </div>
+
             {/* الوثائق */}
             <div className="rounded-2xl bg-white p-3 shadow-soft">
               <p className="mb-2 text-sm font-extrabold">الوثائق</p>

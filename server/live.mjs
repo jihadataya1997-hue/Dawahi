@@ -152,7 +152,7 @@ export function liveSnapshot() {
   for (const o of active) if (o.courierId) load.set(o.courierId, (load.get(o.courierId) || 0) + 1)
   const freshCut = Date.now() - LOC_FRESH_MS
   const couriers = db
-    .prepare('SELECT id, name, phone, online, lat, lng, loc_at, is_supervisor, last_seen_at FROM couriers WHERE active = 1 ORDER BY name')
+    .prepare('SELECT id, name, phone, online, lat, lng, loc_at, is_supervisor, last_seen_at, device FROM couriers WHERE active = 1 ORDER BY name')
     .all()
     .map((c) => {
       const n = load.get(c.id) || 0
@@ -167,6 +167,7 @@ export function liveSnapshot() {
         appOpen: openNow('courier', c.id),
         lastSeen: lastSeenOf('courier', c.id, c.last_seen_at),
         location: c.lat != null ? { lat: c.lat, lng: c.lng, at: c.loc_at, fresh: !!fresh } : null,
+        setupMissing: setupMissing(c.device),
       }
     })
 
@@ -195,5 +196,17 @@ export function liveSnapshot() {
         .all()
         .map((m) => ({ id: m.id, name: m.name, role: m.role, open: openNow('staff', m.id), lastSeen: lastSeenOf('staff', m.id, m.last_seen_at) })),
     ],
+  }
+}
+
+// شو ناقص من إعدادات موبايل عامل التوصيل (null = ما منعرف، يعني ما بلّغ تطبيقه لهلق)
+export function setupMissing(device) {
+  if (!device) return null
+  try {
+    const d = JSON.parse(device)
+    const names = { notifications: 'الإشعارات', location: 'الموقع', gps: 'الـGPS', battery: 'الشغل بالخلفية' }
+    return Object.entries(names).filter(([k]) => d[k] === false).map(([, v]) => v)
+  } catch {
+    return null
   }
 }

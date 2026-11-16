@@ -1,13 +1,17 @@
 package cloud.prodev.zapp.driver;
 
 import android.Manifest;
+import android.content.ComponentName;
 import android.content.Context;
+import android.location.LocationManager;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.location.LocationManagerCompat;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -64,7 +68,15 @@ public class ZappDriverPlugin extends Plugin {
         JSObject r = new JSObject();
         r.put("running", DriverService.running);
         r.put("location", getPermissionState("location") == PermissionState.GRANTED);
-        r.put("notifications", Build.VERSION.SDK_INT < 33 || getPermissionState("notifications") == PermissionState.GRANTED);
+        // الإشعارات: الإذن + إنها مو مسكّرة من إعدادات التطبيق
+        r.put("notifications", NotificationManagerCompat.from(getContext()).areNotificationsEnabled()
+            && (Build.VERSION.SDK_INT < 33 || getPermissionState("notifications") == PermissionState.GRANTED));
+        // الموقع مفتوح بالموبايل كله (الـGPS)
+        LocationManager lm = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
+        r.put("gps", lm == null || LocationManagerCompat.isLocationEnabled(lm));
+        r.put("brand", Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase());
+        r.put("sdk", Build.VERSION.SDK_INT);
+        r.put("v2", true);
         r.put("batteryExempt", isBatteryExempt());
         r.put("fullScreen", canFullScreen());
         call.resolve(r);
@@ -104,6 +116,80 @@ public class ZappDriverPlugin extends Plugin {
             } catch (Exception ignored) {}
         }
         call.resolve();
+    }
+
+    private void open(Intent i) throws Exception {
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(i);
+    }
+
+    private Intent appDetails() {
+        Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+        i.setData(Uri.parse("package:" + getContext().getPackageName()));
+        return i;
+    }
+
+    /** صفحة إعدادات التطبيق (الأذونات) — لما يكون رافض الإذن وأندرويد ما عاد يسأل */
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        try { open(appDetails()); } catch (Exception ignored) {}
+        call.resolve();
+    }
+
+    /** صفحة إشعارات التطبيق مباشرة */
+    @PluginMethod
+    public void notificationSettings(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                i.putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+                open(i);
+            } else open(appDetails());
+        } catch (Exception e) {
+            try { open(appDetails()); } catch (Exception ignored) {}
+        }
+        call.resolve();
+    }
+
+    /** تشغيل الموقع (GPS) بالموبايل */
+    @PluginMethod
+    public void gpsSettings(PluginCall call) {
+        try { open(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)); } catch (Exception ignored) {}
+        call.resolve();
+    }
+
+    /** شاومي وهواوي وأوبو وفيفو وغيرن: صفحة "التشغيل التلقائي" الخاصة بالشركة */
+    @PluginMethod
+    public void autostartSettings(PluginCall call) {
+        String[][] targets = {
+            { "com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity" },
+            { "com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity" },
+            { "com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity" },
+            { "com.hihonor.systemmanager", "com.hihonor.systemmanager.startupmgr.ui.StartupNormalAppListActivity" },
+            { "com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity" },
+            { "com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity" },
+            { "com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity" },
+            { "com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity" },
+            { "com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager" },
+            { "com.transsion.phonemaster", "com.cyin.himgr.autostart.AutoStartActivity" },
+            { "com.asus.mobilemanager", "com.asus.mobilemanager.autostart.AutoStartActivity" },
+        };
+        boolean opened = false;
+        for (String[] t : targets) {
+            try {
+                Intent i = new Intent();
+                i.setComponent(new ComponentName(t[0], t[1]));
+                open(i);
+                opened = true;
+                break;
+            } catch (Exception ignored) {}
+        }
+        if (!opened) {
+            try { open(appDetails()); } catch (Exception ignored) {}
+        }
+        JSObject r = new JSObject();
+        r.put("opened", opened);
+        call.resolve(r);
     }
 
     private boolean isBatteryExempt() {

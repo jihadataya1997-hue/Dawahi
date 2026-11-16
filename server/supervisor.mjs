@@ -378,6 +378,7 @@ function courierFile(id) {
       location: locFresh ? { lat: c.lat, lng: c.lng, at: c.loc_at, accuracy: c.loc_accuracy } : null,
       locationAt: c.loc_at,
       wallet: courierWallet(id),
+      device: c.device ? { ...JSON.parse(c.device), at: c.device_at } : null,
     },
     stats: {
       today: delivered(today),
