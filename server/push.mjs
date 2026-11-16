@@ -23,11 +23,22 @@ const { pub, priv } = vapidKeys()
 webpush.setVapidDetails('https://zapp.prodev.cloud', pub, priv)
 export const VAPID_PUBLIC_KEY = pub
 
+// السيرفر بيبعت طلبات لعنوان الاشتراك، فمنقبل بس خدمات الإشعارات المعروفة (لا عناوين داخلية ولا مواقع غريبة)
+const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^android\.googleapis\.com$/, /(^|\.)push\.services\.mozilla\.com$/, /(^|\.)notify\.windows\.com$/, /(^|\.)push\.apple\.com$/]
+function isPushService(endpoint) {
+  try {
+    const u = new URL(endpoint)
+    return u.protocol === 'https:' && !u.port && PUSH_HOSTS.some((re) => re.test(u.hostname))
+  } catch {
+    return false
+  }
+}
+
 export function saveSubscription(ownerType, ownerId, sub) {
   const endpoint = sub?.endpoint
   const p256dh = sub?.keys?.p256dh
   const auth = sub?.keys?.auth
-  if (typeof endpoint !== 'string' || !/^https:\/\//.test(endpoint) || endpoint.length > 1000)
+  if (typeof endpoint !== 'string' || endpoint.length > 1000 || !isPushService(endpoint))
     throw bad('INVALID', 'Invalid subscription', 'subscription')
   if (typeof p256dh !== 'string' || typeof auth !== 'string' || p256dh.length > 200 || auth.length > 100)
     throw bad('INVALID', 'Invalid subscription', 'subscription')
@@ -39,9 +50,10 @@ export function saveSubscription(ownerType, ownerId, sub) {
   ).run(ownerType, ownerId, endpoint, p256dh, auth)
 }
 
-export function removeSubscription(endpoint) {
+export function removeSubscription(endpoint, ownerType, ownerId) {
   if (typeof endpoint !== 'string') throw new HttpError(422, 'INVALID', 'endpoint required')
-  db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint)
+  // كل حدا بيقدر يشيل اشتراكه هو بس
+  db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND owner_type = ? AND owner_id = ?').run(endpoint, ownerType, ownerId)
 }
 
 export const hasSubscription = (ownerType, ownerId) =>

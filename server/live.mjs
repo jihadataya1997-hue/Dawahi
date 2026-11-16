@@ -46,7 +46,7 @@ const installStmt = db.prepare('INSERT OR IGNORE INTO app_installs (device_id, a
 
 /** POST /api/presence — نبضة من أي تطبيق كل ~30 ثانية */
 export async function presenceRoute(req, res) {
-  rateLimit(`presence:${clientIp(req)}`, 120, 60 * 1000)
+  rateLimit(`presence:${clientIp(req)}`, 30, 60 * 1000)
   const body = await readJson(req)
   const device = body.deviceId
   const app = body.app

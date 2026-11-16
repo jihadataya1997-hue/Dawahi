@@ -338,6 +338,8 @@ function Peak({ data, onSaved }) {
 }
 
 /* ───────── المناطق البعيدة ───────── */
+// اسم المنطقة بينكتب كـ HTML بالخريطة، فمنهرّب الرموز
+const escHtml = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 const ZONE_CENTER = [33.5403, 36.1931] // ضاحية قدسيا
 function Zones({ data, onSaved }) {
   const [zones, setZones] = useState(data.controls.zones || [])
@@ -387,7 +389,7 @@ function Zones({ data, onSaved }) {
       if (z.points.length >= 2)
         poly = L.polygon(z.points, { color: on ? '#4B1FE0' : '#8b84b0', weight: on ? 3 : 2, fillOpacity: on ? 0.25 : 0.1, dashArray: z.enabled === false ? '6 6' : null, interactive: !on })
           .on('click', () => setSel(i))
-          .bindTooltip(`${z.name || 'بدون اسم'} +${z.extra || 0}`, { direction: 'center', permanent: z.points.length >= 3, className: 'zone-tip' })
+          .bindTooltip(`${escHtml(z.name || 'بدون اسم')} +${Number(z.extra) || 0}`, { direction: 'center', permanent: z.points.length >= 3, className: 'zone-tip' })
           .addTo(g)
       if (!on) return
       // كل نقطة بتتسحب لمكان جديد، وكبسة مطوّلة (أو كليك يمين) بتحذفها

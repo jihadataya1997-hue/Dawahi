@@ -137,7 +137,8 @@ export function hashPin(pin) {
 export function verifyPin(pin, stored) {
   if (!isPin(pin) || typeof stored !== 'string' || !stored.includes(':')) return false
   const [salt, hash] = stored.split(':')
-  return _tse(Buffer.from(hash, 'hex'), scryptSync(pin, salt, 32))
+  const want = Buffer.from(hash, 'hex')
+  return want.length === 32 && _tse(want, scryptSync(pin, salt, 32))
 }
 
 // كلمات سر فريق الإدارة (8 أحرف على الأقل) — تُخزّن مشفّرة فقط
@@ -149,7 +150,8 @@ export function hashSecret(secret) {
 export function verifySecret(secret, stored) {
   if (typeof secret !== 'string' || !secret || typeof stored !== 'string' || !stored.includes(':')) return false
   const [salt, hash] = stored.split(':')
-  return _tse(Buffer.from(hash, 'hex'), scryptSync(secret, salt, 32))
+  const want = Buffer.from(hash, 'hex')
+  return want.length === 32 && _tse(want, scryptSync(secret, salt, 32))
 }
 
 // الاسم الكامل: الاسم والكنية على الأقل (كلمتان، كل كلمة حرفان أو أكثر)

@@ -186,6 +186,7 @@ async function adminRouteInner(req, res, url) {
     const body = await readJson(req)
     const user = String(body.username ?? body.phone ?? '').trim()
     if (!user) throw bad('USERNAME_REQUIRED', 'Enter your username', 'username')
+    rateLimit(`admin-login-user:${user.toLowerCase().slice(0, 40)}`, 20, 15 * 60 * 1000)
     const ownerUser = db.prepare("SELECT value FROM secrets WHERE key = 'owner_username'").get()?.value || 'admin'
     let staffId = null
     let subject
@@ -729,13 +730,14 @@ async function adminRouteInner(req, res, url) {
 
   // تنبيهات المدير (طلب جديد)
   if (pathname === '/api/admin/push') {
+    need('orders.view') // إشعارات الإدارة فيها أسماء الزبائن
     const body = await readJson(req)
     if (m === 'POST') {
       saveSubscription('admin', me.staffId ?? 0, body.subscription)
       return send(res, 200, { ok: true })
     }
     if (m === 'DELETE') {
-      removeSubscription(body.endpoint)
+      removeSubscription(body.endpoint, 'admin', me.staffId ?? 0)
       return send(res, 204)
     }
   }

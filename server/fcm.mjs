@@ -46,7 +46,10 @@ export function saveNativeToken(ownerType, ownerId, token) {
      ON CONFLICT(token) DO UPDATE SET owner_type = excluded.owner_type, owner_id = excluded.owner_id, updated_at = excluded.updated_at`
   ).run(token, ownerType, ownerId)
 }
-export const removeNativeToken = (token) => db.prepare('DELETE FROM native_push_tokens WHERE token = ?').run(token)
+export const removeNativeToken = (token, ownerType, ownerId) =>
+  ownerType
+    ? db.prepare('DELETE FROM native_push_tokens WHERE token = ? AND owner_type = ? AND owner_id = ?').run(token, ownerType, ownerId)
+    : db.prepare('DELETE FROM native_push_tokens WHERE token = ?').run(token)
 export const hasNativeToken = (ownerType, ownerId) =>
   !!db.prepare('SELECT 1 FROM native_push_tokens WHERE owner_type = ? AND owner_id = ?').get(ownerType, ownerId)
 

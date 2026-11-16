@@ -474,7 +474,7 @@ async function route(req, res, url) {
       return send(res, 200, { ok: true })
     }
     if (m === 'DELETE') {
-      removeSubscription(body.endpoint)
+      removeSubscription(body.endpoint, 'customer', user.id)
       return send(res, 204)
     }
   }
@@ -489,7 +489,7 @@ async function route(req, res, url) {
       return send(res, 200, { ok: true })
     }
     if (m === 'DELETE') {
-      removeNativeToken(token)
+      removeNativeToken(token, 'customer', user.id)
       return send(res, 204)
     }
   }

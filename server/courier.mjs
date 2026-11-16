@@ -80,6 +80,8 @@ export async function courierRoute(req, res, url) {
     const body = await readJson(req)
     const phone = String(body.phone || '').replace(/\s/g, '')
     const pin = String(body.pin || '')
+    // الرمز 4-6 أرقام بس، فمنحدد المحاولات لكل رقم كمان (مش بس لكل جهاز) لحتى ما حدا يجرّب كل الأرقام من أجهزة كتيرة
+    if (/^09\d{8}$/.test(phone)) rateLimit(`courier-login-phone:${phone}`, 10, 60 * 60 * 1000)
     const c = db.prepare('SELECT id, name, phone, pin_hash, active FROM couriers WHERE phone = ?').get(phone)
     if (!c || !c.active || !verifyPin(pin, c.pin_hash)) {
       log('warn', 'courier login failed', { ip: clientIp(req) })
@@ -174,7 +176,7 @@ export async function courierRoute(req, res, url) {
       return send(res, 200, { ok: true })
     }
     if (m === 'DELETE') {
-      removeSubscription(body.endpoint)
+      removeSubscription(body.endpoint, 'courier', me.id)
       return send(res, 204)
     }
   }
