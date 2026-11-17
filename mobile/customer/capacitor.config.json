@@ -1,6 +1,6 @@
 {
   "appId": "cloud.prodev.zapp",
-  "appName": "ZAPP",
+  "appName": "ZAPP Delivery",
   "webDir": "www",
   "server": {
     "url": "https://zapp.prodev.cloud/",
