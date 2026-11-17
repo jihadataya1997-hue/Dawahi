@@ -80,6 +80,7 @@ public class DriverService extends Service {
     private Vibrator vibrator;
     private LocationManager locationManager;
     private volatile Location lastLocation;
+    private volatile boolean locationStarted = false;
     private long lastLocationSent = 0;
     private Location lastSentLocation = null;
     private int failures = 0;
@@ -180,16 +181,39 @@ public class DriverService extends Service {
     @SuppressLint("MissingPermission")
     private void startLocation() {
         if (!hasLocationPermission()) return;
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (locationManager == null) locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (locationManager == null) return;
         try {
-            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER))
+            locationManager.removeUpdates(locationListener);
+            // آخر موقع معروف بالموبايل (إذا جديد) لحتى ما نستنى أول قراءة
+            for (String p : new String[] { LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER }) {
+                try {
+                    Location k = locationManager.getLastKnownLocation(p);
+                    if (k != null && System.currentTimeMillis() - k.getTime() < 120_000 && (lastLocation == null || k.getTime() > lastLocation.getTime())) lastLocation = k;
+                } catch (Exception ignored) {}
+            }
+            boolean any = false;
+            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3_000, 5, locationListener, Looper.getMainLooper());
-            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER))
+                any = true;
+            }
+            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                 locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5_000, 10, locationListener, Looper.getMainLooper());
+                any = true;
+            }
+            // مواقع التطبيقات التانية (خرائط غوغل...) ببلاش
+            locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 3_000, 5, locationListener, Looper.getMainLooper());
+            locationStarted = any;
         } catch (Exception e) {
             Log.w(TAG, "location updates failed", e);
         }
+    }
+
+    /** إذا الإذن انعطى بعد ما اشتغلت الخدمة، أو الـGPS انفتح بعدين، أو ما إجا موقع من دقيقتين: منعيد التسجيل */
+    private void ensureLocation() {
+        Location l = lastLocation;
+        boolean stale = l == null || System.currentTimeMillis() - l.getTime() > 120_000;
+        if (!locationStarted || stale) main.post(this::startLocation);
     }
 
     /* ───────── الدورة: عروض الطلبات + الموقع ───────── */
@@ -204,6 +228,7 @@ public class DriverService extends Service {
             pollOffers(base, token);
             failures = 0;
             // كل دقيقة: إذا صار "غير متاح" (من التطبيق أو تلقائياً بعد تجاهل عروض) منوقف الخدمة
+            if (ticks % 8 == 0) ensureLocation();
             if (++ticks % 15 == 1) {
                 JSONObject me = new JSONObject(request("GET", base + "/api/courier/me", token, null)).optJSONObject("courier");
                 boolean sup = me != null && me.optBoolean("supervisor", false);

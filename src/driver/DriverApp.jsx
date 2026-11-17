@@ -330,7 +330,8 @@ function Home({ onLogout }) {
 
   const zapp = nativePlugin("ZappDriver"); // تطبيق الأندرويد: خدمة خلفية بترنّ وبترسل الموقع
   useWakeLock(!!me?.online && !zapp);
-  useShareLocation(!!me?.online && !zapp);
+  // بالويب: هاد الطريق الوحيد. بتطبيق الأندرويد: كمان منبعت من الشاشة وهي مفتوحة، احتياط إذا خدمة الخلفية ما قدرت تجيب موقع
+  useShareLocation(!!me?.online);
   useEffect(() => {
     if (!zapp || !me) return;
     // المشرف: الخدمة بتضل شغّالة حتى لو مو متاح، لحتى يوصله إشعار بكل طلب جديد

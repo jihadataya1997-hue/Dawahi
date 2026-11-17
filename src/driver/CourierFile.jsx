@@ -335,6 +335,16 @@ export default function CourierFile({ courierId, onClose }) {
                       .join(" · ")}{" "}
                     · آخر فحص {ago(c.device.at)}
                   </p>
+                  {c.device.gps == null && (
+                    <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] font-bold text-amber-800">
+                      معه نسخة قديمة من التطبيق، فما منقدر نعرف إذا الـGPS مفتوح. خليه ينزّل آخر نسخة.
+                    </p>
+                  )}
+                  {!c.location && (
+                    <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-[11px] font-bold text-rose-700">
+                      موبايله ما عم يبعت موقع. خليه يتأكد إنو الموقع (GPS) مفتوح بالموبايل، وينزّل آخر نسخة ويفتح التطبيق.
+                    </p>
+                  )}
                 </>
               ) : (
                 <p className="mt-1 text-xs text-navy/50">
