@@ -43,7 +43,9 @@ export default function UpdateNotice({ driver = false }) {
         <b className="block text-sm">في نسخة جديدة من التطبيق</b>
         نزّلها وثبّتها فوق القديمة، حساباتك بتضل متل ما هي.
       </span>
-      <a href={driver ? '/apk/zapp-driver.apk' : '/apk/zapp.apk'} className="shrink-0 rounded-xl bg-lime px-3 py-2 text-xs font-black text-navy">
+      {/* جوّا التطبيق الـWebView ما بيعرف ينزّل ملفات. رابط http (مو https) بيخلي التطبيق يفتحه بمتصفح
+          الموبايل (Chrome) اللي بينزّل الملف، والسيرفر بيحوّله لحاله لـhttps. بيشتغل حتى عالنسخ القديمة */}
+      <a href={`http://${location.host}/apk/${driver ? 'zapp-driver.apk' : 'zapp.apk'}`} className="shrink-0 rounded-xl bg-lime px-3 py-2 text-xs font-black text-navy">
         تحديث
       </a>
       <button onClick={dismiss} aria-label="لاحقاً" className="shrink-0 p-1 text-white/60">
