@@ -71,10 +71,10 @@ export default function CustomOrderSheet({ open, initialCategory, initialText, i
   const ar = lang === 'ar'
   const L = (a, e) => (ar ? a : e)
   const { user } = useAuth()
-  const { createOrder, orders, loaded } = useOrders()
+  const { createOrder, orders, loaded, firstFree: serverFirstFree } = useOrders()
   const { pricing, money, services, peak, firstOrderFree, zones } = useAppConfig()
   // أول طلب للزبون: التوصيل ببلاش (السيرفر بيطبّقها لحاله)
-  const firstFree = !!firstOrderFree && loaded && !orders.some((o) => o.status !== 'cancelled') && pricing.deliveryFee > 0
+  const firstFree = !!firstOrderFree && serverFirstFree && pricing.deliveryFee > 0
   const { addresses, defaultAddress, add: addAddress } = useAddresses()
   const quick = QUICK.filter((q) => services.some((s) => s.id === q.id && !s.paused))
   const [clientKey, setClientKey] = useState('')

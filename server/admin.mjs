@@ -6,7 +6,7 @@ import { db, getSettings, UPLOADS_DIR } from './db.mjs'
 import { HttpError, bad, sha256, now, str, isPhone, isPin, hashPin, isPassword, hashSecret, verifySecret, clientIp, rateLimit, readJson, send, log, toOrder, ratingOf } from './lib.mjs'
 import { hasSubscription, notify, removeSubscription, saveSubscription } from './push.mjs'
 import { BACKUP_DIR, isBackupName, listBackups, runBackup } from './backup.mjs'
-import { cancelOffers, courierLoad, nudge } from './dispatch.mjs'
+import { cancelOffers, courierLoad, nudge, offerTrail } from './dispatch.mjs'
 import { contentAdminRoute } from './content.mjs'
 import { markSeen } from './live.mjs'
 import { adminStoresRoute } from './stores.mjs'
@@ -144,6 +144,7 @@ const pendingOffer = (orderId) =>
 const withCustomer = (r, events) => ({
   ...toOrder(r, events),
   offer: r.status === 'new' ? pendingOffer(r.id) : null,
+  tried: r.status === 'new' ? offerTrail(r.id) : [],
   customer: { name: r.customer_name, phone: r.customer_phone },
   courierPhone: r.courier_phone || '',
   photo: r.photo || null,

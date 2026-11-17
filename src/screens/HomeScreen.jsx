@@ -16,7 +16,7 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
   const { areaName, services, pricing, money, peak, firstOrderFree, home = {} } = useAppConfig()
   const show = (k) => home[k] !== false // كل قسم ظاهر إلا إذا الإدارة خفته
   const ar = lang === 'ar'
-  const { orders, loaded } = useOrders()
+  const { orders, loaded, firstFree } = useOrders()
   const area = ar ? areaName || 'ضاحية قدسيا' : 'Qudsaya Suburb'
   // اختصارات سريعة: كلها بتفتح نفس "اكتب طلبك" مع نوع المحل محدد (أو طلب الغاز)
   const quick = QUICK.filter((q) => services.some((s) => s.id === q.id))
@@ -79,7 +79,7 @@ export default function HomeScreen({ activeOrder, unread, onBell, onOrder, onSer
             {ar ? 'اكتب طلبك' : 'Write your order'}
             <Zap size={18} className="fill-lime text-lime" />
           </span>
-          {firstOrderFree && loaded && !orders.some((o) => o.status !== 'cancelled') && (
+          {firstOrderFree && firstFree && (
             <span className="mt-2.5 flex items-center justify-center gap-1.5 rounded-xl bg-lime py-2 text-xs font-black text-navy">
               <Gift size={14} className="shrink-0" />
               {ar ? 'أول طلب إلك؟ التوصيل ببلاش!' : 'First order? Free delivery!'}

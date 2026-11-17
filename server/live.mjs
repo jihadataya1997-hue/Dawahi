@@ -1,3 +1,4 @@
+import { offerTrail } from './dispatch.mjs'
 // المراقبة الحية: مين فاتح التطبيق هلق، الزيارات، التثبيتات، مواقع عمال التوصيل، ولقطة كاملة للوحة الإدارة
 import { db } from './db.mjs'
 import { bad, now, clientIp, rateLimit, readJson, send } from './lib.mjs'
@@ -143,6 +144,7 @@ export function liveSnapshot() {
         courierId: r.courier_id ?? null,
         courierName: r.courier_name || '',
         offer: r.offer_expires ? { to: r.offer_to, expiresAt: r.offer_expires } : null,
+        tried: r.status === 'new' ? offerTrail(r.id) : [],
         createdAt: r.created_at,
         statusAt: r.status_at || r.updated_at,
       }

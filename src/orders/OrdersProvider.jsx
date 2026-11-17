@@ -11,6 +11,8 @@ export function OrdersProvider({ children }) {
   const { user } = useAuth()
   const [orders, setOrders] = useState([])
   const [loaded, setLoaded] = useState(false)
+  // التوصيل المجاني لأول طلب: السيرفر بيقرر. ما منعرضه إلا إذا وصل جوابه (مو لما يفشل الاتصال)
+  const [firstFree, setFirstFree] = useState(false)
   const hasOpen = useRef(false)
   const { pricing } = useAppConfig()
 
@@ -19,16 +21,17 @@ export function OrdersProvider({ children }) {
     try {
       const d = await api('/orders')
       setOrders(d.orders)
+      setFirstFree(d.firstOrderFree === true)
+      setLoaded(true)
     } catch {
       /* نحاول بالمرة الجاية */
-    } finally {
-      setLoaded(true)
     }
   }, [user])
 
   useEffect(() => {
     if (!user) {
       setOrders([])
+      setFirstFree(false)
       setLoaded(false)
       return
     }
@@ -52,6 +55,7 @@ export function OrdersProvider({ children }) {
     async (payload) => {
       const d = await api('/orders', { method: 'POST', body: payload })
       setOrders((list) => [d.order, ...list.filter((o) => o.id !== d.order.id)])
+      setFirstFree(false)
       return d.order
     },
     []
@@ -71,8 +75,8 @@ export function OrdersProvider({ children }) {
   hasOpen.current = !!activeOrder
 
   const value = useMemo(
-    () => ({ orders, loaded, pricing, activeOrder, refresh, createOrder, cancelOrder, rateOrder }),
-    [orders, loaded, pricing, activeOrder, refresh, createOrder, cancelOrder, rateOrder]
+    () => ({ orders, loaded, firstFree, pricing, activeOrder, refresh, createOrder, cancelOrder, rateOrder }),
+    [orders, loaded, firstFree, pricing, activeOrder, refresh, createOrder, cancelOrder, rateOrder]
   )
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }

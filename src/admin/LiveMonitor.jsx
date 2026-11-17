@@ -325,6 +325,16 @@ function Radar({ orders, now, onFocus, onOpen }) {
                     {o.address ? ` · ${o.address}` : ''}
                   </p>
                 </button>
+                {o.status === 'new' && o.tried?.length > 0 && (
+                  <p className="mt-1 truncate text-[11px] font-bold text-navy/50">
+                    {[
+                      o.tried.some((x) => x.status === 'declined') && `رفضه: ${o.tried.filter((x) => x.status === 'declined').map((x) => x.name).join('، ')}`,
+                      o.tried.some((x) => x.status === 'expired') && `ما ردّ: ${o.tried.filter((x) => x.status === 'expired').map((x) => x.name).join('، ')}`,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                )}
                 <div className="mt-1.5 flex items-center gap-2 text-[11px]">
                   {o.courierName ? (
                     <span className="flex items-center gap-1 font-bold text-navy/70">
@@ -332,7 +342,7 @@ function Radar({ orders, now, onFocus, onOpen }) {
                     </span>
                   ) : o.offer ? (
                     <span className="font-bold text-amber-700">
-                      معروض على {o.offer.to} · باقي {clock(Date.parse(o.offer.expiresAt) - now)}
+                      🔔 عم يرن عند {o.offer.to} · باقي {clock(Date.parse(o.offer.expiresAt) - now)}
                     </span>
                   ) : (
                     <span className="font-bold text-red-600">ما في عامل متاح حالياً</span>

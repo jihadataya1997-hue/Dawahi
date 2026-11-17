@@ -293,3 +293,13 @@ function offerTitle(courierId, o) {
   if (parts.length === 1) parts.push(CATEGORY_AR[o.category] || '')
   return parts.join(' · ')
 }
+
+// مين رنّ عنده الطلب قبل (رفض / ما ردّ) لحتى الإدارة والمشرف يشوفو
+export function offerTrail(orderId) {
+  return db
+    .prepare(
+      `SELECT c.name, f.status FROM order_offers f JOIN couriers c ON c.id = f.courier_id
+       WHERE f.order_id = ? AND f.status IN ('declined','expired') ORDER BY f.id DESC LIMIT 8`
+    )
+    .all(orderId)
+}

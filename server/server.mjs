@@ -16,7 +16,7 @@ const NOISY = new Set(['/api/presence', '/api/courier/location', '/api/admin/liv
 import { toOrder, ratingOf, RATING_TAGS } from './lib.mjs'
 import { priceCart, publicStores } from './stores.mjs'
 import { courierPublic } from './courierProfile.mjs'
-import { applyPerks, recordPerks, releasePerks, customerPromoRoute } from './promo.mjs'
+import { applyPerks, firstOrderFreeFor, recordPerks, releasePerks, customerPromoRoute } from './promo.mjs'
 import { scheduleBackups } from './backup.mjs'
 import { courierRoute } from './courier.mjs'
 import { assertOrderingOpen, currentDeliveryFee, listAnnouncements, publicApp, serveMedia } from './content.mjs'
@@ -316,7 +316,7 @@ function listOrders(res, user, url) {
   const rows = db
     .prepare('SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC LIMIT ?')
     .all(user.id, limit)
-  send(res, 200, { orders: rows.map((r) => withCourier(r)) })
+  send(res, 200, { orders: rows.map((r) => withCourier(r)), firstOrderFree: firstOrderFreeFor(user.id) })
 }
 
 function getOrder(res, user, id) {

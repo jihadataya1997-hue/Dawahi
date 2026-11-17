@@ -51,6 +51,12 @@ export function checkPromo(rawCode, customerId, fee) {
  * بيطبّق الكود أو النقاط على الطلب قبل حفظه (جوّا نفس العملية)
  * بيرجع { fee, perk } — perk بيتخزن بتفاصيل الطلب ليبيّن للزبون وللعامل
  */
+// هل الزبون لسا ما طلب ولا طلب (غير الملغية) والميزة مشغّلة؟ السيرفر هو اللي بيقرر، والتطبيق بيعرض حسب جوابه
+export function firstOrderFreeFor(customerId) {
+  if (db.prepare("SELECT value FROM settings WHERE key = 'first_order_free'").get()?.value !== '1') return false
+  return db.prepare("SELECT COUNT(*) AS n FROM orders WHERE customer_id = ? AND status != 'cancelled'").get(customerId).n === 0
+}
+
 export function applyPerks(o, body, customerId) {
   const fee = o.deliveryFee
   if (body.usePoints) {
@@ -61,11 +67,7 @@ export function applyPerks(o, body, customerId) {
   }
   const p = checkPromo(body.promoCode, customerId, fee)
   // أول طلب: التوصيل ببلاش تلقائياً (إذا الإدارة مشغّلتها)
-  if (!p || p.discount < fee) {
-    const on = db.prepare("SELECT value FROM settings WHERE key = 'first_order_free'").get()?.value === '1'
-    const prev = on ? db.prepare("SELECT COUNT(*) AS n FROM orders WHERE customer_id = ? AND status != 'cancelled'").get(customerId).n : 1
-    if (on && prev === 0 && fee > 0) return { fee: 0, perk: { type: 'first', discount: fee, feeBefore: fee } }
-  }
+  if ((!p || p.discount < fee) && firstOrderFreeFor(customerId) && fee > 0) return { fee: 0, perk: { type: 'first', discount: fee, feeBefore: fee } }
   if (!p) return { fee, perk: null }
   return { fee: fee - p.discount, perk: { type: 'promo', code: p.code, discount: p.discount, feeBefore: fee }, promoId: p.id }
 }

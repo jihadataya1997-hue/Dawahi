@@ -18,6 +18,7 @@ import { api, errText } from "./driverApi";
 import { addHomeButton } from "../lib/mapHome";
 import AddCourier from "./AddCourier";
 import CourierFile from "./CourierFile";
+import RingingInfo from "../components/RingingInfo";
 
 const HOME = [33.5403, 36.1931];
 const STATE = {
@@ -69,11 +70,13 @@ export default function Supervisor() {
       setError(errText(e));
     }
   }, []);
+  // إذا في طلب عم يرن: منحدّث كل 5 ثواني لنشوف عند مين صار، وإلا كل 15 (لتوفير النت)
+  const ringing = !!data?.active?.some((o) => o.status === "new");
   useEffect(() => {
     load();
     const id = setInterval(
       () => document.visibilityState === "visible" && load(),
-      15000,
+      ringing ? 5000 : 15000,
     );
     // زر التحديث فوق
     window.addEventListener("zapp:refresh", load);
@@ -81,7 +84,7 @@ export default function Supervisor() {
       clearInterval(id);
       window.removeEventListener("zapp:refresh", load);
     };
-  }, [load]);
+  }, [load, ringing]);
 
   const setOnline = async (c) => {
     setBusy(`c${c.id}`);
@@ -210,12 +213,11 @@ export default function Supervisor() {
                     <p className="mt-1 line-clamp-1 text-sm">{o.summary}</p>
                     <p className="text-[11px] text-navy/50">
                       {o.customer.name}
-                      {o.courierName
-                        ? ` · مع ${o.courierName}`
-                        : o.offer
-                          ? ` · معروض على ${o.offer.to}`
-                          : ""}
+                      {o.courierName ? ` · مع ${o.courierName}` : ""}
                     </p>
+                    {o.status === "new" && (
+                      <RingingInfo to={o.offer?.to} expiresAt={o.offer?.expiresAt} tried={o.tried} compact />
+                    )}
                     <span className="mt-1 block text-[11px] font-bold text-brand">
                       التفاصيل والمشاركة ←
                     </span>

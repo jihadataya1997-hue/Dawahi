@@ -1,5 +1,6 @@
 import Promos from './Promos'
 import Accounts from './Accounts'
+import RingingInfo from '../components/RingingInfo'
 import Stores from './Stores'
 import CourierProfile from './CourierProfile'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
@@ -714,11 +715,7 @@ function OrderRow({ order: o, onOpen, picked = null }) {
         </div>
         <p className="mt-3 line-clamp-2 whitespace-pre-line text-sm text-navy/80">{summaryOf(o)}</p>
         {o.courierName && <p className="mt-2 text-xs font-bold text-sky-700">🛵 {o.courierName}</p>}
-        {o.offer && (
-          <p className="mt-2 flex items-center gap-1 text-xs font-bold text-amber-700">
-            <Zap size={13} /> معروض على {o.offer.courierName}، بانتظار قبوله
-          </p>
-        )}
+        {o.status === 'new' && <RingingInfo to={o.offer?.courierName} expiresAt={o.offer?.expiresAt} tried={o.tried} />}
       </button>
     </li>
   )
@@ -944,6 +941,7 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
             {!['delivered', 'cancelled'].includes(o.status) && can('orders.manage') && (
               <section className="mt-5 rounded-3xl bg-navy p-4 text-white">
                 <p className="text-xs text-white/60">تغيير حالة الطلب</p>
+                {o.status === 'new' && <RingingInfo to={o.offer?.courierName} expiresAt={o.offer?.expiresAt} tried={o.tried} />}
                 {o.status === 'new' && o.offer && (
                   <p className="mt-2 rounded-xl bg-amber-500/20 px-3 py-2 text-xs">
                     التوزيع التلقائي يعرض الطلب الآن على <b>{o.offer.courierName}</b>. إذا سلّمته يدوياً يُلغى العرض.
