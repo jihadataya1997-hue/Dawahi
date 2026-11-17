@@ -5,8 +5,8 @@ import { HttpError, bad, now, readJson, send, log, toOrder, ratingOf } from './l
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { PRIVATE_DIR } from './db.mjs'
-import { courierWallet } from './wallet.mjs'
-import { releasePerks } from './promo.mjs'
+import { courierWallet, chargeCommission } from './wallet.mjs'
+import { releasePerks, awardPoints } from './promo.mjs'
 import { notify } from './push.mjs'
 import { cancelOffers, nudge } from './dispatch.mjs'
 import { liveSnapshot } from './live.mjs'
@@ -106,6 +106,40 @@ export async function supervisorRoute(req, res, url, me) {
   if (mm && m === 'POST') {
     const { courierId } = await readJson(req)
     transferOrder(Number(mm[1]), courierId, { actor: `supervisor:${me.id}`, by: `المشرف ${me.name}` })
+    return send(res, 200, { ok: true })
+  }
+
+  // المشرف بيغيّر حالة الطلب إذا عامل التوصيل نسي (لقدّام بس: بلّش يشتري / بالطريق / وصل)
+  mm = /^\/api\/courier\/sup\/orders\/(\d{1,12})\/status$/.exec(pathname)
+  if (mm && m === 'POST') {
+    const id = Number(mm[1])
+    const { status: to } = await readJson(req)
+    const FORWARD = { assigned: ['buying', 'on_the_way', 'delivered'], buying: ['on_the_way', 'delivered'], on_the_way: ['delivered'] }
+    const row = db.prepare('SELECT * FROM orders WHERE id = ?').get(id)
+    if (!row) throw new HttpError(404, 'NOT_FOUND', 'Order not found')
+    if (!FORWARD[row.status]?.includes(to)) throw new HttpError(409, 'BAD_TRANSITION', `Cannot move from ${row.status} to ${to}`)
+    const ts = now()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      const r = db.prepare('UPDATE orders SET status = ?, updated_at = ? WHERE id = ? AND status = ?').run(to, ts, id, row.status)
+      if (r.changes !== 1) throw new HttpError(409, 'CHANGED', 'Order was changed, refresh')
+      db.prepare('INSERT INTO order_events (order_id, status, actor, created_at) VALUES (?, ?, ?, ?)').run(id, to, `supervisor:${me.id}`, ts)
+      db.exec('COMMIT')
+    } catch (err) {
+      db.exec('ROLLBACK')
+      throw err
+    }
+    log('info', 'order status changed by supervisor', { orderId: id, supervisorId: me.id, from: row.status, to })
+    recordAudit(req, { staffId: null, name: `المشرف ${me.name}` }, 'POST', pathname, { status: to })
+    const msg = { buying: 'عامل التوصيل يشتري أغراضك الآن', on_the_way: 'طلبك في الطريق إليك', delivered: 'تم توصيل طلبك، شكراً لك' }[to]
+    notify('customer', row.customer_id, { title: `ZAPP: الطلب ${num(id)}`, body: msg, url: '/', tag: `order-${id}` })
+    if (row.courier_id)
+      notify('courier', row.courier_id, { title: `✏️ ${num(id)}`, body: `المشرف ${me.name} غيّر حالة الطلب: ${msg}`, url: '/driver', tag: `order-${id}` })
+    if (to === 'delivered') {
+      nudge()
+      awardPoints(id)
+      chargeCommission(id)
+    }
     return send(res, 200, { ok: true })
   }
 

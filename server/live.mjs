@@ -1,7 +1,8 @@
 import { offerTrail } from './dispatch.mjs'
 // المراقبة الحية: مين فاتح التطبيق هلق، الزيارات، التثبيتات، مواقع عمال التوصيل، ولقطة كاملة للوحة الإدارة
 import { db } from './db.mjs'
-import { bad, now, clientIp, rateLimit, readJson, send } from './lib.mjs'
+import { bad, now, clientIp, rateLimit, readJson, send, distanceKm, log } from './lib.mjs'
+import { notify } from './push.mjs'
 
 const APPS = ['customer', 'driver', 'download']
 const ONLINE_MS = 75 * 1000 // يعتبر "متصل" إذا وصلتنا نبضة خلال آخر 75 ثانية
@@ -69,6 +70,7 @@ export async function courierLocation(req, res, me) {
   const acc = typeof accuracy === 'number' && accuracy >= 0 ? Math.min(accuracy, 100000) : null
   db.prepare('UPDATE couriers SET lat = ?, lng = ?, loc_accuracy = ?, loc_at = ? WHERE id = ?').run(lat, lng, acc, now(), me.id)
   presence.set(`driver:courier-${me.id}`, { app: 'driver', at: Date.now() })
+  if (acc == null || acc <= 300) notifyNear(me, lat, lng)
   return send(res, 204)
 }
 
@@ -210,5 +212,27 @@ export function setupMissing(device) {
     return Object.entries(names).filter(([k]) => d[k] === false).map(([, v]) => v)
   } catch {
     return null
+  }
+}
+
+// الطلب بالطريق وعامل التوصيل صار قريب من الزبون: منبعتله إشعار مرة وحدة
+function notifyNear(me, lat, lng) {
+  const limit = Number(db.prepare("SELECT value FROM settings WHERE key = 'near_alert_m'").get()?.value ?? 400)
+  if (!limit) return
+  const rows = db
+    .prepare(`SELECT id, customer_id, lat, lng FROM orders WHERE courier_id = ? AND status = 'on_the_way' AND near_notified_at IS NULL`)
+    .all(me.id)
+  for (const o of rows) {
+    const m = distanceKm({ lat, lng }, { lat: o.lat, lng: o.lng }) * 1000
+    if (m > limit) continue
+    const r = db.prepare('UPDATE orders SET near_notified_at = ? WHERE id = ? AND near_notified_at IS NULL').run(now(), o.id)
+    if (!r.changes) continue
+    notify('customer', o.customer_id, {
+      title: '🛵 عامل التوصيل قرّب يوصل',
+      body: `${me.name} صار قريب منك، جهّز حالك لتستلم طلبك D-${1000 + o.id}`,
+      url: '/',
+      tag: `order-${o.id}`,
+    })
+    log('info', 'near notification sent', { orderId: o.id, meters: Math.round(m) })
   }
 }

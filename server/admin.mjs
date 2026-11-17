@@ -55,6 +55,7 @@ const DISPATCH_KEYS = {
   remindAssignedMin: ['remind_assigned_min', 0, 240],
   remindBuyingMin: ['remind_buying_min', 0, 240],
   remindWayMin: ['remind_way_min', 0, 240],
+  nearAlertM: ['near_alert_m', 0, 3000],
 }
 
 // كلمة سر المالك: إذا غيّرها من اللوحة بتنحفظ مشفّرة بالقاعدة، وإلا منستعمل الأصلية من السيرفر

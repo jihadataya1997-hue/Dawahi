@@ -464,6 +464,11 @@ const MIGRATIONS = [
   ALTER TABLE couriers ADD COLUMN device TEXT;
   ALTER TABLE couriers ADD COLUMN device_at TEXT;
   `,
+  `
+  -- إشعار "عامل التوصيل قرّب يوصل" (مرة وحدة لكل طلب) + المسافة اللي منبعته عندها (متر)
+  ALTER TABLE orders ADD COLUMN near_notified_at TEXT;
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('near_alert_m', '400');
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

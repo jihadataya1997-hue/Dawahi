@@ -15,6 +15,7 @@ const named = (label, n) => (n ? `${label} «${n}»` : label)
 // [method, regex, (match, body) => وصف بالعربي]
 const RULES = [
   ['POST', /^\/api\/courier\/sup\/couriers$/, (_, b) => named('إضافة عامل توصيل مع وثائقه (من تطبيق المشرف)', b.name)],
+  ['POST', /^\/api\/courier\/sup\/orders\/(\d+)\/status$/, (m, b) => `المشرف غيّر حالة الطلب ${orderNo(m[1])} إلى «${STATUS_AR[b.status] || b.status}»`],
   ['POST', /^\/api\/admin\/orders\/new$/, (_, b) => `إدخال طلب للزبون ${b.name || ''} (${b.phone || ''})`],
   ['POST', /^\/api\/admin\/orders\/delete$/, (_, b) => `حذف طلبات نهائياً: ${(b.ids || []).map(orderNo).join('، ')}`],
   [null, /^\/api\/admin\/orders\/(\d+)\/status$/, (m, b) => `تغيير حالة الطلب ${orderNo(m[1])} إلى «${STATUS_AR[b.status] || b.status}»${b.reason ? ` (السبب: ${b.reason})` : ''}`],

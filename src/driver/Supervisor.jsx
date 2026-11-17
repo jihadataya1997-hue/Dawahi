@@ -475,6 +475,29 @@ function OrderDetail({ base, onClose, onMove, onChanged }) {
       setBusy(false);
     }
   };
+  // إذا عامل التوصيل نسي يغيّر الحالة
+  const [confirmTo, setConfirmTo] = useState("");
+  const setStatus = async (to) => {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/sup/orders/${base.id}/status`, {
+        method: "POST",
+        body: { status: to },
+      });
+      onChanged();
+    } catch (e) {
+      setError(errText(e));
+      setBusy(false);
+      setConfirmTo("");
+    }
+  };
+  const forward = {
+    assigned: ["buying", "on_the_way", "delivered"],
+    buying: ["on_the_way", "delivered"],
+    on_the_way: ["delivered"],
+  }[o?.status] || [];
+  const toLabel = { buying: "بلّش يشتري", on_the_way: "صار بالطريق", delivered: "وصل الطلب" };
   const d = o?.details || {};
   const phone = o?.contactPhone || o?.customer?.phone;
 
@@ -582,6 +605,43 @@ function OrderDetail({ base, onClose, onMove, onChanged }) {
                 <Share2 size={15} /> ابعته عالواتساب
               </a>
             </div>
+            {forward.length > 0 && (
+              <div className="rounded-2xl bg-navy-50 p-3">
+                <p className="text-xs font-bold text-navy/70">
+                  عامل التوصيل نسي يغيّر الحالة؟ غيّرها إنت:
+                </p>
+                {confirmTo ? (
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => setConfirmTo("")}
+                      disabled={busy}
+                      className="flex-1 rounded-xl bg-white py-2.5 text-xs font-bold"
+                    >
+                      رجوع
+                    </button>
+                    <button
+                      onClick={() => setStatus(confirmTo)}
+                      disabled={busy}
+                      className={`flex-[2] rounded-xl py-2.5 text-xs font-bold text-white disabled:opacity-60 ${confirmTo === "delivered" ? "bg-emerald-600" : "bg-brand"}`}
+                    >
+                      {busy ? "..." : `أكيد: ${toLabel[confirmTo]}`}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {forward.map((to) => (
+                      <button
+                        key={to}
+                        onClick={() => setConfirmTo(to)}
+                        className={`rounded-xl px-3 py-2 text-xs font-bold ${to === "delivered" ? "bg-emerald-100 text-emerald-800" : "bg-white text-navy"}`}
+                      >
+                        {toLabel[to]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {["new", "assigned", "buying", "on_the_way"].includes(o.status) && (
               <button
                 onClick={() => onMove(base)}
