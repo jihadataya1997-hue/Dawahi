@@ -104,39 +104,8 @@ export async function supervisorRoute(req, res, url, me) {
   // تحويل طلب لسائق تاني (قبل ما يبلّش يشتري)
   let mm = /^\/api\/courier\/sup\/orders\/(\d{1,12})\/assign$/.exec(pathname)
   if (mm && m === 'POST') {
-    const id = Number(mm[1])
     const { courierId } = await readJson(req)
-    const to = db.prepare('SELECT id, name, phone, active FROM couriers WHERE id = ?').get(Number(courierId))
-    if (!to || !to.active) throw bad('INVALID', 'Courier not found', 'courierId')
-    const row = db.prepare('SELECT * FROM orders WHERE id = ?').get(id)
-    if (!row) throw new HttpError(404, 'NOT_FOUND', 'Order not found')
-    if (!['new', 'assigned'].includes(row.status)) throw new HttpError(409, 'TOO_LATE', 'Order is already being bought')
-    if (row.courier_id === to.id) return send(res, 200, { ok: true })
-    const ts = now()
-    db.exec('BEGIN IMMEDIATE')
-    try {
-      const r = db
-        .prepare(
-          `UPDATE orders SET status = 'assigned', courier_id = ?, courier_name = ?, courier_phone = ?, updated_at = ?
-           WHERE id = ? AND status = ?`
-        )
-        .run(to.id, to.name, to.phone, ts, id, row.status)
-      if (r.changes !== 1) throw new HttpError(409, 'CHANGED', 'Order was changed, refresh')
-      db.prepare('INSERT INTO order_events (order_id, status, actor, created_at) VALUES (?, ?, ?, ?)').run(id, 'assigned', `supervisor:${me.id}`, ts)
-      db.prepare('UPDATE couriers SET last_assigned_at = ? WHERE id = ?').run(ts, to.id)
-      db.exec('COMMIT')
-    } catch (err) {
-      db.exec('ROLLBACK')
-      throw err
-    }
-    cancelOffers(id)
-    log('info', 'order reassigned by supervisor', { orderId: id, supervisorId: me.id, from: row.courier_id, to: to.id })
-    const summary = row.kind === 'gas' ? 'طلب غاز' : JSON.parse(row.details).items?.slice(0, 90) || 'طلب مرفق بصورة'
-    notify('courier', to.id, { title: `🛵 طلب جديد إلك: ${num(id)}`, body: `من المشرف ${me.name}: ${summary}`, url: '/driver', tag: `order-${id}` })
-    if (row.courier_id && row.courier_id !== to.id)
-      notify('courier', row.courier_id, { title: `↩️ ${num(id)}`, body: `المشرف حوّل هالطلب لـ ${to.name}`, url: '/driver', tag: `order-${id}` })
-    notify('customer', row.customer_id, { title: `ZAPP: الطلب ${num(id)}`, body: `${to.name} صار عامل التوصيل تبع طلبك`, url: '/', tag: `order-${id}` })
-    nudge()
+    transferOrder(Number(mm[1]), courierId, { actor: `supervisor:${me.id}`, by: `المشرف ${me.name}` })
     return send(res, 200, { ok: true })
   }
 
@@ -393,4 +362,45 @@ function courierFile(id) {
     orders,
     offers: offerList,
   }
+}
+
+/**
+ * تسليم الطلب لعامل توصيل، أو تحويله من عامل لعامل تاني حتى لو استلمه وبلّش يشتري أو صار بالطريق
+ * (ظرف طارئ). الحالة بتضل متل ما هي، والعامل الجديد بيكمّل من وين وقف القديم.
+ */
+export function transferOrder(id, courierId, { actor, by }) {
+  const to = db.prepare('SELECT id, name, phone, active FROM couriers WHERE id = ?').get(Number(courierId))
+  if (!to || !to.active) throw bad('INVALID', 'Courier not found', 'courierId')
+  const row = db.prepare('SELECT * FROM orders WHERE id = ?').get(id)
+  if (!row) throw new HttpError(404, 'NOT_FOUND', 'Order not found')
+  if (!['new', 'assigned', 'buying', 'on_the_way'].includes(row.status)) throw new HttpError(409, 'TOO_LATE', 'Order is already finished')
+  if (row.courier_id === to.id) return { changed: false }
+  const status = row.status === 'new' ? 'assigned' : row.status
+  const ts = now()
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const r = db
+      .prepare(
+        `UPDATE orders SET status = ?, courier_id = ?, courier_name = ?, courier_phone = ?, updated_at = ?
+         WHERE id = ? AND status = ?`
+      )
+      .run(status, to.id, to.name, to.phone, ts, id, row.status)
+    if (r.changes !== 1) throw new HttpError(409, 'CHANGED', 'Order was changed, refresh')
+    db.prepare('INSERT INTO order_events (order_id, status, actor, created_at) VALUES (?, ?, ?, ?)').run(id, status, `${actor}>courier:${to.id}`, ts)
+    db.prepare('UPDATE couriers SET last_assigned_at = ? WHERE id = ?').run(ts, to.id)
+    db.exec('COMMIT')
+  } catch (err) {
+    db.exec('ROLLBACK')
+    throw err
+  }
+  cancelOffers(id)
+  log('info', 'order transferred', { orderId: id, actor, from: row.courier_id, to: to.id, status })
+  const summary = row.kind === 'gas' ? 'طلب غاز' : JSON.parse(row.details).items?.slice(0, 90) || 'طلب مرفق بصورة'
+  const stage = { buying: ' (كان عم ينشرى)', on_the_way: ' (كان بالطريق)' }[status] || ''
+  notify('courier', to.id, { title: `🛵 طلب إلك: ${num(id)}${stage}`, body: `من ${by}: ${summary}`, url: '/driver', tag: `order-${id}` })
+  if (row.courier_id)
+    notify('courier', row.courier_id, { title: `↩️ ${num(id)}`, body: `${by} حوّل هالطلب لـ ${to.name}. إذا معك أغراضه سلّمها إله`, url: '/driver', tag: `order-${id}` })
+  notify('customer', row.customer_id, { title: `ZAPP: الطلب ${num(id)}`, body: `${to.name} صار عامل التوصيل تبع طلبك`, url: '/', tag: `order-${id}` })
+  nudge()
+  return { changed: true }
 }

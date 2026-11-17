@@ -807,6 +807,23 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
     }
   }
 
+  const [transferOpen, setTransferOpen] = useState(false)
+  const transfer = async (toId) => {
+    setBusy(`t${toId}`)
+    setError('')
+    try {
+      const d = await adminApi(`/orders/${o.id}/transfer`, { method: 'POST', body: { courierId: toId } })
+      const fresh = await adminApi(`/orders/${o.id}`).catch(() => null)
+      setO((prev) => ({ ...prev, ...(fresh ? fresh.order : d.order) }))
+      setTransferOpen(false)
+      onUpdated(d.order)
+    } catch (err) {
+      setError(adminErrorText(err))
+    } finally {
+      setBusy('')
+    }
+  }
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(orderText(o))
@@ -1015,6 +1032,42 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
                     {o.courierPhone && <span dir="ltr" className="ms-2 font-en text-white/60">{o.courierPhone}</span>}
                   </p>
                 )}
+                {['assigned', 'buying', 'on_the_way'].includes(o.status) && registered.some((c) => c.id !== o.courierId) && (
+                  <div className="mt-3 rounded-2xl bg-white/5 p-3">
+                    {transferOpen ? (
+                      <>
+                        <p className="text-xs font-bold text-white/80">حوّل الطلب لعامل توصيل تاني:</p>
+                        {o.status !== 'assigned' && (
+                          <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                            {o.courierName} {o.status === 'buying' ? 'بلّش يشتري' : 'صار بالطريق'}. العامل الجديد بيكمّل من هون، وإذا الأغراض معه لازم يسلّمه ياها.
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {registered
+                            .filter((c) => c.id !== o.courierId)
+                            .map((c) => (
+                              <button
+                                key={c.id}
+                                onClick={() => transfer(c.id)}
+                                disabled={!!busy}
+                                className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-white/90 disabled:opacity-50"
+                              >
+                                <span className={`me-1 inline-block h-2 w-2 rounded-full ${c.online ? 'bg-emerald-400' : 'bg-white/30'}`} />
+                                {busy === `t${c.id}` ? '...' : `${c.name} (${c.openOrders}/3)`}
+                              </button>
+                            ))}
+                        </div>
+                        <button onClick={() => setTransferOpen(false)} className="mt-2 text-[11px] font-bold text-white/50">
+                          إلغاء
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => setTransferOpen(true)} className="w-full text-sm font-bold text-lime">
+                        ⇄ حوّل الطلب لعامل توصيل تاني
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div className="mt-3 grid gap-2">
                   {o.status === 'new' && <Action onClick={() => move('assigned')} busy={busy === 'assigned'} label="تسليم الطلب لعامل التوصيل" />}
                   {o.status === 'assigned' && o.kind === 'custom' && (
@@ -1060,7 +1113,7 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
                       <b>{STATUS[e.status]?.label}</b>{' '}
                       <span className="text-navy/50">
                         — {new Date(e.at).toLocaleTimeString('ar-SY', { hour: 'numeric', minute: '2-digit' })}
-                        {e.actor === 'admin' || e.actor.startsWith('staff') ? ' (الإدارة)' : e.actor.startsWith('supervisor') ? ' (المشرف)' : e.actor.startsWith('courier') ? ' (عامل التوصيل)' : ' (الزبون)'}
+                        {e.actor.includes('>') ? ` (تحويل من ${e.actor.startsWith('supervisor') ? 'المشرف' : 'الإدارة'} لعامل تاني)` : e.actor === 'admin' || e.actor.startsWith('staff') ? ' (الإدارة)' : e.actor.startsWith('supervisor') ? ' (المشرف)' : e.actor.startsWith('courier') ? ' (عامل التوصيل)' : ' (الزبون)'}
                       </span>
                     </li>
                   ))}

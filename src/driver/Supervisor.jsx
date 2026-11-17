@@ -111,9 +111,7 @@ export default function Supervisor() {
       await load();
     } catch (e) {
       setError(
-        e.code === "TOO_LATE"
-          ? "العامل بلّش يشتري، ما فيك تحوّله هلق"
-          : errText(e),
+        e.code === "TOO_LATE" ? "الطلب خلص، ما فيك تحوّله" : errText(e),
       );
     } finally {
       setBusy("");
@@ -222,7 +220,7 @@ export default function Supervisor() {
                       التفاصيل والمشاركة ←
                     </span>
                   </button>
-                  {["new", "assigned"].includes(o.status) && (
+                  {["new", "assigned", "buying", "on_the_way"].includes(o.status) && (
                     <button
                       onClick={() => setMoving(o)}
                       className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl bg-navy py-2 text-xs font-bold text-white"
@@ -355,6 +353,12 @@ export default function Supervisor() {
               </button>
             </div>
             <p className="mt-1 text-xs text-navy/50">{moving.summary}</p>
+            {["buying", "on_the_way"].includes(moving.status) && (
+              <p className="mt-2 rounded-xl bg-amber-50 p-2.5 text-xs font-bold leading-relaxed text-amber-800">
+                {moving.courierName} {moving.status === "buying" ? "بلّش يشتري" : "صار بالطريق"}. العامل الجديد بيكمّل من هون،
+                وإذا الأغراض مع {moving.courierName} لازم يسلّمه ياها. رح يوصلهم إشعار للتنين.
+              </p>
+            )}
             <ul className="mt-3 space-y-2">
               {couriers
                 .filter((c) => c.id !== moving.courierId)
@@ -578,7 +582,7 @@ function OrderDetail({ base, onClose, onMove, onChanged }) {
                 <Share2 size={15} /> ابعته عالواتساب
               </a>
             </div>
-            {["new", "assigned"].includes(o.status) && (
+            {["new", "assigned", "buying", "on_the_way"].includes(o.status) && (
               <button
                 onClick={() => onMove(base)}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-navy py-3 text-xs font-bold text-white"

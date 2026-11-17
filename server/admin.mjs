@@ -15,6 +15,7 @@ import { courierProfileRoute } from './courierProfile.mjs'
 import { adminWalletRoute, chargeCommission } from './wallet.mjs'
 import { adminPromoRoute, awardPoints, releasePerks } from './promo.mjs'
 import { liveSnapshot } from './live.mjs'
+import { transferOrder } from './supervisor.mjs'
 import { listAudit, recordAudit, shouldAudit } from './audit.mjs'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
@@ -590,6 +591,17 @@ async function adminRouteInner(req, res, url) {
     log('info', 'orders deleted', { by: me.name, ids, deleted })
     nudge()
     return send(res, 200, { deleted })
+  }
+
+  // تحويل الطلب لعامل توصيل تاني (حتى بعد ما استلمه وبلّش)
+  mm = /^\/api\/admin\/orders\/(\d{1,12})\/transfer$/.exec(pathname)
+  if (mm && m === 'POST') {
+    need('orders.manage')
+    const id = Number(mm[1])
+    const { courierId } = await readJson(req)
+    transferOrder(id, courierId, { actor, by: 'الإدارة' })
+    const updated = db.prepare(`${ORDER_WITH_CUSTOMER} WHERE o.id = ?`).get(id)
+    return send(res, 200, { order: withCustomer(updated) })
   }
 
   mm = /^\/api\/admin\/orders\/(\d{1,12})\/status$/.exec(pathname)
