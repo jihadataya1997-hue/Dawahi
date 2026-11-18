@@ -4,6 +4,9 @@ import { Download, X } from 'lucide-react'
 // رقم نسخة التطبيق المنزّل على الموبايل (من الـ User-Agent)، أو 0 إذا متصفح أو نسخة قديمة
 const installed = () => Number(/ZappBuild\/(\d+)/.exec(navigator.userAgent)?.[1] || 0)
 const isApp = () => /ZappApp\//.test(navigator.userAgent)
+// نسخة Google Play: التحديث بيصير من المتجر بس. سياسة غوغل بتمنع أي تطبيق من المتجر يطلب تنزيل APK من برّا،
+// وإذا خالفناها بينحذف التطبيق. لهيك هالتنبيه ما بيطلع أبداً بنسخة المتجر.
+const isPlayBuild = () => /ZappPlay/.test(navigator.userAgent)
 
 /**
  * تنبيه "في نسخة جديدة": بيطلع بس جوّا تطبيق الأندرويد لما نبني APK أحدث.
@@ -12,7 +15,7 @@ const isApp = () => /ZappApp\//.test(navigator.userAgent)
 export default function UpdateNotice({ driver = false }) {
   const [latest, setLatest] = useState(null)
   useEffect(() => {
-    if (!isApp()) return
+    if (!isApp() || isPlayBuild()) return
     fetch('/apk/version.json', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((v) => {

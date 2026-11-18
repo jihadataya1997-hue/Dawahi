@@ -77,6 +77,11 @@ build() {
   mv -f "/out/$out.tmp" "/out/$out"
   # ملف AAB لـ Google Play (تطبيق الزبون بس)
   if [ "$app" = customer ]; then
+    # علامة "ZappPlay": نسخة المتجر ما بتعرض تنبيه "نزّل APK" (ممنوع بسياسة Google Play)
+    cd /work/mobile/customer
+    node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent+=' ZappPlay';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
+    npx cap sync android >/dev/null
+    cd android
     ./gradlew --no-daemon -q bundleRelease
     cp app/build/outputs/bundle/release/app-release.aab /out/zapp-play.aab.tmp
     mv -f /out/zapp-play.aab.tmp /out/zapp-play.aab
