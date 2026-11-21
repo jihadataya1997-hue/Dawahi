@@ -75,15 +75,15 @@ export default function Ratings({ onOpenOrder }) {
       {s && (
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-3xl bg-white p-5 shadow-soft">
-            <p className="text-xs font-bold text-navy/50">معدل التقييم (آخر 30 يوم)</p>
+            <p className="text-xs font-bold text-navy/60">معدل التقييم (آخر 30 يوم)</p>
             <p className="mt-1 flex items-center gap-2">
               <span className="num-zap text-3xl">{s.count ? s.avg.toFixed(1) : '—'}</span>
               {s.count > 0 && <Stars n={Math.round(s.avg)} size={18} />}
             </p>
-            <p className="mt-1 text-xs text-navy/50">من {s.count} تقييم · {rateShare}% من الطلبات الواصلة انقيّمت</p>
+            <p className="mt-1 text-xs text-navy/60">من {s.count} تقييم · {rateShare}% من الطلبات الواصلة انقيّمت</p>
           </div>
           <div className="rounded-3xl bg-white p-5 shadow-soft">
-            <p className="mb-2 text-xs font-bold text-navy/50">توزيع النجوم</p>
+            <p className="mb-2 text-xs font-bold text-navy/60">توزيع النجوم</p>
             {[5, 4, 3, 2, 1].map((n) => {
               const c = s[`s${n}`] || 0
               const pct = s.count ? (c / s.count) * 100 : 0
@@ -93,15 +93,15 @@ export default function Ratings({ onOpenOrder }) {
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-navy-50">
                     <div className={`h-full rounded-full ${n <= 2 ? 'bg-rose-500' : n === 3 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
                   </div>
-                  <span className="num-zap w-6 text-end text-navy/50">{c}</span>
+                  <span className="num-zap w-6 text-end text-navy/60">{c}</span>
                 </div>
               )
             })}
           </div>
           <div className={`rounded-3xl p-5 shadow-soft ${s.bad ? 'bg-rose-50' : 'bg-white'}`}>
-            <p className="text-xs font-bold text-navy/50">تقييمات سيئة (نجمة أو نجمتين)</p>
+            <p className="text-xs font-bold text-navy/60">تقييمات سيئة (نجمة أو نجمتين)</p>
             <p className={`num-zap mt-1 text-3xl ${s.bad ? 'text-rose-600' : ''}`}>{s.bad || 0}</p>
-            <p className="mt-1 text-xs text-navy/50">بيوصلك إشعار فوري مع كل تقييم سيء</p>
+            <p className="mt-1 text-xs text-navy/60">بيوصلك إشعار فوري مع كل تقييم سيء</p>
           </div>
         </div>
       )}
@@ -119,7 +119,7 @@ export default function Ratings({ onOpenOrder }) {
                   <span className="min-w-0 flex-1 truncate text-sm font-bold">{c.name}</span>
                   <Stars n={Math.round(c.ratingAvg)} />
                   <span className={`num-zap text-sm ${c.ratingAvg < 3.5 ? 'text-rose-600' : ''}`}>{c.ratingAvg.toFixed(1)}</span>
-                  <span className="text-[11px] text-navy/45">({c.ratingCount})</span>
+                  <span className="text-[11px] text-navy/60">({c.ratingCount})</span>
                 </button>
               </li>
             ))}
@@ -152,7 +152,7 @@ export default function Ratings({ onOpenOrder }) {
           <LoaderCircle size={28} className="animate-spin" />
         </div>
       ) : !data.items.length ? (
-        <p className="rounded-3xl bg-white py-14 text-center text-sm text-navy/50 shadow-soft">
+        <p className="rounded-3xl bg-white py-14 text-center text-sm text-navy/60 shadow-soft">
           {filter === 'low' ? 'ما في شكاوى. ممتاز!' : 'لسا ما في تقييمات. بعد ما يوصل الطلب، الزبون بيطلعلو سؤال يقيّم التوصيل.'}
         </p>
       ) : (
@@ -163,8 +163,8 @@ export default function Ratings({ onOpenOrder }) {
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <Stars n={r.stars} size={16} />
                   <span className="text-sm font-extrabold">{r.courierName || 'عامل توصيل'}</span>
-                  <span className="text-xs text-navy/45">قيّمه {r.customer}</span>
-                  <span className="ms-auto flex items-center gap-2 text-xs text-navy/45">
+                  <span className="text-xs text-navy/60">قيّمه {r.customer}</span>
+                  <span className="ms-auto flex items-center gap-2 text-xs text-navy/60">
                     <span className="num-zap">{r.number}</span>
                     <span>{when(r.at)}</span>
                   </span>

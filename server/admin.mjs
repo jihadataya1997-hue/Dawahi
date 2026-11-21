@@ -14,8 +14,8 @@ import { checkSecondFactor, getMfa, newRecoveryCodes, newSecret, otpauthUri, ver
 import { courierProfileRoute } from './courierProfile.mjs'
 import { adminWalletRoute, chargeCommission } from './wallet.mjs'
 import { adminPromoRoute, awardPoints, releasePerks } from './promo.mjs'
-import { liveSnapshot } from './live.mjs'
-import { transferOrder } from './supervisor.mjs'
+import { liveSnapshot, setupMissing } from './live.mjs'
+import { transferOrder, courierFile } from './supervisor.mjs'
 import { listAudit, recordAudit, shouldAudit } from './audit.mjs'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
@@ -538,6 +538,20 @@ async function adminRouteInner(req, res, url) {
     const group = GROUPS[url.searchParams.get('group')] ? url.searchParams.get('group') : 'open'
     const statuses = GROUPS[group]
     const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 100, 1), 200)
+    // بحث: رقم الطلب (D-1008 أو 1008) أو رقم الزبون أو اسمه، بكل الحالات
+    const q = String(url.searchParams.get('q') || '').trim().slice(0, 40)
+    if (q) {
+      const digits = q.replace(/[^\d]/g, '')
+      const asId = /^d?-?\d+$/i.test(q.replace(/\s/g, '')) && Number(digits) > 1000 ? Number(digits) - 1000 : -1
+      const like = `%${q.replace(/[%_\\]/g, '')}%`
+      const rows = db
+        .prepare(
+          `${ORDER_WITH_CUSTOMER} WHERE o.id = ? OR (? != '' AND (c.phone LIKE ? OR o.contact_phone LIKE ?)) OR c.name LIKE ?
+           ORDER BY o.id DESC LIMIT 50`
+        )
+        .all(asId, digits.length >= 4 ? digits : '', `%${digits}%`, `%${digits}%`, like)
+      return send(res, 200, { orders: rows.map((r) => withCustomer(r)) })
+    }
     const rows = db
       .prepare(
         `${ORDER_WITH_CUSTOMER} WHERE o.status IN (${statuses.map(() => '?').join(',')})
@@ -545,6 +559,13 @@ async function adminRouteInner(req, res, url) {
       )
       .all(...statuses, limit)
     return send(res, 200, { orders: rows.map((r) => withCustomer(r)) })
+  }
+
+  // ملف عامل التوصيل الكامل (نفس اللي عند المشرف): أرقامه، جاهزية موبايله، طلباته والعروض
+  const fm = /^\/api\/admin\/couriers\/(\d{1,9})\/file$/.exec(pathname)
+  if (fm && m === 'GET') {
+    need('couriers.manage')
+    return send(res, 200, courierFile(Number(fm[1])))
   }
 
   let mm = /^\/api\/admin\/orders\/(\d{1,12})$/.exec(pathname)
@@ -693,7 +714,7 @@ async function adminRouteInner(req, res, url) {
     if (m === 'GET') {
       const rows = db
         .prepare(
-          `SELECT c.id, c.name, c.phone, c.active, c.online, c.is_supervisor AS supervisor, c.last_seen_at AS lastSeen, c.created_at AS createdAt,
+          `SELECT c.id, c.name, c.phone, c.active, c.online, c.is_supervisor AS supervisor, c.last_seen_at AS lastSeen, c.created_at AS createdAt, c.device,
              (SELECT COUNT(*) FROM orders o WHERE o.courier_id = c.id AND o.status IN ('assigned','buying','on_the_way')) AS openOrders,
              EXISTS (SELECT 1 FROM push_subscriptions p WHERE p.owner_type = 'courier' AND p.owner_id = c.id) AS push,
              (SELECT ROUND(AVG(o.rating), 1) FROM orders o WHERE o.courier_id = c.id AND o.rating IS NOT NULL AND o.rated_at > ?) AS ratingAvg,
@@ -701,7 +722,7 @@ async function adminRouteInner(req, res, url) {
            FROM couriers c ORDER BY c.active DESC, c.name`
         )
         .all(...Array(2).fill(new Date(Date.now() - 90 * 864e5).toISOString()))
-      return send(res, 200, { couriers: rows.map((r) => ({ ...r, active: !!r.active, online: !!r.online, push: !!r.push, supervisor: !!r.supervisor })) })
+      return send(res, 200, { couriers: rows.map(({ device, ...r }) => ({ ...r, active: !!r.active, online: !!r.online, push: !!r.push, supervisor: !!r.supervisor, setupMissing: setupMissing(device) })) })
     }
     if (m === 'POST') {
       const body = await readJson(req)

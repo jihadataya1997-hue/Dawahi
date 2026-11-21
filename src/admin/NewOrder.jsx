@@ -164,7 +164,7 @@ export default function NewOrder({ onClose, onCreated }) {
             </label>
 
             {lookup === 'loading' && (
-              <p className="flex items-center gap-2 text-xs text-navy/50">
+              <p className="flex items-center gap-2 text-xs text-navy/60">
                 <LoaderCircle size={14} className="animate-spin" /> عم دوّر عالزبون…
               </p>
             )}
@@ -180,7 +180,7 @@ export default function NewOrder({ onClose, onCreated }) {
                   <UserPlus size={15} className="text-brand" /> زبون جديد: اسمه
                 </span>
                 <input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder="مثلاً: أبو سامر" className={inputCls} />
-                <span className="mt-1 block text-[11px] text-navy/45">بينفتحله حساب برقمه. إذا بدو يستعمل التطبيق بعدين، بتعطيه كلمة سر مؤقتة من صفحة الزبائن.</span>
+                <span className="mt-1 block text-[11px] text-navy/60">بينفتحله حساب برقمه. إذا بدو يستعمل التطبيق بعدين، بتعطيه كلمة سر مؤقتة من صفحة الزبائن.</span>
               </label>
             )}
 
@@ -233,7 +233,7 @@ export default function NewOrder({ onClose, onCreated }) {
           <button disabled={!ready || busy} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-brand text-sm font-extrabold text-white disabled:opacity-40">
             {busy ? <LoaderCircle size={18} className="animate-spin" /> : <Check size={18} />} أرسل الطلب لعمال التوصيل
           </button>
-          <p className="mt-2 text-center text-[11px] text-navy/45">الأجرة بتنحسب متل التطبيق (المنطقة والذروة وأول طلب ببلاش).</p>
+          <p className="mt-2 text-center text-[11px] text-navy/60">الأجرة بتنحسب متل التطبيق (المنطقة والذروة وأول طلب ببلاش).</p>
         </div>
       </form>
     </div>

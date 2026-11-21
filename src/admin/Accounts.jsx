@@ -85,7 +85,7 @@ export default function Accounts() {
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="text-xs text-navy/50">
+            <thead className="text-xs text-navy/60">
               <tr className="border-b border-navy/5">
                 <th className="px-4 py-2 text-start font-bold">العامل</th>
                 <th className="px-3 py-2 text-start font-bold">طلبات</th>
@@ -100,14 +100,14 @@ export default function Accounts() {
                 <tr key={c.id}>
                   <td className="px-4 py-3">
                     <b className="block">{c.name}</b>
-                    <span dir="ltr" className="font-en text-[11px] text-navy/45">{c.phone}</span>
+                    <span dir="ltr" className="font-en text-[11px] text-navy/60">{c.phone}</span>
                   </td>
                   <td className="px-3 py-3 font-bold">{c.delivered}</td>
                   <td className="px-3 py-3">{money(c.fees)}</td>
                   <td className="px-3 py-3 font-bold text-brand">{money(c.commission)}</td>
                   <td className="px-3 py-3">
                     <span className={`font-black ${c.balance < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{money(c.balance)}</span>
-                    <span className="block text-[11px] text-navy/45">
+                    <span className="block text-[11px] text-navy/60">
                       {c.balance < 0 ? `بدك منه ${money(-c.balance)}` : data.config.commission ? `بيكفي ${Math.floor(c.balance / data.config.commission)} طلب` : ''}
                     </span>
                     {data.config.enabled && !c.canWork && <span className="mt-0.5 inline-block rounded bg-rose-100 px-1.5 text-[10px] font-bold text-rose-700">ما بتوصله طلبات</span>}
@@ -140,7 +140,7 @@ function Kpi({ label, value, sub, alert, plain }) {
     <div className="rounded-3xl bg-white p-5 shadow-soft">
       <p className="text-sm font-bold text-navy/55">{label}</p>
       <p className={`num-zap mt-1 text-3xl ${alert ? 'text-rose-600' : plain ? 'text-navy' : 'text-brand'}`}>{value}</p>
-      {sub && <p className="mt-1 text-xs text-navy/50">{sub}</p>}
+      {sub && <p className="mt-1 text-xs text-navy/60">{sub}</p>}
     </div>
   )
 }
@@ -166,7 +166,7 @@ function Settings({ config, onSaved }) {
     <section className="grid gap-4 rounded-3xl bg-white p-5 shadow-soft md:grid-cols-2">
       <div>
         <h3 className="font-extrabold">عمولة التطبيق من كل طلب</h3>
-        <p className="mt-1 text-xs text-navy/50">بتنخصم من رصيد العامل لما يوصل الطلب، والباقي من أجرة التوصيل إله.</p>
+        <p className="mt-1 text-xs text-navy/60">بتنخصم من رصيد العامل لما يوصل الطلب، والباقي من أجرة التوصيل إله.</p>
         <div className="mt-3 flex gap-2">
           <input inputMode="numeric" value={commission} onChange={(e) => setCommission(e.target.value.replace(/\D/g, ''))} className={`${inputCls} max-w-[10rem]`} />
           <button disabled={busy} onClick={() => save({ commission: Number(commission) || 0 })} className="rounded-xl bg-navy px-4 text-sm font-bold text-white">
@@ -177,7 +177,7 @@ function Settings({ config, onSaved }) {
       </div>
       <div>
         <h3 className="font-extrabold">نظام الرصيد المسبق</h3>
-        <p className="mt-1 text-xs text-navy/50">
+        <p className="mt-1 text-xs text-navy/60">
           لما يكون شغّال: العامل لازم يكون رصيده بيكفي لعمولة طلب، وإلا ما بيوصله طلبات لحتى يشحن. اشحن رصيد السائقين قبل ما تشغّله.
         </p>
         <button
@@ -223,7 +223,7 @@ function TopupDialog({ courier, onClose, onDone }) {
             <X size={18} />
           </button>
         </div>
-        <p className="mt-1 text-xs text-navy/50">الرصيد هلق: {money(courier.balance)}</p>
+        <p className="mt-1 text-xs text-navy/60">الرصيد هلق: {money(courier.balance)}</p>
         <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-navy-50 p-1 text-xs font-bold">
           <button type="button" onClick={() => setMinus(false)} className={`rounded-lg py-2 ${!minus ? 'bg-white shadow-sm' : ''}`}>
             شحن (دفع مصاري)
@@ -270,15 +270,15 @@ function LedgerDialog({ courier, onClose }) {
             <LoaderCircle className="animate-spin" />
           </div>
         ) : !rows.length ? (
-          <p className="py-8 text-center text-sm text-navy/45">ما في حركات لهلق</p>
+          <p className="py-8 text-center text-sm text-navy/60">ما في حركات لهلق</p>
         ) : (
           <ul className="mt-3 max-h-[60vh] divide-y divide-navy/5 overflow-y-auto">
             {rows.map((r) => (
               <li key={r.id} className="flex items-center gap-3 py-2.5 text-sm">
                 <span className="min-w-0 flex-1">
                   <b>{KIND[r.kind]}</b>
-                  {r.number && <span className="ms-1 text-xs text-navy/50">{r.number}</span>}
-                  <span className="block text-[11px] text-navy/45">
+                  {r.number && <span className="ms-1 text-xs text-navy/60">{r.number}</span>}
+                  <span className="block text-[11px] text-navy/60">
                     {fmtDate(r.createdAt)}
                     {r.note ? ` · ${r.note}` : ''}
                     {r.actor ? ` · ${r.actor}` : ''}
@@ -289,7 +289,7 @@ function LedgerDialog({ courier, onClose }) {
                     {r.amount > 0 ? '+' : ''}
                     {money(r.amount)}
                   </b>
-                  <span className="block text-[11px] text-navy/45">الرصيد {money(r.balanceAfter)}</span>
+                  <span className="block text-[11px] text-navy/60">الرصيد {money(r.balanceAfter)}</span>
                 </span>
               </li>
             ))}

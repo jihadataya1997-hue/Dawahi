@@ -3,6 +3,7 @@ import Accounts from './Accounts'
 import RingingInfo from '../components/RingingInfo'
 import Stores from './Stores'
 import CourierProfile from './CourierProfile'
+import CourierFile from '../driver/CourierFile'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import {
   Bike,
@@ -43,6 +44,9 @@ import {
   History,
   PhoneCall,
   Star,
+  ChevronDown,
+  Menu,
+  Search,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import { disablePush, enablePush, pushState, registerSW } from '../push'
@@ -89,7 +93,7 @@ const timeAgo = (iso) => {
   if (m < 60) return `قبل ${m} د`
   const h = Math.round(m / 60)
   if (h < 24) return `قبل ${h} س`
-  return new Date(iso).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' })
+  return new Date(iso).toLocaleDateString('ar-SY-u-nu-latn', { day: 'numeric', month: 'short' })
 }
 
 // عمال التوصيل الخارجيون المحفوظون على هذا الجهاز (للاختيار السريع)
@@ -177,7 +181,7 @@ function Login({ onDone }) {
           <LogoMark className="h-12 w-12" />
           <div>
             <h1 className="text-lg font-extrabold">لوحة إدارة ZAPP</h1>
-            <p className="text-xs text-navy/50">{ticket ? 'التحقق بخطوتين' : 'للإدارة فقط'}</p>
+            <p className="text-xs text-navy/60">{ticket ? 'التحقق بخطوتين' : 'للإدارة فقط'}</p>
           </div>
         </div>
         {!ticket ? (
@@ -192,7 +196,7 @@ function Login({ onDone }) {
               placeholder="admin"
               className={`${input} text-end font-en`}
             />
-            <p className="mt-1 text-[11px] text-navy/40">أعضاء الفريق بيكتبوا رقم موبايلهم</p>
+            <p className="mt-1 text-[11px] text-navy/60">أعضاء الفريق بيكتبوا رقم موبايلهم</p>
             <label className="mt-4 block text-sm font-bold">كلمة السر</label>
             <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className={input} />
           </>
@@ -225,7 +229,7 @@ function Login({ onDone }) {
           {busy ? <LoaderCircle size={18} className="animate-spin" /> : ticket ? 'تأكيد' : 'دخول'}
         </button>
         {ticket && (
-          <button type="button" onClick={() => (setTicket(null), setCode(''), setError(''))} className="mt-2 w-full py-2 text-xs font-bold text-navy/50">
+          <button type="button" onClick={() => (setTicket(null), setCode(''), setError(''))} className="mt-2 w-full py-2 text-xs font-bold text-navy/60">
             رجوع
           </button>
         )}
@@ -261,7 +265,7 @@ function beep() {
 
 const ALL_NAV = [
   { id: 'live', label: 'المراقبة الحية', Icon: Radar, perm: 'orders.view' },
-  { id: 'overview', label: 'الرئيسية', Icon: LayoutDashboard, perm: 'orders.view' },
+  { id: 'overview', label: 'الرئيسية', Icon: LayoutDashboard, perm: 'orders.view', hidden: true },
   { id: 'orders', label: 'الطلبات', Icon: ClipboardList, perm: 'orders.view' },
   { id: 'ratings', label: 'التقييمات والشكاوى', Icon: Star, perm: 'orders.view' },
   { id: 'couriers', label: 'عمال التوصيل', Icon: Bike, perm: 'couriers.manage' },
@@ -280,6 +284,13 @@ const ALL_NAV = [
   { id: 'account', label: 'حسابي وكلمة السر', Icon: KeyRound, perm: null },
 ]
 const TITLES = Object.fromEntries(ALL_NAV.map((n) => [n.id, n.label]))
+// القائمة بمجموعات: الشغل اليومي فوق ودايماً مفتوح، والباقي بينطوى
+const NAV_GROUPS = [
+  { id: 'daily', title: 'الشغل اليومي', ids: ['live', 'orders', 'ratings', 'overview'] },
+  { id: 'people', title: 'الناس', ids: ['couriers', 'customers', 'team'] },
+  { id: 'marketing', title: 'التسويق', ids: ['banners', 'stores', 'announce', 'promos'] },
+  { id: 'settings', title: 'الإعدادات', ids: ['prices', 'control', 'content', 'accounts', 'audit', 'backups', 'account'] },
+]
 
 function Dashboard({ onLogout }) {
   const [me, setMe] = useState(null)
@@ -303,7 +314,7 @@ function Dashboard({ onLogout }) {
           <p className="mt-1 text-sm text-white/75">المالك طالب من كل الفريق يفعّلوا التحقق بخطوتين لحماية اللوحة. فعّله تحت وبعدين بتفوت عادي.</p>
         </div>
         <MyAccount me={me} onMfaEnabled={() => adminApi('/me').then((d) => setMe(d.me))} mfaOnly />
-        <button onClick={onLogout} className="mx-auto mt-4 block text-xs font-bold text-navy/50">
+        <button onClick={onLogout} className="mx-auto mt-4 block text-xs font-bold text-navy/60">
           تسجيل الخروج
         </button>
       </div>
@@ -317,7 +328,16 @@ function Dashboard({ onLogout }) {
 
 function Shell({ me, onLogout }) {
   const NAV = ALL_NAV.filter((n) => n.perm === null || [].concat(n.perm).some((p) => me.perms.includes(p)))
-  const [section, setSection] = useState(() => (NAV.some((n) => `#${n.id}` === location.hash) ? location.hash.slice(1) : NAV[0]?.id || 'overview'))
+  const VISIBLE = NAV.filter((n) => !n.hidden)
+  const groups = NAV_GROUPS.map((g) => ({ ...g, items: g.ids.map((id) => VISIBLE.find((n) => n.id === id)).filter(Boolean) })).filter((g) => g.items.length)
+  const [section, setSection] = useState(() => {
+    const h = location.hash.slice(1)
+    if (h === 'overview' && VISIBLE.some((n) => n.id === 'live')) return 'live' // الرئيسية صارت ضمن المراقبة الحية
+    return NAV.some((n) => n.id === h) ? h : VISIBLE[0]?.id || 'overview'
+  })
+  const [openGroups, setOpenGroups] = useState({})
+  const [moreOpen, setMoreOpen] = useState(false)
+  const push = useAdminPush()
   const [stats, setStats] = useState(null)
   const [selected, setSelected] = useState(null)
   const [boardKey, setBoardKey] = useState(0)
@@ -370,22 +390,45 @@ function Shell({ me, onLogout }) {
             <p className="text-[11px] text-white/50">{me.role}</p>
           </div>
         </div>
-        <nav className="mt-6 flex-1 space-y-1 overflow-y-auto">
-          {NAV.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              onClick={() => go(id)}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-bold transition ${
-                section === id ? 'bg-brand text-white' : 'text-white/70 hover:bg-white/10'
-              }`}
-            >
-              <Icon size={18} />
-              <span className="flex-1">{label}</span>
-              {id === 'orders' && stats?.waiting > 0 && (
-                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-brand">{stats.waiting}</span>
-              )}
-            </button>
-          ))}
+        <nav className="mt-5 flex-1 space-y-3 overflow-y-auto pe-1">
+          {groups.map((g) => {
+            const open = g.id === 'daily' || openGroups[g.id] || g.items.some((n) => n.id === section)
+            return (
+              <div key={g.id}>
+                {g.id === 'daily' ? (
+                  <p className="px-3 pb-1 text-xs font-bold text-white/70">{g.title}</p>
+                ) : (
+                  <button
+                    onClick={() => setOpenGroups((o) => ({ ...o, [g.id]: !open }))}
+                    aria-expanded={open}
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-xs font-bold text-white/70 hover:bg-white/5 hover:text-white"
+                  >
+                    {g.title}
+                    <ChevronDown size={14} className={`transition ${open ? 'rotate-180' : ''}`} />
+                  </button>
+                )}
+                {open && (
+                  <div className="mt-1 space-y-0.5">
+                    {g.items.map(({ id, label, Icon }) => (
+                      <button
+                        key={id}
+                        onClick={() => go(id)}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-start text-sm font-bold transition ${
+                          section === id ? 'bg-brand text-white' : 'text-white/75 hover:bg-white/10'
+                        }`}
+                      >
+                        <Icon size={18} />
+                        <span className="flex-1">{label}</span>
+                        {id === 'orders' && stats?.waiting > 0 && (
+                          <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] text-white">{stats.waiting}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </nav>
         <button onClick={logout} className="mt-4 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-white/60 hover:bg-white/10">
           <LogOut size={18} className="-scale-x-100" /> تسجيل الخروج
@@ -398,25 +441,45 @@ function Shell({ me, onLogout }) {
           <div className="flex items-center gap-3 px-4 py-3 lg:px-8">
             <LogoMark className="h-9 w-9 lg:hidden" />
             <h1 className="flex-1 text-lg font-extrabold">{TITLES[section]}</h1>
-            <AdminBell />
-            <button onClick={logout} aria-label="تسجيل الخروج" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 lg:hidden">
-              <LogOut size={18} className="-scale-x-100" />
-            </button>
+            <AdminBell push={push} />
           </div>
-          {/* القائمة (موبايل) */}
-          <nav className="scrollbar-hide flex gap-2 overflow-x-auto px-4 pb-3 lg:hidden">
-            {NAV.map(({ id, label }) => (
+          {/* القائمة (موبايل): الشغل اليومي ظاهر، والباقي تحت "المزيد" */}
+          <nav className="scrollbar-hide flex gap-1.5 overflow-x-auto px-4 pb-3 lg:hidden">
+            {(groups.find((g) => g.id === 'daily')?.items || []).map(({ id, label }) => (
               <button
                 key={id}
                 onClick={() => go(id)}
-                className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold ${section === id ? 'bg-brand text-white' : 'bg-white/10 text-white/70'}`}
+                className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold ${section === id ? 'bg-brand text-white' : 'bg-white/10 text-white/80'}`}
               >
-                {label}
+                {id === 'ratings' ? 'التقييمات' : id === 'live' ? 'المراقبة' : label}
                 {id === 'orders' && stats?.waiting > 0 ? ` (${stats.waiting})` : ''}
               </button>
             ))}
+            <button
+              onClick={() => setMoreOpen(true)}
+              className={`ms-auto flex shrink-0 items-center gap-1 rounded-full px-3.5 py-2 text-xs font-bold ${
+                groups.some((g) => g.id !== 'daily' && g.items.some((n) => n.id === section)) ? 'bg-brand text-white' : 'bg-white/10 text-white/80'
+              }`}
+            >
+              <Menu size={14} /> المزيد
+            </button>
           </nav>
         </header>
+
+        {push.state !== 'loading' && push.state !== 'enabled' && !push.dismissed && (
+          <div role="alert" className="mx-4 mt-4 flex items-center gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-amber-900 ring-1 ring-amber-200 lg:mx-8">
+            <BellOff size={20} className="shrink-0" />
+            <p className="flex-1 text-sm font-bold">
+              إشعارات الطلبات الجديدة مسكّرة على هالجهاز. إذا ما فعّلتها رح يفوتك أي طلب جديد واللوحة مسكّرة.
+            </p>
+            <button onClick={push.toggle} disabled={push.busy} className="shrink-0 rounded-xl bg-navy px-4 py-2 text-xs font-bold text-white disabled:opacity-60">
+              {push.busy ? '...' : 'فعّلها'}
+            </button>
+            <button onClick={push.dismiss} aria-label="إخفاء" className="shrink-0 text-amber-800/60">
+              <X size={16} />
+            </button>
+          </div>
+        )}
 
         <main className={`mx-auto p-4 pb-16 lg:p-8 ${section === 'live' ? 'max-w-[1400px]' : 'max-w-5xl'}`}>
           {section === 'live' && <LiveMonitor onOpenOrder={setSelected} />}
@@ -442,9 +505,47 @@ function Shell({ me, onLogout }) {
           )}
           {section === 'backups' && <Backups />}
           {section === 'team' && <Team />}
-          {!NAV.length && <p className="pt-16 text-center text-sm text-navy/50">لا توجد صلاحيات لحسابك بعد. تواصل مع المالك.</p>}
+          {!NAV.length && <p className="pt-16 text-center text-sm text-navy/60">لا توجد صلاحيات لحسابك بعد. تواصل مع المالك.</p>}
         </main>
       </div>
+
+      {moreOpen && (
+        <div className="fixed inset-0 z-50 flex items-end bg-navy/50 lg:hidden" onClick={() => setMoreOpen(false)}>
+          <div className="pb-safe max-h-[85%] w-full overflow-y-auto rounded-t-3xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-extrabold">كل الأقسام</h2>
+              <button onClick={() => setMoreOpen(false)} aria-label="إغلاق" className="flex h-10 w-10 items-center justify-center rounded-full bg-navy-50">
+                <X size={18} />
+              </button>
+            </div>
+            {groups.map((g) => (
+              <div key={g.id} className="mt-4">
+                <p className="mb-2 text-xs font-bold text-navy/55">{g.title}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {g.items.map(({ id, label, Icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => {
+                        go(id)
+                        setMoreOpen(false)
+                      }}
+                      className={`flex min-h-[48px] items-center gap-2 rounded-2xl px-3 py-2.5 text-start text-sm font-bold ${
+                        section === id ? 'bg-brand text-white' : 'bg-navy-50 text-navy'
+                      }`}
+                    >
+                      <Icon size={17} className="shrink-0" />
+                      <span className="leading-tight">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button onClick={logout} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-50 py-3 text-sm font-bold text-rose-700">
+              <LogOut size={16} className="-scale-x-100" /> تسجيل الخروج
+            </button>
+          </div>
+        </div>
+      )}
 
       {selected && (
         <OrderDetail
@@ -501,7 +602,7 @@ function Overview({ stats, onGo, onOpenOrder }) {
             <LoaderCircle className="animate-spin" />
           </div>
         ) : open.length === 0 ? (
-          <p className="py-8 text-center text-sm text-navy/40">لا توجد طلبات مفتوحة الآن</p>
+          <p className="py-8 text-center text-sm text-navy/60">لا توجد طلبات مفتوحة الآن</p>
         ) : (
           <ul className="mt-3 grid gap-3 lg:grid-cols-2">
             {open.slice(0, 6).map((o) => (
@@ -516,7 +617,7 @@ function Overview({ stats, onGo, onOpenOrder }) {
         <Shortcut Icon={Megaphone} title="إرسال إشعار" sub="لكل الزبائن" onClick={() => onGo('announce')} />
         <Shortcut Icon={Tag} title="الأسعار" sub="التوصيل والغاز" onClick={() => onGo('prices')} />
       </div>
-      {stats && <p className="text-center text-xs text-navy/40">عدد الزبائن المسجلين: {stats.customers}</p>}
+      {stats && <p className="text-center text-xs text-navy/60">عدد الزبائن المسجلين: {stats.customers}</p>}
     </div>
   )
 }
@@ -528,9 +629,9 @@ function BigStat({ label, value, sub, tone = 'plain', onClick }) {
       disabled={!onClick}
       className={`rounded-3xl p-4 text-start shadow-soft transition ${tone === 'alert' ? 'bg-brand text-white' : 'bg-white'} ${onClick ? 'active:scale-[0.98]' : ''}`}
     >
-      <p className={`text-xs font-bold ${tone === 'alert' ? 'text-white/85' : 'text-navy/50'}`}>{label}</p>
+      <p className={`text-xs font-bold ${tone === 'alert' ? 'text-white/85' : 'text-navy/60'}`}>{label}</p>
       <p className="mt-1 font-en text-3xl font-extrabold">{value}</p>
-      {sub && <p className={`text-[11px] ${tone === 'alert' ? 'text-white/80' : 'text-navy/40'}`}>{sub}</p>}
+      {sub && <p className={`text-[11px] ${tone === 'alert' ? 'text-white/80' : 'text-navy/60'}`}>{sub}</p>}
     </button>
   )
 }
@@ -543,7 +644,7 @@ function Shortcut({ Icon, title, sub, onClick }) {
       </span>
       <span>
         <span className="block text-sm font-extrabold">{title}</span>
-        <span className="block text-xs text-navy/50">{sub}</span>
+        <span className="block text-xs text-navy/60">{sub}</span>
       </span>
     </button>
   )
@@ -560,6 +661,12 @@ function OrdersBoard({ onOpen }) {
   const [picked, setPicked] = useState(new Set())
   const [deleting, setDeleting] = useState(false)
   const [newOrder, setNewOrder] = useState(false) // طلب هاتفي
+  const [q, setQ] = useState('') // بحث
+  const [query, setQuery] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(q.trim()), 400)
+    return () => clearTimeout(t)
+  }, [q])
   const togglePick = (id) =>
     setPicked((s) => {
       const n = new Set(s)
@@ -583,12 +690,12 @@ function OrdersBoard({ onOpen }) {
   }
   const load = useCallback(async () => {
     try {
-      setOrders((await adminApi(`/orders?group=${tab}`)).orders)
+      setOrders((await adminApi(query ? `/orders?q=${encodeURIComponent(query)}` : `/orders?group=${tab}`)).orders)
       setError('')
     } catch (err) {
       setError(adminErrorText(err))
     }
-  }, [tab])
+  }, [tab, query])
   useEffect(() => {
     setOrders(null)
     load()
@@ -608,7 +715,23 @@ function OrdersBoard({ onOpen }) {
           }}
         />
       )}
-      <div className="flex flex-wrap gap-2">
+      <label className="mb-3 flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 shadow-soft focus-within:ring-2 focus-within:ring-brand">
+        <Search size={17} className="shrink-0 text-navy/60" />
+        <span className="sr-only">بحث بالطلبات</span>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="ابحث برقم الطلب (D-1008)، رقم الزبون أو اسمه"
+          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-navy/60"
+        />
+        {q && (
+          <button onClick={() => setQ('')} aria-label="مسح البحث" className="text-navy/60">
+            <X size={16} />
+          </button>
+        )}
+      </label>
+      {query && <p className="mb-2 text-xs font-bold text-navy/55">نتائج البحث عن «{query}» بكل الطلبات</p>}
+      <div className={`flex flex-wrap gap-2 ${query ? 'hidden' : ''}`}>
         {[
           ['open', 'المفتوحة'],
           ['done', 'تم توصيلها'],
@@ -661,7 +784,7 @@ function OrdersBoard({ onOpen }) {
           <LoaderCircle size={32} className="animate-spin" />
         </div>
       ) : orders.length === 0 ? (
-        <p className="pt-16 text-center text-sm text-navy/40">لا توجد طلبات هنا</p>
+        <p className="pt-16 text-center text-sm text-navy/60">لا توجد طلبات هنا</p>
       ) : (
         <ul className="mt-4 grid gap-3 lg:grid-cols-2">
           {orders.map((o) => (
@@ -859,12 +982,12 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
               <span className={`rounded-full px-2.5 py-1 font-bold ${STATUS[o.status].cls}`}>{STATUS[o.status].label}</span>
               <span className="rounded-full bg-navy-50 px-2.5 py-1 font-bold">{CATEGORY[o.category]}</span>
               {o.details?.via === 'phone' && <span className="rounded-full bg-brand-50 px-2.5 py-1 font-bold text-brand">طلب هاتفي</span>}
-              <span className="text-navy/50">{new Date(o.createdAt).toLocaleString('ar-SY')}</span>
+              <span className="text-navy/60">{new Date(o.createdAt).toLocaleString('ar-SY-u-nu-latn')}</span>
             </div>
 
             {/* الزبون */}
             <section className="mt-5 rounded-3xl bg-navy-50 p-4">
-              <p className="text-xs text-navy/50">الزبون</p>
+              <p className="text-xs text-navy/60">الزبون</p>
               <p className="mt-0.5 font-extrabold">{o.customer.name}</p>
               <p dir="ltr" className="text-end font-en text-sm text-navy/70">{o.contactPhone}</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
@@ -879,13 +1002,13 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
 
             {/* الطلب */}
             <section className="mt-4">
-              <p className="text-xs font-bold text-navy/50">الطلب</p>
+              <p className="text-xs font-bold text-navy/60">الطلب</p>
               {o.kind === 'gas' ? (
                 <div className="mt-1 rounded-3xl border border-navy/10 p-4 text-sm">
                   <p className="font-bold">{summaryOf(o)}</p>
                   <p className="mt-2 text-navy/60">
                     التقدير وقت الطلب: <b className="text-brand">{money(o.details.estimate)}</b>
-                    {o.details.priceUnknown && <span className="text-navy/50"> + ثمن الغاز حسب السعر وقت التوصيل</span>}
+                    {o.details.priceUnknown && <span className="text-navy/60"> + ثمن الغاز حسب السعر وقت التوصيل</span>}
                   </p>
                 </div>
               ) : (
@@ -906,7 +1029,7 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
 
             {o.rating && (
               <section className={`mt-4 rounded-2xl p-3 ${o.rating.stars <= 2 ? 'bg-rose-50' : 'bg-navy-50'}`}>
-                <p className="flex items-center gap-2 text-xs font-bold text-navy/50">
+                <p className="flex items-center gap-2 text-xs font-bold text-navy/60">
                   تقييم الزبون <Stars n={o.rating.stars} />
                 </p>
                 {o.rating.tags.length > 0 && <p className="mt-1.5 text-sm font-bold">{o.rating.tags.map((t) => RATING_TAG_AR[t] || t).join('، ')}</p>}
@@ -916,7 +1039,7 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
 
             {/* العنوان */}
             <section className="mt-4">
-              <p className="text-xs font-bold text-navy/50">العنوان</p>
+              <p className="text-xs font-bold text-navy/60">العنوان</p>
               <a
                 href={mapsUrl(o.location)}
                 target="_blank"
@@ -1106,13 +1229,13 @@ function OrderDetail({ orderId, onClose, onUpdated, onDeleted }) {
             {/* السجل */}
             {o.events && (
               <section className="mt-5">
-                <p className="text-xs font-bold text-navy/50">سجل الطلب</p>
+                <p className="text-xs font-bold text-navy/60">سجل الطلب</p>
                 <ol className="mt-2 space-y-1.5 border-s-2 border-navy/10 ps-4">
                   {o.events.map((e, i) => (
                     <li key={i} className="text-xs">
                       <b>{STATUS[e.status]?.label}</b>{' '}
-                      <span className="text-navy/50">
-                        — {new Date(e.at).toLocaleTimeString('ar-SY', { hour: 'numeric', minute: '2-digit' })}
+                      <span className="text-navy/60">
+                        — {new Date(e.at).toLocaleTimeString('ar-SY-u-nu-latn', { hour: 'numeric', minute: '2-digit' })}
                         {e.actor.includes('>') ? ` (تحويل من ${e.actor.startsWith('supervisor') ? 'المشرف' : 'الإدارة'} لعامل تاني)` : e.actor === 'admin' || e.actor.startsWith('staff') ? ' (الإدارة)' : e.actor.startsWith('supervisor') ? ' (المشرف)' : e.actor.startsWith('courier') ? ' (عامل التوصيل)' : ' (الزبون)'}
                       </span>
                     </li>
@@ -1202,7 +1325,7 @@ function Prices() {
       <h2 className="flex items-center gap-2 font-extrabold">
         <Tag size={18} className="text-brand" /> الأسعار
       </h2>
-      <p className="mt-1 text-xs text-navy/50">التعديل يظهر عند الزبائن فوراً، ولا يغيّر الطلبات القديمة.</p>
+      <p className="mt-1 text-xs text-navy/60">التعديل يظهر عند الزبائن فوراً، ولا يغيّر الطلبات القديمة.</p>
       <div className="mt-5 space-y-4">
         {PRICE_FIELDS.map(([key, label, hint, optional]) => {
           const none = optional && Number(values[key] || 0) === 0
@@ -1211,7 +1334,7 @@ function Prices() {
             <div className="flex items-start gap-2">
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-bold">{label}</span>
-                <span className="block text-[11px] text-navy/40">{hint}</span>
+                <span className="block text-[11px] text-navy/60">{hint}</span>
               </span>
               {optional && (
                 <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-navy/5 px-2.5 py-1.5 text-[11px] font-bold">
@@ -1238,7 +1361,7 @@ function Prices() {
                 onChange={(e) => setValues({ ...values, [key]: e.target.value.replace(/\D/g, '') })}
                 className="min-w-0 flex-1 bg-transparent px-4 py-3 text-end font-en text-base font-bold outline-none"
               />
-              <span className="pe-4 text-xs text-navy/50">{currency.label}</span>
+              <span className="pe-4 text-xs text-navy/60">{currency.label}</span>
             </div>
             )}
           </div>
@@ -1300,7 +1423,7 @@ function Backups() {
       <h2 className="flex items-center gap-2 font-extrabold">
         <Database size={18} className="text-brand" /> النسخ الاحتياطي
       </h2>
-      <p className="mt-1 text-xs leading-relaxed text-navy/50">
+      <p className="mt-1 text-xs leading-relaxed text-navy/60">
         نسخة تلقائية يومية من الطلبات والزبائن والأسعار، تُحفظ على السيرفر لمدة 14 يوماً. نزّل نسخة إلى جهازك بين حين وآخر
         لتحتفظ بنسخة خارج السيرفر.
       </p>
@@ -1317,14 +1440,14 @@ function Backups() {
           <LoaderCircle size={24} className="animate-spin" />
         </div>
       ) : list.length === 0 ? (
-        <p className="py-8 text-center text-sm text-navy/40">لا توجد نسخ بعد، وستُؤخذ أول نسخة تلقائياً خلال ساعة</p>
+        <p className="py-8 text-center text-sm text-navy/60">لا توجد نسخ بعد، وستُؤخذ أول نسخة تلقائياً خلال ساعة</p>
       ) : (
         <ul className="mt-4 divide-y divide-navy/5">
           {list.map((b) => (
             <li key={b.name} className="flex items-center gap-3 py-3">
               <span className="min-w-0 flex-1">
                 <span className="block font-en text-sm font-bold">{b.name.replace('dawahi-', '').replace('.db', '')}</span>
-                <span className="text-[11px] text-navy/40">{Math.max(1, Math.round(b.size / 1024))} KB</span>
+                <span className="text-[11px] text-navy/60">{Math.max(1, Math.round(b.size / 1024))} KB</span>
               </span>
               <button
                 onClick={() => download(b.name)}
@@ -1344,9 +1467,16 @@ function Backups() {
 
 /* ───────── تنبيهات المدير (طلب جديد حتى واللوحة مسكّرة) ───────── */
 
-function AdminBell() {
+function useAdminPush() {
   const [state, setState] = useState('loading')
   const [busy, setBusy] = useState(false)
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem('zapp.pushBannerHidden') === '1'
+    } catch {
+      return false
+    }
+  })
   useEffect(() => {
     registerSW()
       .catch(() => {})
@@ -1363,7 +1493,7 @@ function AdminBell() {
         setState('enabled')
         await adminApi('/push/test', { method: 'POST' }).catch(() => {})
       } else if (state === 'denied') {
-        alertBox('الإشعارات مرفوضة في المتصفح. افتح إعدادات الموقع واسمح بالإشعارات.')
+        alertBox('الإشعارات مرفوضة في المتصفح. افتح إعدادات الموقع (القفل جنب العنوان) واسمح بالإشعارات، وبعدين حدّث الصفحة.')
       } else if (state === 'ios-install') {
         alertBox('على الآيفون: أضف اللوحة إلى الشاشة الرئيسية (زر المشاركة ثم إضافة إلى الشاشة الرئيسية) وافتحها من هناك.')
       } else {
@@ -1375,16 +1505,28 @@ function AdminBell() {
       setBusy(false)
     }
   }
-  if (state === 'loading') return null
-  const on = state === 'enabled'
+  const dismiss = () => {
+    try {
+      sessionStorage.setItem('zapp.pushBannerHidden', '1')
+    } catch {}
+    setDismissed(true)
+  }
+  return { state, busy, toggle, dismissed, dismiss }
+}
+
+function AdminBell({ push }) {
+  if (push.state === 'loading') return null
+  const on = push.state === 'enabled'
   return (
     <button
-      onClick={toggle}
-      aria-label="التنبيهات"
+      onClick={push.toggle}
+      aria-label={on ? 'إشعارات الطلبات مفعّلة' : 'فعّل إشعارات الطلبات الجديدة'}
       title={on ? 'الإشعارات مفعّلة' : 'فعّل إشعارات الطلبات الجديدة'}
-      className={`flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${on ? 'bg-emerald-500' : 'bg-brand animate-pulse'}`}
+      className={`flex h-10 items-center gap-1.5 rounded-full px-3.5 text-xs font-bold ${
+        on ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 lg:bg-emerald-50' : 'bg-amber-400 text-navy shadow-sm'
+      }`}
     >
-      {busy ? <LoaderCircle size={16} className="animate-spin" /> : on ? <BellRing size={16} /> : <BellOff size={16} />}
+      {push.busy ? <LoaderCircle size={16} className="animate-spin" /> : on ? <BellRing size={16} /> : <BellOff size={16} />}
       <span className="hidden sm:inline">{on ? 'الإشعارات مفعّلة' : 'فعّل الإشعارات'}</span>
     </button>
   )
@@ -1405,6 +1547,7 @@ function Couriers() {
   const [list, setList] = useState(null)
   const [form, setForm] = useState({ name: '', phone: '', pin: '' })
   const [profile, setProfile] = useState(null)
+  const [fileOf, setFileOf] = useState(null)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [created, setCreated] = useState(null)
@@ -1468,6 +1611,14 @@ function Couriers() {
   return (
     <div className="space-y-4">
       {profile && <CourierProfile courier={profile} onClose={() => setProfile(null)} />}
+      {fileOf && (
+        <CourierFile
+          courierId={fileOf}
+          onClose={() => setFileOf(null)}
+          load={(id) => adminApi(`/couriers/${id}/file`)}
+          docUrl={(id, kind) => fetch(`/api/admin/couriers/${id}/doc/${kind}`, { headers: { authorization: `Bearer ${getAdminToken()}` } })}
+        />
+      )}
       <form onSubmit={add} className="rounded-3xl bg-white p-5 shadow-soft">
         <h2 className="flex items-center gap-2 font-extrabold">
           <UserPlus size={18} className="text-brand" /> إضافة عامل توصيل
@@ -1490,7 +1641,7 @@ function Couriers() {
           <input
             value={form.pin}
             onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
-            placeholder="رمز سري (4 أرقام)"
+            placeholder="رمز سري (6 أرقام)"
             inputMode="numeric"
             dir="ltr"
             className="rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-end font-en text-sm outline-none focus:border-brand focus:bg-white"
@@ -1498,7 +1649,7 @@ function Couriers() {
         </div>
         {error && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-600">{error}</p>}
         <button
-          disabled={busy === 'add' || !form.name || form.phone.length !== 10 || form.pin.length < 4}
+          disabled={busy === 'add' || !form.name || form.phone.length !== 10 || form.pin.length !== 6}
           className="mt-4 flex w-full items-center justify-center rounded-2xl bg-brand py-3 text-sm font-extrabold text-white disabled:opacity-50"
         >
           {busy === 'add' ? <LoaderCircle size={18} className="animate-spin" /> : 'إضافة'}
@@ -1530,7 +1681,7 @@ function Couriers() {
             <LoaderCircle size={24} className="animate-spin" />
           </div>
         ) : list.length === 0 ? (
-          <p className="py-6 text-center text-sm text-navy/40">لا يوجد عمال توصيل مسجلون بعد</p>
+          <p className="py-6 text-center text-sm text-navy/60">لا يوجد عمال توصيل مسجلون بعد</p>
         ) : (
           <ul className="mt-3 divide-y divide-navy/5">
             {list.map((c) => (
@@ -1539,7 +1690,7 @@ function Couriers() {
                   <span className={`h-3 w-3 shrink-0 rounded-full ${c.online && c.active ? 'bg-emerald-500' : 'bg-navy/20'}`} />
                   <div className="min-w-0 flex-1">
                     <p className="font-bold">
-                      {c.name} <span className="text-xs font-normal text-navy/50">({c.openOrders} طلبات مفتوحة)</span>
+                      {c.name} <span className="text-xs font-normal text-navy/60">({c.openOrders} طلبات مفتوحة)</span>
                     </p>
                     {c.ratingCount > 0 && (
                       <p className="flex items-center gap-1.5 text-[11px] text-navy/55">
@@ -1547,10 +1698,14 @@ function Couriers() {
                         <span className={`num-zap ${c.ratingAvg < 3.5 ? 'text-rose-600' : ''}`}>{c.ratingAvg.toFixed(1)}</span> من {c.ratingCount} تقييم
                       </p>
                     )}
-                    <p className="text-[11px] text-navy/50">
-                      <span dir="ltr" className="font-en">{c.phone}</span> • {c.online ? 'متاح' : 'غير متاح'} •{' '}
-                      {c.push ? 'الإشعارات مفعّلة' : 'الإشعارات غير مفعّلة'}
+                    <p className="text-xs text-navy/60">
+                      <span dir="ltr" className="font-en">{c.phone}</span> • {c.online ? 'متاح' : 'غير متاح'}
                     </p>
+                    {c.setupMissing?.length > 0 && (
+                      <p className="mt-1 inline-block rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">
+                        ⚠️ موبايله ناقصه: {c.setupMissing.join('، ')}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2 ps-6">
@@ -1565,8 +1720,11 @@ function Couriers() {
                   >
                     {c.supervisor ? '✓ مشرف' : 'جعله مشرف'}
                   </button>
-                  <button onClick={() => setProfile(c)} className="rounded-xl bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand">
-                    الملف والوثائق
+                  <button onClick={() => setFileOf(c.id)} className="rounded-xl bg-brand px-3 py-2 text-xs font-bold text-white">
+                    الملف الكامل والطلبات
+                  </button>
+                  <button onClick={() => setProfile(c)} className="rounded-xl bg-brand-50 px-3 py-2 text-xs font-bold text-brand">
+                    تعديل المعلومات والوثائق
                   </button>
                   <button onClick={() => resetPin(c)} className="rounded-xl bg-navy-50 px-3 py-1.5 text-xs font-bold">
                     تغيير الرمز
@@ -1624,16 +1782,23 @@ function DispatchSettings() {
       <button
         onClick={() => save({ autoDispatch: on ? 0 : 1 })}
         disabled={busy}
+        role="switch"
+        aria-checked={on}
         className={`mt-4 flex w-full items-center gap-3 rounded-2xl p-4 text-start ${on ? 'bg-emerald-500 text-white' : 'bg-navy-50'}`}
       >
         <span className="flex-1">
           <span className="block font-bold">{on ? 'مفعّل' : 'متوقف، وتُوزَّع الطلبات يدوياً'}</span>
-          <span className={`block text-xs ${on ? 'text-white/85' : 'text-navy/50'}`}>
+          <span className={`block text-xs ${on ? 'text-white/85' : 'text-navy/60'}`}>
             يُعرض كل طلب على أول عامل توصيل متفرغ، وإن لم يقبله ينتقل إلى التالي. وإذا كان الجميع مشغولين، يُعرض على الأقرب إلى طريقه.
           </span>
         </span>
-        <span className={`relative h-7 w-12 shrink-0 rounded-full ${on ? 'bg-white/30' : 'bg-navy/15'}`}>
-          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'start-6' : 'start-1'}`} />
+        <span className="flex shrink-0 flex-col items-center gap-1">
+          <span className={`relative h-7 w-12 rounded-full ${on ? 'bg-lime' : 'bg-navy/25'}`}>
+            <span className={`absolute top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[10px] font-black text-emerald-600 shadow transition-all ${on ? 'start-6' : 'start-1'}`}>
+              {on ? '✓' : ''}
+            </span>
+          </span>
+          <span className={`text-[10px] font-bold ${on ? 'text-white' : 'text-navy/55'}`}>{on ? 'شغّال' : 'متوقف'}</span>
         </span>
       </button>
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -1659,7 +1824,7 @@ function DispatchSettings() {
         </label>
         <div className="col-span-2 rounded-2xl bg-navy-50 p-3">
           <p className="text-xs font-bold">تذكير عامل التوصيل إذا ما غيّر حالة الطلب بعد (دقيقة، 0 = بدون تذكير)</p>
-          <p className="mt-0.5 text-[11px] text-navy/50">بيجيه إشعار، وإذا ضل متأخر بيعرف المشرف والإدارة.</p>
+          <p className="mt-0.5 text-[11px] text-navy/60">بيجيه إشعار، وإذا ضل متأخر بيعرف المشرف والإدارة.</p>
           <div className="mt-2 grid grid-cols-3 gap-2">
             {[
               ['remindAssignedMin', 'قبل وما بلّش يشتري', 10],
@@ -1681,7 +1846,7 @@ function DispatchSettings() {
         </div>
         <label className="col-span-2 block">
           <span className="text-xs font-bold">إشعار للزبون "عامل التوصيل قرّب يوصل" لما يصير على بعد (متر، 0 = بدون)</span>
-          <span className="mt-0.5 block text-[11px] text-navy/50">بضاحية قدسيا 400 متر تقريباً دقيقة أو دقيقتين بالموتور.</span>
+          <span className="mt-0.5 block text-[11px] text-navy/60">بضاحية قدسيا 400 متر تقريباً دقيقة أو دقيقتين بالموتور.</span>
           <input
             inputMode="numeric"
             dir="ltr"
@@ -1715,7 +1880,7 @@ function DispatchSettings() {
           })
         }
         disabled={busy}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-navy py-3 text-sm font-bold text-white disabled:opacity-60"
+        className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 text-sm font-extrabold text-white disabled:opacity-70"
       >
         {busy ? <LoaderCircle size={16} className="animate-spin" /> : saved ? <><Check size={16} /> تم الحفظ</> : 'حفظ إعدادات التوزيع'}
       </button>

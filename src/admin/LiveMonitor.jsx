@@ -19,18 +19,27 @@ const STATUS = {
 const COURIER = {
   free: { label: 'متاح', fill: '#C8F531', ink: '#1E0E4F', chip: 'bg-lime-50 text-[#5B7A00]' },
   busy: { label: 'مشغول', fill: '#4B1FE0', ink: '#fff', chip: 'bg-brand-50 text-brand' },
-  offline: { label: 'غير متاح', fill: '#9AA0B4', ink: '#fff', chip: 'bg-navy/5 text-navy/50' },
+  offline: { label: 'غير متاح', fill: '#9AA0B4', ink: '#fff', chip: 'bg-navy/5 text-navy/60' },
 }
 
 const esc = (s) => String(s).replace(/[<>&"]/g, '')
 // أرقام لاتينية بخط الشعار (أوضح بالعدّادات الكبيرة)
 const fmtNum = (n) => new Intl.NumberFormat('en-US').format(n)
 const money = (n) => `${fmtNum(n)} ${currency.label}`
+// "محمد (مرتين)، أبو خالد" بدل تكرار الاسم
+export function namesOnce(list, status) {
+  const counts = new Map()
+  for (const x of list) if (x.status === status) counts.set(x.name, (counts.get(x.name) || 0) + 1)
+  return [...counts].map(([n, c]) => (c === 1 ? n : c === 2 ? `${n} (مرتين)` : `${n} (${c} مرات)`)).join('، ')
+}
+
 function clock(ms) {
   const s = Math.max(0, Math.floor(ms / 1000))
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
   const ss = String(s % 60).padStart(2, '0')
+  if (h >= 24) return `${Math.floor(h / 24)} يوم`
+  if (h >= 2) return `${h} ساعة`
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
 }
 function ago(iso, now) {
@@ -113,19 +122,20 @@ export default function LiveMonitor({ onOpenOrder }) {
             مباشر · يتحدّث كل ثانيتين
           </span>
         )}
-        <span className="text-navy/45">آخر تحديث {ago(data.at, now)}</span>
+        <span className="text-navy/60">آخر تحديث {ago(data.at, now)}</span>
       </div>
 
       {/* الأرقام الحية */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi Icon={Smartphone} hero label="فاتحين التطبيق هلق" value={fmtNum(data.online.customers)}
-          sub={data.online.downloadPage ? `${fmtNum(data.online.downloadPage)} على صفحة التحميل` : 'زبائن متصلون الآن'} />
+        <Kpi Icon={Radio} hero={!waiting} alert={waiting > 0} big label={waiting ? 'طلبات بانتظار عامل' : 'طلبات نشطة الآن'}
+          value={fmtNum(waiting || data.active.length)}
+          sub={waiting ? `من أصل ${fmtNum(data.active.length)} طلب نشط · لازم حدا يستلمها` : data.active.length ? 'كلها مع عمال التوصيل' : 'ما في طلبات هلق'} />
         <Kpi Icon={Bike} label="عمال التوصيل" value={`${fmtNum(free)} متاح`}
-          sub={`${fmtNum(busyN)} مشغول · ${fmtNum(data.couriers.length - free - busyN)} غير متاح`} />
-        <Kpi Icon={Radio} label="طلبات نشطة الآن" value={fmtNum(data.active.length)}
-          sub={waiting ? `${fmtNum(waiting)} بانتظار عامل` : 'كلها مع عمال'} alert={waiting > 0} />
+          sub={`${fmtNum(busyN)} مشغول · ${fmtNum(data.couriers.length - free - busyN)} غير متاح`} alert={!free && waiting > 0} />
         <Kpi Icon={ClipboardList} label="طلبات اليوم" value={fmtNum(data.today.orders)}
           sub={`${fmtNum(data.today.delivered)} وصلت · ${fmtNum(data.today.cancelled)} ملغاة`} />
+        <Kpi Icon={Smartphone} label="فاتحين التطبيق هلق" value={fmtNum(data.online.customers)}
+          sub={data.online.downloadPage ? `${fmtNum(data.online.downloadPage)} على صفحة التحميل` : 'زبائن متصلون الآن'} />
         <Kpi Icon={Eye} label="زوار اليوم" value={fmtNum(data.today.visitors)}
           sub={`${fmtNum(data.today.downloadPageVisitors)} فتحوا صفحة التحميل`} />
         <Kpi Icon={Download} label="تثبيتات اليوم" value={fmtNum(data.today.installs)}
@@ -152,21 +162,21 @@ export default function LiveMonitor({ onOpenOrder }) {
   )
 }
 
-function Kpi({ Icon, label, value, sub, hero, alert, small }) {
+function Kpi({ Icon, label, value, sub, hero, alert, small, big }) {
   return (
     <div
       className={`relative overflow-hidden rounded-2xl p-4 shadow-soft ${
-        hero ? 'speed-bg bg-brand text-white' : alert ? 'bg-white ring-2 ring-red-400' : 'bg-white'
+        alert && big ? 'bg-red-600 text-white' : hero ? 'speed-bg bg-brand text-white' : alert ? 'bg-white ring-2 ring-red-400' : 'bg-white'
       }`}
     >
       <div className="flex items-center gap-2">
-        <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${hero ? 'bg-lime text-navy' : 'bg-brand-50 text-brand'}`}>
+        <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${hero || (alert && big) ? 'bg-lime text-navy' : 'bg-brand-50 text-brand'}`}>
           <Icon size={17} />
         </span>
-        <span className={`text-xs font-bold ${hero ? 'text-white/80' : 'text-navy/55'}`}>{label}</span>
+        <span className={`text-xs font-bold ${hero || (alert && big) ? 'text-white/85' : 'text-navy/60'}`}>{label}</span>
       </div>
-      <p className={`num-zap mt-3 leading-none ${small ? 'text-xl' : 'text-3xl'} ${hero ? 'text-lime' : alert ? 'text-red-600' : 'text-navy'}`}>{value}</p>
-      <p className={`mt-2 truncate text-[11px] ${hero ? 'text-white/70' : 'text-navy/45'}`}>{sub}</p>
+      <p className={`num-zap mt-3 leading-none ${small ? 'text-xl' : 'text-3xl'} ${alert && big ? 'text-white' : hero ? 'text-lime' : alert ? 'text-red-600' : 'text-navy'}`}>{value}</p>
+      <p className={`mt-2 truncate text-[11px] ${hero || (alert && big) ? 'text-white/80' : 'text-navy/55'}`}>{sub}</p>
     </div>
   )
 }
@@ -279,7 +289,7 @@ function Legend() {
           <span className="h-3 w-3 rounded-[4px]" style={{ background: COURIER[k].fill }} /> عامل {COURIER[k].label}
         </span>
       ))}
-      <span className="flex items-center gap-1.5 text-navy/40">باهت = موقع قديم</span>
+      <span className="flex items-center gap-1.5 text-navy/60">باهت = موقع قديم</span>
     </div>
   )
 }
@@ -297,7 +307,7 @@ function Radar({ orders, now, onFocus, onOpen }) {
         <span className="num-zap rounded-full bg-navy px-2.5 py-0.5 text-sm text-lime">{orders.length}</span>
       </header>
       {!list.length ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center text-sm text-navy/45">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center text-sm text-navy/60">
           <Radio size={28} className="text-navy/20" />
           ما في طلبات نشطة هلق. أول ما يجي طلب بيظهر هون فوراً.
         </div>
@@ -320,16 +330,16 @@ function Radar({ orders, now, onFocus, onOpen }) {
                     {o.kind === 'gas' ? <Flame size={13} className="me-1 inline text-brand" /> : <ShoppingBag size={13} className="me-1 inline text-brand" />}
                     {o.summary}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-navy/50">
+                  <p className="mt-0.5 truncate text-xs text-navy/60">
                     {o.customer.name}
                     {o.address ? ` · ${o.address}` : ''}
                   </p>
                 </button>
                 {o.status === 'new' && o.tried?.length > 0 && (
-                  <p className="mt-1 truncate text-[11px] font-bold text-navy/50">
+                  <p className="mt-1 truncate text-[11px] font-bold text-navy/60">
                     {[
-                      o.tried.some((x) => x.status === 'declined') && `رفضه: ${o.tried.filter((x) => x.status === 'declined').map((x) => x.name).join('، ')}`,
-                      o.tried.some((x) => x.status === 'expired') && `ما ردّ: ${o.tried.filter((x) => x.status === 'expired').map((x) => x.name).join('، ')}`,
+                      o.tried.some((x) => x.status === 'declined') && `رفضه: ${namesOnce(o.tried, 'declined')}`,
+                      o.tried.some((x) => x.status === 'expired') && `ما ردّ: ${namesOnce(o.tried, 'expired')}`,
                     ]
                       .filter(Boolean)
                       .join(' · ')}
@@ -380,7 +390,7 @@ function Hourly({ hourly }) {
           </div>
         ))}
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-navy/40" dir="ltr">
+      <div className="mt-1 flex justify-between text-[10px] text-navy/60" dir="ltr">
         {[0, 6, 12, 18, 23].map((h) => (
           <span key={h} className="font-en">{String(h).padStart(2, '0')}:00</span>
         ))}
@@ -397,7 +407,7 @@ function Fleet({ couriers, now, onFocus }) {
     <section className="rounded-2xl bg-white shadow-soft">
       <h2 className="border-b border-navy/5 px-4 py-3 font-extrabold">عمال التوصيل الآن</h2>
       {!list.length ? (
-        <p className="p-6 text-center text-sm text-navy/45">لا يوجد عمال بعد. أضفهم من قسم عمال التوصيل.</p>
+        <p className="p-6 text-center text-sm text-navy/60">لا يوجد عمال بعد. أضفهم من قسم عمال التوصيل.</p>
       ) : (
         <ul className="max-h-72 divide-y divide-navy/5 overflow-y-auto">
           {list.map((c) => (
@@ -413,7 +423,7 @@ function Fleet({ couriers, now, onFocus }) {
                     {c.name}
                     {c.supervisor && <span className="rounded bg-lime px-1.5 text-[10px] text-navy">مشرف</span>}
                   </span>
-                  <span className="block text-[11px] text-navy/45">
+                  <span className="block text-[11px] text-navy/60">
                     {c.appOpen ? 'التطبيق شغّال' : c.lastSeen ? `التطبيق مسكّر · آخر ظهور ${ago(c.lastSeen, now)}` : 'ما فتح التطبيق بعد'}
                     {c.location ? ` · آخر موقع ${ago(c.location.at, now)}` : ''}
                   </span>
@@ -440,9 +450,9 @@ function Team({ team, now }) {
             <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${m.open ? 'bg-emerald-500' : 'bg-navy/20'}`} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-bold">{m.name}</span>
-              <span className="block text-[11px] text-navy/45">{m.role}</span>
+              <span className="block text-[11px] text-navy/60">{m.role}</span>
             </span>
-            <span className={`text-[11px] font-bold ${m.open ? 'text-emerald-600' : 'text-navy/45'}`}>
+            <span className={`text-[11px] font-bold ${m.open ? 'text-emerald-600' : 'text-navy/60'}`}>
               {m.open ? 'فاتح هلق' : m.lastSeen ? `آخر ظهور ${ago(m.lastSeen, now)}` : 'ما فات بعد'}
             </span>
           </li>

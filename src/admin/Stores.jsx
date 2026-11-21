@@ -8,7 +8,7 @@ const L = ({ label, children, hint }) => (
   <label className="block">
     <span className="text-xs font-bold text-navy/60">{label}</span>
     <div className="mt-1">{children}</div>
-    {hint && <span className="mt-1 block text-[11px] text-navy/40">{hint}</span>}
+    {hint && <span className="mt-1 block text-[11px] text-navy/60">{hint}</span>}
   </label>
 )
 
@@ -61,7 +61,7 @@ export default function Stores() {
           <h2 className="flex items-center gap-2 text-base font-extrabold">
             <UtensilsCrossed size={18} className="text-brand" /> المطاعم الشريكة
           </h2>
-          <p className="mt-1 text-xs text-navy/50">أضف مطعم مع أكلاته وأسعاره. ما بيطلع بالتطبيق إلا لما تكبس "نشر"، وبيطلع لحاله بدون أي تحديث.</p>
+          <p className="mt-1 text-xs text-navy/60">أضف مطعم مع أكلاته وأسعاره. ما بيطلع بالتطبيق إلا لما تكبس "نشر"، وبيطلع لحاله بدون أي تحديث.</p>
         </div>
         <button onClick={() => setCreating(true)} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2.5 text-xs font-bold text-white">
           <Plus size={16} /> مطعم جديد
@@ -73,7 +73,7 @@ export default function Stores() {
           <LoaderCircle className="animate-spin" />
         </div>
       ) : list.length === 0 ? (
-        <p className="py-10 text-center text-sm text-navy/40">لسا ما في مطاعم. لما تتفق مع مطعم، ضيفه من هون.</p>
+        <p className="py-10 text-center text-sm text-navy/60">لسا ما في مطاعم. لما تتفق مع مطعم، ضيفه من هون.</p>
       ) : (
         <ul className="mt-4 grid gap-3 sm:grid-cols-2">
           {list.map((s) => (
@@ -84,9 +84,9 @@ export default function Stores() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm">{s.name}</b>
-                  <span className="text-xs text-navy/50">{s.itemsCount} صنف</span>
+                  <span className="text-xs text-navy/60">{s.itemsCount} صنف</span>
                 </span>
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${s.published ? 'bg-emerald-50 text-emerald-700' : 'bg-navy-50 text-navy/50'}`}>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${s.published ? 'bg-emerald-50 text-emerald-700' : 'bg-navy-50 text-navy/60'}`}>
                   {s.published ? 'منشور' : 'مخفي'}
                 </span>
               </button>
@@ -214,7 +214,7 @@ function StoreDetail({ id, onBack }) {
           </span>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-black">{store.name}</h2>
-            <p className="text-xs text-navy/50">{store.description || 'بدون وصف'} · {store.isOpen ? 'فاتح' : 'مسكّر'}</p>
+            <p className="text-xs text-navy/60">{store.description || 'بدون وصف'} · {store.isOpen ? 'فاتح' : 'مسكّر'}</p>
           </div>
           <button onClick={() => setEditStore(true)} className="rounded-xl bg-navy-50 px-3 py-2 text-xs font-bold">
             تعديل
@@ -241,7 +241,7 @@ function StoreDetail({ id, onBack }) {
           </button>
         </div>
         {items.length === 0 ? (
-          <p className="py-8 text-center text-sm text-navy/40">ضيف أول صنف، مثلاً: سندويشة شاورما · 15,000</p>
+          <p className="py-8 text-center text-sm text-navy/60">ضيف أول صنف، مثلاً: سندويشة شاورما · 15,000</p>
         ) : (
           <ul className="mt-3 divide-y divide-navy/5">
             {items.map((it) => (
@@ -251,7 +251,7 @@ function StoreDetail({ id, onBack }) {
                 </span>
                 <span className="min-w-0 flex-1 text-sm">
                   <b className="block truncate">{it.name}</b>
-                  <span className="text-xs text-navy/50">
+                  <span className="text-xs text-navy/60">
                     {it.section && `${it.section} · `}
                     <b className="text-brand">{money(it.price)}</b>
                   </span>

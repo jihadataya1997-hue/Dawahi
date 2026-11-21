@@ -66,7 +66,7 @@ function ago(iso) {
   return `من ${Math.floor(s / 86400)} يوم`;
 }
 
-export default function CourierFile({ courierId, onClose }) {
+export default function CourierFile({ courierId, onClose, load, docUrl }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState("orders");
@@ -74,7 +74,7 @@ export default function CourierFile({ courierId, onClose }) {
 
   useEffect(() => {
     let alive = true;
-    api(`/sup/couriers/${courierId}`)
+    ;(load ? load(courierId) : api(`/sup/couriers/${courierId}`))
       .then((d) => alive && setData(d))
       .catch((e) => alive && setError(errText(e)));
     return () => {

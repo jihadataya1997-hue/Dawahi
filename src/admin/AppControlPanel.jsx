@@ -13,7 +13,7 @@ const Err = ({ children }) =>
 const Field = ({ label, hint, children }) => (
   <label className="block">
     <span className="text-sm font-bold">{label}</span>
-    {hint && <span className="block text-[11px] text-navy/40">{hint}</span>}
+    {hint && <span className="block text-[11px] text-navy/60">{hint}</span>}
     <div className="mt-1.5">{children}</div>
   </label>
 )
@@ -25,7 +25,7 @@ function Head({ Icon, title, sub, tone = 'brand', right }) {
       </span>
       <div className="min-w-0 flex-1">
         <h2 className="font-extrabold">{title}</h2>
-        <p className="text-xs text-navy/50">{sub}</p>
+        <p className="text-xs text-navy/60">{sub}</p>
       </div>
       {right}
     </div>
@@ -161,7 +161,7 @@ function Maintenance({ data, onSaved }) {
         {live ? 'رجّع تشغيل التطبيق' : confirm ? 'متأكد؟ اضغط مرة تانية لإيقاف التطبيق' : 'فعّل وضع الصيانة'}
       </Save>
       {confirm && (
-        <button onClick={() => setConfirm(false)} className="mt-2 w-full text-xs font-bold text-navy/50">
+        <button onClick={() => setConfirm(false)} className="mt-2 w-full text-xs font-bold text-navy/60">
           تراجع
         </button>
       )}
@@ -197,7 +197,7 @@ function Services({ data, onSaved }) {
                     key={st.id}
                     onClick={() => upd(s.id, { state: st.id })}
                     className={`rounded-lg px-2.5 py-1.5 transition ${
-                      s.state === st.id ? (st.id === 'on' ? 'bg-lime text-navy' : st.id === 'paused' ? 'bg-amber-400 text-navy' : 'bg-navy text-white') : 'text-navy/50'
+                      s.state === st.id ? (st.id === 'on' ? 'bg-lime text-navy' : st.id === 'paused' ? 'bg-amber-400 text-navy' : 'bg-navy text-white') : 'text-navy/60'
                     }`}
                   >
                     {st.label}
@@ -243,9 +243,9 @@ function HomeSections({ data, onSaved }) {
           <li key={k} className="flex items-center gap-3 rounded-2xl border border-navy/10 p-3">
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-bold">{label}</span>
-              <span className="block text-[11px] text-navy/45">{hint}</span>
+              <span className="block text-[11px] text-navy/60">{hint}</span>
             </span>
-            <span className={`text-[11px] font-bold ${f[k] ? 'text-brand' : 'text-navy/40'}`}>{f[k] ? 'ظاهر' : 'مخفي'}</span>
+            <span className={`text-[11px] font-bold ${f[k] ? 'text-brand' : 'text-navy/60'}`}>{f[k] ? 'ظاهر' : 'مخفي'}</span>
             <Switch on={!!f[k]} onChange={(v) => setF({ ...f, [k]: v })} label={label} />
           </li>
         ))}
@@ -289,7 +289,7 @@ function Peak({ data, onSaved }) {
       <div className="mt-4 flex items-center gap-3 rounded-2xl border border-navy/10 p-3">
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold">شغّل الذروة هلق يدوياً</span>
-          <span className="block text-[11px] text-navy/45">مثلاً وقت مطر أو ضغط مفاجئ. بتضل شغّالة لحتى تطفيها.</span>
+          <span className="block text-[11px] text-navy/60">مثلاً وقت مطر أو ضغط مفاجئ. بتضل شغّالة لحتى تطفيها.</span>
         </span>
         <Switch on={f.manual} onChange={(v) => setF({ ...f, manual: v })} label="ذروة يدوية" />
       </div>
@@ -305,7 +305,7 @@ function Peak({ data, onSaved }) {
                   <button
                     key={n}
                     onClick={() => setW(i, { days: on ? w.days.filter((x) => x !== n) : [...w.days, n] })}
-                    className={`rounded-lg px-2 py-1 text-[11px] font-bold ${on ? 'bg-brand text-white' : 'bg-navy/5 text-navy/50'}`}
+                    className={`rounded-lg px-2 py-1 text-[11px] font-bold ${on ? 'bg-brand text-white' : 'bg-navy/5 text-navy/60'}`}
                   >
                     {d}
                   </button>
@@ -313,7 +313,7 @@ function Peak({ data, onSaved }) {
               })}
             </div>
             <div className="mt-2 flex items-center gap-2 text-xs font-bold">
-              <Clock size={15} className="text-navy/40" />
+              <Clock size={15} className="text-navy/60" />
               من
               <input type="time" dir="ltr" className={`${inputCls} !w-36 !py-1.5`} value={w.from} onChange={(e) => setW(i, { from: e.target.value })} />
               لـ

@@ -103,7 +103,7 @@ export default function AuditLog() {
           ))}
         </select>
         <form onSubmit={(e) => (e.preventDefault(), setQuery(q.trim()))} className="relative min-w-[12rem] flex-1">
-          <Search size={16} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-navy/40" />
+          <Search size={16} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-navy/60" />
           <input value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => setQuery(q.trim())} placeholder="دوّر: اسم عامل توصيل، رقم طلب، شحن…" className={`${inputCls} ps-9`} />
         </form>
         <button onClick={load} aria-label="تحديث" className="flex h-11 w-11 items-center justify-center rounded-xl bg-white shadow-soft">
@@ -117,7 +117,7 @@ export default function AuditLog() {
           <LoaderCircle size={28} className="animate-spin" />
         </div>
       ) : !items.length ? (
-        <div className="rounded-3xl bg-white py-16 text-center text-sm text-navy/50 shadow-soft">
+        <div className="rounded-3xl bg-white py-16 text-center text-sm text-navy/60 shadow-soft">
           <History size={28} className="mx-auto mb-2 text-navy/25" />
           {query || staff ? 'ما في نتائج لهالبحث' : 'لسا ما في نشاط مسجّل. أي تعديل جديد رح يبين هون.'}
         </div>
@@ -137,10 +137,10 @@ export default function AuditLog() {
                   disabled={!entries.length}
                   className="flex w-full items-start gap-3 border-b border-navy/5 px-5 py-3 text-start hover:bg-navy-50/50 disabled:cursor-default"
                 >
-                  <span className="num-zap w-12 shrink-0 pt-0.5 text-xs font-bold text-navy/45">{timeLabel(it.at)}</span>
+                  <span className="num-zap w-12 shrink-0 pt-0.5 text-xs font-bold text-navy/60">{timeLabel(it.at)}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-bold leading-relaxed">{it.action}</span>
-                    <span className="mt-0.5 block text-xs text-navy/50">{it.actor}</span>
+                    <span className="mt-0.5 block text-xs text-navy/60">{it.actor}</span>
                   </span>
                   {entries.length > 0 && <ChevronDown size={16} className={`mt-1 shrink-0 text-navy/35 transition ${isOpen ? 'rotate-180' : ''}`} />}
                 </button>

@@ -41,7 +41,7 @@ export default function Promos() {
             <h2 className="flex items-center gap-2 text-base font-extrabold">
               <Gift size={18} className="text-brand" /> كودات الحسم
             </h2>
-            <p className="mt-1 text-xs text-navy/50">الزبون بيكتب الكود بآخر خطوة من الطلب، والحسم بينزل من أجرة التوصيل.</p>
+            <p className="mt-1 text-xs text-navy/60">الزبون بيكتب الكود بآخر خطوة من الطلب، والحسم بينزل من أجرة التوصيل.</p>
           </div>
           <button
             onClick={() => setEdit({ code: '', kind: 'free', value: 0, firstOrderOnly: true, maxUses: 0, perCustomer: 1, expiresAt: null, note: '', active: true })}
@@ -56,7 +56,7 @@ export default function Promos() {
             <LoaderCircle className="animate-spin" />
           </div>
         ) : list.length === 0 ? (
-          <p className="py-8 text-center text-sm text-navy/40">ما في كودات لسا. مثال: كود "AHLAN" توصيل مجاني لأول طلب.</p>
+          <p className="py-8 text-center text-sm text-navy/60">ما في كودات لسا. مثال: كود "AHLAN" توصيل مجاني لأول طلب.</p>
         ) : (
           <ul className="mt-4 divide-y divide-navy/5">
             {list.map((p) => (
@@ -66,7 +66,7 @@ export default function Promos() {
                 </span>
                 <span className="min-w-0 flex-1 text-sm">
                   <b>{p.kind === 'free' ? KIND.free : p.kind === 'amount' ? `حسم ${money(p.value)}` : `حسم ${p.value}%`}</b>
-                  <span className="block text-xs text-navy/50">
+                  <span className="block text-xs text-navy/60">
                     {[
                       p.firstOrderOnly && 'لأول طلب بس',
                       `استُعمل ${p.uses}${p.maxUses ? ` من ${p.maxUses}` : ''} مرة`,
@@ -100,7 +100,7 @@ const L = ({ label, children, hint }) => (
   <label className="block">
     <span className="text-xs font-bold text-navy/60">{label}</span>
     <div className="mt-1">{children}</div>
-    {hint && <span className="mt-1 block text-[11px] text-navy/40">{hint}</span>}
+    {hint && <span className="mt-1 block text-[11px] text-navy/60">{hint}</span>}
   </label>
 )
 
@@ -218,12 +218,12 @@ function PointsCard() {
     <>
     <Card>
       <button onClick={toggleFirst} className="flex w-full items-center gap-3 text-start">
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${cfg.firstOrderFree ? 'bg-lime text-navy' : 'bg-navy-50 text-navy/40'}`}>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${cfg.firstOrderFree ? 'bg-lime text-navy' : 'bg-navy-50 text-navy/60'}`}>
           <Gift size={20} />
         </span>
         <span className="min-w-0 flex-1">
           <b className="block text-base">توصيل مجاني لأول طلب</b>
-          <span className="block text-xs text-navy/50">
+          <span className="block text-xs text-navy/60">
             كل زبون جديد أول طلب إله توصيله ببلاش تلقائياً، بدون كود. عامل التوصيل بياخد حصته كاملة، والحسم بينحسب من حصتك.
           </span>
         </span>
@@ -236,7 +236,7 @@ function PointsCard() {
       <h2 className="flex items-center gap-2 text-base font-extrabold">
         <Star size={18} className="fill-lime text-navy" /> نظام النقاط
       </h2>
-      <p className="mt-1 text-xs text-navy/50">مع كل طلب بيوصل، الزبون بياخد نقاط. لما يجمع العدد المطلوب، بيستعملها لتوصيل مجاني. حط 0 لتوقيف النظام.</p>
+      <p className="mt-1 text-xs text-navy/60">مع كل طلب بيوصل، الزبون بياخد نقاط. لما يجمع العدد المطلوب، بيستعملها لتوصيل مجاني. حط 0 لتوقيف النظام.</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <label className="block">
           <span className="text-xs font-bold text-navy/60">نقاط لكل طلب واصل</span>
@@ -253,7 +253,7 @@ function PointsCard() {
       {error && <p className="mt-2 text-xs font-bold text-rose-600">{error}</p>}
       {cfg.top?.length > 0 && (
         <div className="mt-4 border-t border-navy/5 pt-3">
-          <p className="text-xs font-bold text-navy/50">أكتر الزبائن نقاط</p>
+          <p className="text-xs font-bold text-navy/60">أكتر الزبائن نقاط</p>
           <ul className="mt-2 flex flex-wrap gap-2">
             {cfg.top.map((c) => (
               <li key={c.id} className="rounded-full bg-navy-50 px-3 py-1 text-xs">

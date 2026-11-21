@@ -36,7 +36,7 @@ const Err = ({ children }) =>
 const Field = ({ label, hint, children }) => (
   <label className="block">
     <span className="text-sm font-bold">{label}</span>
-    {hint && <span className="block text-[11px] text-navy/40">{hint}</span>}
+    {hint && <span className="block text-[11px] text-navy/60">{hint}</span>}
     <div className="mt-1.5">{children}</div>
   </label>
 )
@@ -51,7 +51,7 @@ function SaveButton({ busy, saved, children = 'حفظ', ...p }) {
     </button>
   )
 }
-const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('ar-SY-u-nu-latn', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
 
 /* ───────── الزبائن ───────── */
 
@@ -122,21 +122,21 @@ export function Customers() {
       )}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-0 flex-1">
-          <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-navy/40" />
+          <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-navy/60" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث بالاسم أو الرقم" className={`${inputCls} ps-9`} />
         </div>
-        {data && <span className="text-xs text-navy/50">المجموع: {data.total} زبون</span>}
+        {data && <span className="text-xs text-navy/60">المجموع: {data.total} زبون</span>}
       </div>
       <Err>{error}</Err>
       {!data ? (
         <Spinner />
       ) : data.customers.length === 0 ? (
-        <p className="py-10 text-center text-sm text-navy/40">لا يوجد زبائن مطابقون</p>
+        <p className="py-10 text-center text-sm text-navy/60">لا يوجد زبائن مطابقون</p>
       ) : (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
-              <tr className="border-b border-navy/10 text-start text-xs text-navy/50">
+              <tr className="border-b border-navy/10 text-start text-xs text-navy/60">
                 <th className="py-2 text-start font-bold">الزبون</th>
                 <th className="py-2 text-start font-bold">الطلبات</th>
                 <th className="py-2 text-start font-bold">آخر طلب</th>
@@ -152,15 +152,15 @@ export function Customers() {
                       {c.name} {c.blocked && <span className="rounded bg-rose-100 px-1.5 text-[10px] text-rose-700">موقوف</span>}
                       {!c.hasPassword && <span className="ms-1 rounded bg-amber-100 px-1.5 text-[10px] text-amber-700">بدون كلمة سر</span>}
                     </p>
-                    <p dir="ltr" className="text-end font-en text-xs text-navy/50 rtl:text-start">
+                    <p dir="ltr" className="text-end font-en text-xs text-navy/60 rtl:text-start">
                       {c.phone}
                     </p>
                   </td>
                   <td className="py-3">
-                    {c.orders} <span className="text-xs text-navy/40">({c.delivered} تم توصيلها)</span>
+                    {c.orders} <span className="text-xs text-navy/60">({c.delivered} تم توصيلها)</span>
                   </td>
                   <td className="py-3 text-xs text-navy/60">{c.lastOrderAt ? fmtDate(c.lastOrderAt) : 'لا يوجد'}</td>
-                  <td className="py-3 text-xs">{c.push ? 'مفعّلة' : <span className="text-navy/40">غير مفعّلة</span>}</td>
+                  <td className="py-3 text-xs">{c.push ? 'مفعّلة' : <span className="text-navy/60">غير مفعّلة</span>}</td>
                   <td className="py-3">
                     <div className="flex justify-end gap-1.5">
                       <a href={`tel:${c.phone}`} aria-label="اتصال" className="flex h-8 w-8 items-center justify-center rounded-lg bg-navy-50">
@@ -300,7 +300,7 @@ function BannerEditor({ initial, onClose, onSaved }) {
           </button>
         </div>
 
-        <p className="mt-4 text-xs font-bold text-navy/50">معاينة كما يظهر في التطبيق</p>
+        <p className="mt-4 text-xs font-bold text-navy/60">معاينة كما يظهر في التطبيق</p>
         <div className="mt-2 max-w-sm">
           <BannerPreview b={b.removeImage ? { ...b, image: null, imagePreview: null } : b} />
         </div>
@@ -482,7 +482,7 @@ export function Banners() {
         <Spinner />
       ) : list.length === 0 ? (
         <Card>
-          <p className="py-8 text-center text-sm text-navy/40">لا توجد إعلانات بعد</p>
+          <p className="py-8 text-center text-sm text-navy/60">لا توجد إعلانات بعد</p>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
@@ -493,8 +493,8 @@ export function Banners() {
                 <BannerPreview b={b} />
                 <div className="mt-3 flex flex-wrap items-center gap-2 px-1">
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${cls}`}>{st}</span>
-                  <span className="text-[11px] text-navy/50">{ACTIONS[b.action]}</span>
-                  {b.endsAt && <span className="text-[11px] text-navy/50">حتى {fmtDate(b.endsAt)}</span>}
+                  <span className="text-[11px] text-navy/60">{ACTIONS[b.action]}</span>
+                  {b.endsAt && <span className="text-[11px] text-navy/60">حتى {fmtDate(b.endsAt)}</span>}
                   <div className="ms-auto flex gap-1">
                     <IconBtn label="أعلى" onClick={() => move(i, -1)} disabled={i === 0}>
                       <ArrowUp size={14} />
@@ -607,7 +607,7 @@ export function Announcements() {
           ))}
         </div>
         {data && (
-          <p className="mt-2 text-xs text-navy/50">
+          <p className="mt-2 text-xs text-navy/60">
             {audience === 'couriers'
               ? `بيوصل لـ ${data.couriers} عامل توصيل: إشعار على الموبايل للي التطبيق شغّال عندهم، وللباقيين أول ما يصيروا متاحين.`
               : `يصل إشعاراً على الموبايل إلى ${data.reach} زبون من أصل ${data.customers}، ويظهر للجميع في صندوق الإشعارات داخل التطبيق.`}
@@ -631,7 +631,7 @@ export function Announcements() {
         {/* معاينة كما يظهر على الموبايل */}
         {form.title && (
           <div className="mt-4 rounded-2xl bg-navy-50 p-3">
-            <p className="text-[11px] text-navy/40">معاينة الإشعار</p>
+            <p className="text-[11px] text-navy/60">معاينة الإشعار</p>
             <div className="mt-2 flex gap-3 rounded-xl bg-white p-3 shadow-sm">
               <img src="/icon-192.png" alt="" className="h-9 w-9 rounded-lg" />
               <div className="min-w-0">
@@ -673,7 +673,7 @@ export function Announcements() {
         {!data ? (
           <Spinner />
         ) : data.announcements.length === 0 ? (
-          <p className="py-8 text-center text-sm text-navy/40">لم يُرسل أي إشعار بعد</p>
+          <p className="py-8 text-center text-sm text-navy/60">لم يُرسل أي إشعار بعد</p>
         ) : (
           <ul className="mt-3 divide-y divide-navy/5">
             {data.announcements.map((a) => (
@@ -681,7 +681,7 @@ export function Announcements() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold">{a.title}</p>
                   {a.body && <p className="line-clamp-2 text-xs text-navy/60">{a.body}</p>}
-                  <p className="mt-1 text-[11px] text-navy/40">
+                  <p className="mt-1 text-[11px] text-navy/60">
                     {fmtDate(a.createdAt)}، وصل إلى {a.sentCount} زبون
                   </p>
                 </div>
@@ -768,7 +768,7 @@ export function AppContent() {
 
       <Card>
         <h2 className="font-extrabold">الخدمات في الصفحة الرئيسية</h2>
-        <p className="mt-1 text-xs text-navy/50">فعّل أو أخفِ أي خدمة، وعدّل اسمها، ورتّبها.</p>
+        <p className="mt-1 text-xs text-navy/60">فعّل أو أخفِ أي خدمة، وعدّل اسمها، ورتّبها.</p>
         <ul className="mt-4 space-y-2">
           {c.services.map((s, i) => (
             <li key={s.id} className={`rounded-2xl border p-3 ${s.enabled ? 'border-navy/10' : 'border-dashed border-navy/15 opacity-60'}`}>
@@ -800,7 +800,7 @@ export function AppContent() {
         <SaveButton busy={busy} saved={saved} onClick={save}>
           حفظ ونشر في التطبيق
         </SaveButton>
-        <p className="mt-2 text-center text-[11px] text-navy/40">تظهر التعديلات للزبائن عند فتح التطبيق التالي.</p>
+        <p className="mt-2 text-center text-[11px] text-navy/60">تظهر التعديلات للزبائن عند فتح التطبيق التالي.</p>
       </div>
     </div>
   )
@@ -881,7 +881,7 @@ export function Team() {
             <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg ${requireMfa ? 'bg-emerald-50' : 'bg-navy-50'}`}>🔐</span>
             <span className="min-w-0 flex-1">
               <b className="block">التحقق بخطوتين إجباري لكل الفريق</b>
-              <span className="block text-xs text-navy/50">
+              <span className="block text-xs text-navy/60">
                 لما يكون شغّال، أي عضو ما فعّل التحقق بخطوتين ما بيقدر يستعمل اللوحة لحتى يفعّله (بيطلعله الشرح أول ما يفوت).
               </span>
             </span>
@@ -894,7 +894,7 @@ export function Team() {
           <h2 className="flex items-center gap-2 font-extrabold">
             <UserPlus size={18} className="text-brand" /> إضافة حساب للفريق
           </h2>
-          <p className="mt-1 text-xs text-navy/50">
+          <p className="mt-1 text-xs text-navy/60">
             صاحب الحساب بيفوت على لوحة الإدارة باسم المستخدم وكلمة السر (وبعدين رمز التطبيق إذا فعّل التحقق بخطوتين)، وبيشوف بس الأقسام المسموحة لدوره.
           </p>
           <form onSubmit={addStaff} className="mt-4 space-y-3">
@@ -942,7 +942,7 @@ export function Team() {
         <Card>
           <h2 className="font-extrabold">الحسابات</h2>
           {staff.length === 0 ? (
-            <p className="py-8 text-center text-sm text-navy/40">لا توجد حسابات بعد. أنت تدخل كمالك بكلمة السر الرئيسية.</p>
+            <p className="py-8 text-center text-sm text-navy/60">لا توجد حسابات بعد. أنت تدخل كمالك بكلمة السر الرئيسية.</p>
           ) : (
             <ul className="mt-3 divide-y divide-navy/5">
               {staff.map((m) => (
@@ -952,7 +952,7 @@ export function Team() {
                       <p className="font-bold">
                         {m.name} {m.isCourier && <span className="rounded bg-sky-100 px-1.5 text-[10px] text-sky-700">عامل توصيل أيضاً</span>}
                       </p>
-                      <p className="text-[11px] text-navy/50">
+                      <p className="text-[11px] text-navy/60">
                         <span dir="ltr" className="font-en font-bold text-navy/70">@{m.username}</span> · <span dir="ltr" className="font-en">{m.phone}</span>
                         {m.lastLoginAt ? `، آخر دخول ${fmtDate(m.lastLoginAt)}` : '، لم يدخل بعد'}
                         {m.mfa && <span className="ms-1 rounded bg-emerald-100 px-1.5 text-[10px] font-bold text-emerald-700">🔐 تحقق بخطوتين</span>}
@@ -1044,18 +1044,18 @@ export function Team() {
             <Plus size={14} /> دور جديد
           </button>
         </div>
-        <p className="mt-1 text-xs text-navy/50">المالك يملك كل الصلاحيات دائماً. أنشئ أدواراً جديدة عندما يكبر فريقك، مثل «مدير فرع».</p>
+        <p className="mt-1 text-xs text-navy/60">المالك يملك كل الصلاحيات دائماً. أنشئ أدواراً جديدة عندما يكبر فريقك، مثل «مدير فرع».</p>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[640px] text-xs">
             <thead>
-              <tr className="border-b border-navy/10 text-navy/50">
+              <tr className="border-b border-navy/10 text-navy/60">
                 <th className="py-2 text-start font-bold">الصلاحية</th>
                 {roles.map((r) => (
                   <th key={r.id} className="px-2 py-2 font-bold">
                     <button onClick={() => setEditingRole({ ...r })} className="inline-flex items-center gap-1 hover:text-brand">
                       {r.name} <Pencil size={11} />
                     </button>
-                    <span className="block font-normal text-navy/40">{r.members} حساب</span>
+                    <span className="block font-normal text-navy/60">{r.members} حساب</span>
                   </th>
                 ))}
               </tr>

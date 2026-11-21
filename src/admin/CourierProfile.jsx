@@ -107,7 +107,7 @@ export default function CourierProfile({ courier, onClose }) {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold">الصورة الشخصية</p>
-                <p className="text-[11px] text-navy/50">بتطلع للزبون مع الاسم والرقم لما يقبل الطلب</p>
+                <p className="text-[11px] text-navy/60">بتطلع للزبون مع الاسم والرقم لما يقبل الطلب</p>
                 <div className="mt-2 flex gap-2">
                   <Pick onPick={setPhoto} className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold">
                     {shownPhoto ? 'تغيير' : 'رفع صورة'}
@@ -142,7 +142,7 @@ export default function CourierProfile({ courier, onClose }) {
 
             <div>
               <p className="text-sm font-bold">الوثائق الثبوتية</p>
-              <p className="text-[11px] text-navy/50">محفوظة بشكل خاص، ما حدا بيشوفها غير الإدارة.</p>
+              <p className="text-[11px] text-navy/60">محفوظة بشكل خاص، ما حدا بيشوفها غير الإدارة.</p>
               <div className="mt-2 grid grid-cols-3 gap-2">
                 {DOCS.map(([k, label]) => (
                   <div key={k} className="space-y-1.5">

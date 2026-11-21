@@ -10,8 +10,13 @@ export default function RingingInfo({ to, expiresAt, tried = [], compact = false
     return () => clearInterval(t)
   }, [expiresAt])
   const left = expiresAt ? Math.max(0, Math.ceil((Date.parse(expiresAt) - now) / 1000)) : 0
-  const declined = tried.filter((x) => x.status === 'declined').map((x) => x.name)
-  const missed = tried.filter((x) => x.status === 'expired').map((x) => x.name)
+  const once = (st) => {
+    const c = new Map()
+    for (const x of tried) if (x.status === st) c.set(x.name, (c.get(x.name) || 0) + 1)
+    return [...c].map(([n, k]) => (k === 1 ? n : k === 2 ? `${n} (مرتين)` : `${n} (${k} مرات)`))
+  }
+  const declined = once('declined')
+  const missed = once('expired')
   if (!to && !tried.length) return null
   return (
     <div className={`rounded-xl bg-amber-50 text-amber-900 ${compact ? 'mt-1.5 px-2.5 py-1.5 text-[11px]' : 'mt-2 px-3 py-2 text-xs'}`}>

@@ -18,7 +18,7 @@ function PassInput({ value, onChange, placeholder, autoComplete }) {
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
       />
-      <button type="button" onClick={() => setShow(!show)} aria-label={show ? 'إخفاء' : 'إظهار'} className="absolute inset-y-0 end-0 flex w-11 items-center justify-center text-navy/40">
+      <button type="button" onClick={() => setShow(!show)} aria-label={show ? 'إخفاء' : 'إظهار'} className="absolute inset-y-0 end-0 flex w-11 items-center justify-center text-navy/60">
         {show ? <EyeOff size={18} /> : <Eye size={18} />}
       </button>
     </div>
@@ -60,7 +60,7 @@ export default function MyAccount({ me, mfaOnly = false, onMfaEnabled }) {
   return (
     <div className="mx-auto max-w-md space-y-4">
       <div className="rounded-3xl bg-white p-5 shadow-soft">
-        <p className="text-xs text-navy/50">مسجّل الدخول باسم</p>
+        <p className="text-xs text-navy/60">مسجّل الدخول باسم</p>
         <p className="mt-1 text-lg font-extrabold">{me.name}</p>
         <p className="text-sm text-navy/55">{me.role}</p>
       </div>
@@ -72,7 +72,7 @@ export default function MyAccount({ me, mfaOnly = false, onMfaEnabled }) {
           </span>
           <div>
             <h2 className="font-extrabold">تغيير كلمة السر</h2>
-            <p className="text-xs text-navy/50">بعد التغيير، أي جهاز تاني فايت بحسابك بيطلع لحاله.</p>
+            <p className="text-xs text-navy/60">بعد التغيير، أي جهاز تاني فايت بحسابك بيطلع لحاله.</p>
           </div>
         </div>
         <label className="block">
@@ -83,7 +83,7 @@ export default function MyAccount({ me, mfaOnly = false, onMfaEnabled }) {
         </label>
         <label className="block">
           <span className="text-sm font-bold">كلمة السر الجديدة</span>
-          <span className="block text-[11px] text-navy/40">8 أحرف على الأقل. الأفضل تخلط أحرف وأرقام.</span>
+          <span className="block text-[11px] text-navy/60">8 أحرف على الأقل. الأفضل تخلط أحرف وأرقام.</span>
           <div className="mt-1.5">
             <PassInput value={f.next} onChange={(v) => setF({ ...f, next: v })} autoComplete="new-password" />
           </div>
@@ -133,7 +133,7 @@ function StaffUsername({ username }) {
       </span>
       <div>
         <h2 className="font-extrabold">اسم المستخدم</h2>
-        <p className="text-xs text-navy/50">
+        <p className="text-xs text-navy/60">
           <b dir="ltr" className="font-en">{username}</b> · المالك بيقدر يغيّره
         </p>
       </div>
@@ -177,7 +177,7 @@ function UsernameCard({ current, onSaved }) {
         </span>
         <div>
           <h2 className="font-extrabold">اسم المستخدم</h2>
-          <p className="text-xs text-navy/50">
+          <p className="text-xs text-navy/60">
             هلق: <b dir="ltr" className="font-en">{current}</b>
           </p>
         </div>
@@ -262,7 +262,7 @@ function MfaCard({ sec, onChanged, onEnabled }) {
         </span>
         <div className="flex-1">
           <h2 className="font-extrabold">التحقق بخطوتين</h2>
-          <p className="text-xs text-navy/50">
+          <p className="text-xs text-navy/60">
             {sec.mfa.enabled
               ? `شغّال ✓ · باقي ${sec.mfa.recoveryLeft} رموز احتياطية`
               : 'بعد كلمة السر، بيطلب رمز من تطبيق Authenticator على موبايلك. حتى لو حدا عرف كلمة السر ما بيقدر يفوت.'}
@@ -327,7 +327,7 @@ function MfaCard({ sec, onChanged, onEnabled }) {
           <button disabled={busy || code.length !== 6} className="flex w-full items-center justify-center rounded-2xl bg-brand py-3 text-sm font-extrabold text-white disabled:opacity-60">
             {busy ? <LoaderCircle size={18} className="animate-spin" /> : 'تأكيد وتفعيل'}
           </button>
-          <button type="button" onClick={() => (setSetup(null), setCode(''))} className="w-full text-xs font-bold text-navy/50">
+          <button type="button" onClick={() => (setSetup(null), setCode(''))} className="w-full text-xs font-bold text-navy/60">
             إلغاء
           </button>
         </form>

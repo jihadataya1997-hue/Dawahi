@@ -287,7 +287,7 @@ setInterval(() => {
 }, 60_000).unref()
 
 const DAY_MS = 86400e3
-function courierFile(id) {
+export function courierFile(id) {
   const c = db.prepare('SELECT * FROM couriers WHERE id = ?').get(id)
   if (!c) throw new HttpError(404, 'NOT_FOUND', 'Courier not found')
   const since = (days) => new Date(Date.now() - days * DAY_MS).toISOString()
