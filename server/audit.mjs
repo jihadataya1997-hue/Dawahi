@@ -52,6 +52,7 @@ const RULES = [
   ['POST', /^\/api\/admin\/promos$/, (_, b) => `إضافة كود حسم ${b.code || ''}`],
   ['DELETE', /^\/api\/admin\/promos\/(\d+)$/, () => 'حذف كود حسم'],
   [null, /^\/api\/admin\/promos\/(\d+)$/, () => 'تعديل كود حسم'],
+  ['DELETE', /^\/api\/admin\/couriers\/(\d+)$/, (m) => `حذف عامل التوصيل ${courierName(m[1]) || ''}`],
   [null, /^\/api\/admin\/orders\/(\d+)\/transfer$/, (m, b) => `تحويل الطلب ${orderNo(m[1])} لعامل التوصيل ${courierName(b.courierId) || ''}`],
   [null, /^\/api\/admin\/points$/, () => 'تعديل إعدادات النقاط وأول طلب ببلاش'],
   ['POST', /^\/api\/admin\/banners$/, () => 'إضافة إعلان'],

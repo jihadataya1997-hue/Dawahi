@@ -1,3 +1,4 @@
+import StoreTargetPicker from './StoreTargetPicker'
 // التحكم بالتطبيق مباشرة: وضع الصيانة، تشغيل وإيقاف الأقسام، تسعير الذروة، النافذة المنبثقة
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
@@ -509,7 +510,7 @@ function Zones({ data, onSaved }) {
 }
 
 /* ───────── النافذة المنبثقة ───────── */
-const ACTIONS = { none: 'بدون زر (إغلاق فقط)', order: 'يفتح طلب جديد', gas: 'يفتح طلب الغاز', url: 'يفتح رابط' }
+const ACTIONS = { none: 'بدون زر (إغلاق فقط)', order: 'يفتح طلب جديد', gas: 'يفتح طلب الغاز', store: 'يفتح مطعم أو وجبة بالتطبيق', url: 'يفتح رابط' }
 const CATS = { any: 'أي محل', restaurants: 'مطعم', supermarket: 'سوبرماركت', pharmacy: 'صيدلية', library: 'مكتبة', diesel: 'مازوت' }
 const FREQ = { once: 'مرة وحدة لكل زبون', daily: 'مرة كل يوم', always: 'كل ما يفتح التطبيق' }
 function Popup({ data, onSaved }) {
@@ -577,6 +578,7 @@ function Popup({ data, onSaved }) {
               </select>
             </Field>
           )}
+          {f.action === 'store' && <StoreTargetPicker value={f.actionValue} onChange={(v) => setF({ ...f, actionValue: v })} inputCls={inputCls} />}
           {f.action === 'url' && (
             <Field label="الرابط">
               <input dir="ltr" className={inputCls} value={f.actionValue} onChange={(e) => setF({ ...f, actionValue: e.target.value })} placeholder="https://" />

@@ -45,6 +45,7 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
   const [toast, setToast] = useState('')
   const stores = useStores()
   const [storeOpen, setStoreOpen] = useState(null)
+  const [focusItem, setFocusItem] = useState(null) // وجبة معيّنة من إعلان أو نافذة
   const clearToast = useCallback(() => setToast(''), [])
   // بعد ما يوصل الطلب منسأل الزبون يقيّم عامل التوصيل (مرة وحدة)
   const { orders } = useOrders()
@@ -79,6 +80,14 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
     if (b.action === 'gas') setCustom({ category: 'gas', text: 'تبديل جرة غاز: جرة وحدة' })
     else if (b.action === 'order') setCustom({ category: b.actionValue || 'any', text: '' })
     else if (b.action === 'url' && b.actionValue) window.open(b.actionValue, '_blank', 'noopener')
+    else if (b.action === 'store') {
+      const [sid, iid] = String(b.actionValue || '').split(':')
+      const store = stores.find((x) => String(x.id) === sid)
+      if (!store) return setToast('هالمطعم مو متاح هلق')
+      setTab('home')
+      setFocusItem(iid ? Number(iid) : null)
+      setStoreOpen(store)
+    }
   }
   const startOrder = () => {
     setTab('home')
@@ -124,7 +133,7 @@ function Main({ tab, setTab, gasOpen, setGasOpen, custom, setCustom, activeOrder
       )}
 
       <GasOrderSheet open={gasOpen} onClose={() => setGasOpen(false)} />
-      <StoreSheet store={storeOpen} onClose={() => setStoreOpen(null)} onCheckout={checkout} />
+      <StoreSheet store={storeOpen} focusItemId={focusItem} onClose={() => (setStoreOpen(null), setFocusItem(null))} onCheckout={checkout} />
       <InboxSheet open={inboxOpen} items={inbox.items} onClose={() => setInboxOpen(false)} />
       <CustomOrderSheet
         open={!!custom}

@@ -9,7 +9,9 @@ import { queueCourierMessage } from './supervisor.mjs'
 
 const SERVICE_IDS = ['restaurants', 'supermarket', 'gas', 'diesel', 'pharmacy', 'library']
 const THEMES = ['orange', 'navy', 'green', 'sky', 'rose', 'purple']
-const ACTIONS = ['none', 'order', 'gas', 'url']
+const ACTIONS = ['none', 'order', 'gas', 'url', 'store']
+// store: يفتح صفحة مطعم شريك، أو وجبة معيّنة فيه. القيمة "رقم المطعم" أو "رقم المطعم:رقم الوجبة"
+const STORE_TARGET = /^\d{1,9}(:\d{1,9})?$/
 const CATEGORIES = ['any', 'restaurants', 'supermarket', 'pharmacy', 'library', 'diesel', 'gas', 'other']
 const MAX_IMAGE = 1.5 * 1024 * 1024
 
@@ -211,6 +213,7 @@ function bannerFields(body, current = {}) {
     const action = f.action ?? current.action ?? 'none'
     const v = str(body.actionValue, 300, 'actionValue')
     if (action === 'url' && v && !/^https:\/\/\S+$/.test(v)) throw bad('INVALID', 'Link must start with https://', 'actionValue')
+    if (action === 'store' && !STORE_TARGET.test(v)) throw bad('INVALID', 'Pick a restaurant', 'actionValue')
     if (action === 'order' && v && !CATEGORIES.includes(v)) throw bad('INVALID', 'Unknown category', 'actionValue')
     f.action_value = v
   }
@@ -344,6 +347,7 @@ export async function contentAdminRoute(req, res, url, need) {
         const action = ACTIONS.includes(p.action) ? p.action : 'none'
         const actionValue = str(p.actionValue, 300, 'actionValue')
         if (action === 'url' && !/^https:\/\/\S+$/.test(actionValue)) throw bad('INVALID', 'Link must start with https://', 'actionValue')
+        if (action === 'store' && !STORE_TARGET.test(actionValue)) throw bad('INVALID', 'Pick a restaurant', 'actionValue')
         let image = ctl.popup.image
         if (p.image === null) image = null
         else if (typeof p.image === 'string' && p.image.startsWith('data:')) image = await saveImage(p.image)

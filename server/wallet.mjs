@@ -118,7 +118,7 @@ export async function adminWalletRoute(req, res, url, need, me) {
       led.set(l.courier_id, r)
     }
     const couriers = db
-      .prepare('SELECT id, name, phone, balance, active FROM couriers ORDER BY active DESC, name')
+      .prepare('SELECT id, name, phone, balance, active FROM couriers WHERE deleted_at IS NULL OR balance != 0 ORDER BY active DESC, name')
       .all()
       .map((c) => {
         const p = per.get(c.id) || { delivered: 0, fees: 0 }

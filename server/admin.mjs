@@ -2,7 +2,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { db, getSettings, UPLOADS_DIR } from './db.mjs'
+import { db, getSettings, UPLOADS_DIR, MEDIA_DIR, PRIVATE_DIR } from './db.mjs'
 import { HttpError, bad, sha256, now, str, isPhone, isPin, hashPin, isPassword, hashSecret, verifySecret, clientIp, rateLimit, readJson, send, log, toOrder, ratingOf } from './lib.mjs'
 import { hasSubscription, notify, removeSubscription, saveSubscription } from './push.mjs'
 import { BACKUP_DIR, isBackupName, listBackups, runBackup } from './backup.mjs'
@@ -720,7 +720,7 @@ async function adminRouteInner(req, res, url) {
              EXISTS (SELECT 1 FROM push_subscriptions p WHERE p.owner_type = 'courier' AND p.owner_id = c.id) AS push,
              (SELECT ROUND(AVG(o.rating), 1) FROM orders o WHERE o.courier_id = c.id AND o.rating IS NOT NULL AND o.rated_at > ?) AS ratingAvg,
              (SELECT COUNT(*) FROM orders o WHERE o.courier_id = c.id AND o.rating IS NOT NULL AND o.rated_at > ?) AS ratingCount
-           FROM couriers c ORDER BY c.active DESC, c.name`
+           FROM couriers c WHERE c.deleted_at IS NULL ORDER BY c.active DESC, c.name`
         )
         .all(...Array(2).fill(new Date(Date.now() - 90 * 864e5).toISOString()))
       return send(res, 200, { couriers: rows.map(({ device, ...r }) => ({ ...r, active: !!r.active, online: !!r.online, push: !!r.push, supervisor: !!r.supervisor, setupMissing: setupMissing(device) })) })
@@ -738,6 +738,36 @@ async function adminRouteInner(req, res, url) {
     }
   }
   mm = /^\/api\/admin\/couriers\/(\d{1,9})$/.exec(pathname)
+  // حذف عامل توصيل ترك الشغل. طلباته القديمة بتضل بالسجل باسمه، بس حسابه ومعلوماته الشخصية بينمسحو
+  if (mm && m === 'DELETE') {
+    need('couriers.manage')
+    const id = Number(mm[1])
+    const c = db.prepare('SELECT * FROM couriers WHERE id = ? AND deleted_at IS NULL').get(id)
+    if (!c) throw new HttpError(404, 'NOT_FOUND', 'Courier not found')
+    const open = db.prepare("SELECT COUNT(*) AS n FROM orders WHERE courier_id = ? AND status IN ('assigned','buying','on_the_way')").get(id).n
+    if (open) throw new HttpError(409, 'HAS_ORDERS', 'Courier still has open orders')
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      db.prepare(
+        `UPDATE couriers SET deleted_at = ?, active = 0, online = 0, is_supervisor = 0, phone = ?, pin_hash = 'deleted',
+           lat = NULL, lng = NULL, loc_at = NULL, device = NULL, photo = NULL, id_front = NULL, id_back = NULL, license_doc = NULL,
+           national_id = '', home_address = '', notes = '' WHERE id = ?`
+      ).run(now(), `090${String(id).padStart(7, "0")}`, id) // رقم وهمي (0900...) ليتحرّر رقمه الحقيقي
+      db.prepare('DELETE FROM courier_sessions WHERE courier_id = ?').run(id)
+      db.prepare("DELETE FROM push_subscriptions WHERE owner_type = 'courier' AND owner_id = ?").run(id)
+      db.prepare("DELETE FROM native_push_tokens WHERE owner_type = 'courier' AND owner_id = ?").run(id)
+      db.prepare("UPDATE order_offers SET status = 'cancelled' WHERE courier_id = ? AND status = 'pending'").run(id)
+      db.exec('COMMIT')
+    } catch (err) {
+      db.exec('ROLLBACK')
+      throw err
+    }
+    for (const [dir, f] of [[MEDIA_DIR, c.photo], [PRIVATE_DIR, c.id_front], [PRIVATE_DIR, c.id_back], [PRIVATE_DIR, c.license_doc]])
+      if (f) await rm(join(dir, f), { force: true }).catch(() => {})
+    nudge()
+    log('info', 'courier deleted', { courierId: id })
+    return send(res, 200, { ok: true })
+  }
   if (mm && m === 'PATCH') {
     need('couriers.manage')
     const id = Number(mm[1])

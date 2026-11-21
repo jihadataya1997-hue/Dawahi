@@ -1594,6 +1594,23 @@ function Couriers() {
     }
   }
 
+  // حذف عامل توصيل ترك الشغل
+  const [removing, setRemoving] = useState(null)
+  const removeCourier = async () => {
+    const c = removing
+    setBusy(`d${c.id}`)
+    try {
+      await adminApi(`/couriers/${c.id}`, { method: 'DELETE' })
+      setRemoving(null)
+      load()
+    } catch (err) {
+      setError(err.code === 'HAS_ORDERS' ? `${c.name} معه طلبات مفتوحة. حوّلها لعامل تاني أو خلّصها أول، وبعدين احذفه.` : adminErrorText(err))
+      setRemoving(null)
+    } finally {
+      setBusy('')
+    }
+  }
+
   // تغيير رمز الدخول: الإدارة بتكتبه بإيدها، أو بتتركه فاضي ليتولّد رمز عشوائي
   const resetPin = (c) => {
     const typed = window.prompt(`رمز الدخول الجديد لـ ${c.name}\n(من 4 إلى 6 أرقام، أو اتركه فاضي لرمز عشوائي)`, '')
@@ -1611,6 +1628,30 @@ function Couriers() {
   return (
     <div className="space-y-4">
       {profile && <CourierProfile courier={profile} onClose={() => setProfile(null)} />}
+      {removing && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-navy/50 sm:items-center" onClick={() => setRemoving(null)}>
+          <div role="alertdialog" aria-modal="true" className="pb-safe w-full max-w-sm rounded-t-3xl bg-white p-5 sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-extrabold">حذف {removing.name}؟</h2>
+            <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-navy/75">
+              <li>• حسابه بينسكّر وما بيعود يقدر يفوت عالتطبيق.</li>
+              <li>• صورته ووثائقه ومعلوماته الشخصية بتنمسح.</li>
+              <li>• طلباته القديمة بتضل بالسجل وبالحسابات باسمه.</li>
+              <li>• رقم موبايله بيرجع متاح، فيك تضيفه من جديد إذا رجع.</li>
+            </ul>
+            <p className="mt-3 rounded-xl bg-amber-50 p-2.5 text-xs font-bold text-amber-800">
+              إذا بس بدك توقفه مؤقتاً، استعمل «إيقاف الحساب» بدل الحذف. الحذف ما بيرجع.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button onClick={() => setRemoving(null)} className="flex-1 rounded-2xl bg-navy-50 py-3 text-sm font-bold">
+                تراجع
+              </button>
+              <button onClick={removeCourier} disabled={busy === `d${removing.id}`} className="flex-1 rounded-2xl bg-rose-600 py-3 text-sm font-bold text-white disabled:opacity-60">
+                {busy === `d${removing.id}` ? <LoaderCircle size={18} className="mx-auto animate-spin" /> : 'احذفه نهائياً'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {fileOf && (
         <CourierFile
           courierId={fileOf}
@@ -1734,6 +1775,9 @@ function Couriers() {
                     className={`rounded-xl px-3 py-1.5 text-xs font-bold ${c.active ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'}`}
                   >
                     {c.active ? 'إيقاف الحساب' : 'تفعيل الحساب'}
+                  </button>
+                  <button onClick={() => setRemoving(c)} className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white">
+                    حذف
                   </button>
                   {busy === `c${c.id}` && <LoaderCircle size={16} className="animate-spin text-brand" />}
                 </div>

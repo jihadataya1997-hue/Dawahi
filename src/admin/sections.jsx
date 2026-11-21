@@ -1,3 +1,4 @@
+import StoreTargetPicker from './StoreTargetPicker'
 // أقسام لوحة الإدارة: الزبائن، الإعلانات، الإشعارات العامة، محتوى التطبيق
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -217,6 +218,7 @@ const ACTIONS = {
   order: 'يفتح طلباً جديداً',
   gas: 'يفتح طلب الغاز',
   url: 'يفتح رابطاً خارجياً',
+  store: 'يفتح مطعم أو وجبة بالتطبيق',
 }
 const CATS = { any: 'أي محل', restaurants: 'مطعم', supermarket: 'سوبرماركت', pharmacy: 'صيدلية', library: 'مكتبة', diesel: 'مازوت', other: 'غير ذلك' }
 const toLocal = (iso) => (iso ? new Date(new Date(iso).getTime() + 3 * 3600e3).toISOString().slice(0, 16) : '')
@@ -387,6 +389,7 @@ function BannerEditor({ initial, onClose, onSaved }) {
               </select>
             </Field>
           )}
+          {b.action === 'store' && <StoreTargetPicker value={b.actionValue} onChange={(v) => set({ actionValue: v })} inputCls={inputCls} />}
           {b.action === 'url' && (
             <Field label="الرابط">
               <input dir="ltr" value={b.actionValue} placeholder="https://" onChange={(e) => set({ actionValue: e.target.value })} className={inputCls} />

@@ -51,7 +51,7 @@ export function RestaurantsRow({ stores, onOpen }) {
 }
 
 /** قائمة المطعم: الأصناف بأقسامها، وسلة تحت */
-export function StoreSheet({ store, onClose, onCheckout }) {
+export function StoreSheet({ store, onClose, onCheckout, focusItemId }) {
   const { lang, formatNumber } = useLang()
   const { money } = useAppConfig()
   const ar = lang === 'ar'
@@ -61,6 +61,12 @@ export function StoreSheet({ store, onClose, onCheckout }) {
     document.body.style.overflow = store ? 'hidden' : ''
     return () => (document.body.style.overflow = '')
   }, [store])
+  // جاي من إعلان عن وجبة: منمرّق لعندها ومنضوّيها
+  useEffect(() => {
+    if (!store || !focusItemId) return
+    const t = setTimeout(() => document.getElementById(`menu-item-${focusItemId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 350)
+    return () => clearTimeout(t)
+  }, [store, focusItemId])
 
   const sections = useMemo(() => {
     const map = new Map()
@@ -100,7 +106,11 @@ export function StoreSheet({ store, onClose, onCheckout }) {
               <h3 className="mb-2 text-base font-black">{name}</h3>
               <ul className="space-y-2.5">
                 {items.map((it) => (
-                  <li key={it.id} className={`flex gap-3 rounded-2xl bg-white p-3 shadow-soft ${it.available ? '' : 'opacity-50'}`}>
+                  <li
+                    key={it.id}
+                    id={`menu-item-${it.id}`}
+                    className={`flex gap-3 rounded-2xl bg-white p-3 shadow-soft ${it.available ? '' : 'opacity-50'} ${it.id === focusItemId ? 'ring-4 ring-lime' : ''}`}
+                  >
                     {it.image && <img src={it.image} alt="" loading="lazy" className="h-20 w-20 shrink-0 rounded-xl object-cover" />}
                     <div className="flex min-w-0 flex-1 flex-col">
                       <p className="text-sm font-extrabold">{it.name}</p>

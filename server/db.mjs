@@ -481,6 +481,10 @@ const MIGRATIONS = [
   );
   CREATE INDEX idx_courier_incidents ON courier_incidents(courier_id, at);
   `,
+  `
+  -- حذف عامل توصيل ترك الشغل: منخفيه ومنمسح معلوماته الشخصية، وطلباته القديمة بتضل باسمه بالسجل
+  ALTER TABLE couriers ADD COLUMN deleted_at TEXT;
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')
