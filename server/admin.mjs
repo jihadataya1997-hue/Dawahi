@@ -56,6 +56,7 @@ const DISPATCH_KEYS = {
   remindBuyingMin: ['remind_buying_min', 0, 240],
   remindWayMin: ['remind_way_min', 0, 240],
   nearAlertM: ['near_alert_m', 0, 3000],
+  locOffMin: ['loc_off_min', 0, 60],
 }
 
 // كلمة سر المالك: إذا غيّرها من اللوحة بتنحفظ مشفّرة بالقاعدة، وإلا منستعمل الأصلية من السيرفر
@@ -751,7 +752,7 @@ async function adminRouteInner(req, res, url) {
     }
     if (body.supervisor !== undefined) db.prepare('UPDATE couriers SET is_supervisor = ? WHERE id = ?').run(body.supervisor ? 1 : 0, id)
     if (body.online !== undefined) {
-      db.prepare('UPDATE couriers SET online = ?, missed_offers = 0 WHERE id = ?').run(body.online ? 1 : 0, id)
+      db.prepare('UPDATE couriers SET online = ?, missed_offers = 0, online_at = ? WHERE id = ?').run(body.online ? 1 : 0, now(), id)
       if (body.online) nudge()
     }
     if (body.active !== undefined) {

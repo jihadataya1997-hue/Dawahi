@@ -254,6 +254,11 @@ export default function CourierFile({ courierId, onClose, load, docUrl }) {
                 <Mini n={s.offers30.declined} l="رفضها" c="text-rose-600" />
                 <Mini n={s.offers30.expired} l="ما ردّ" c="text-amber-700" />
               </div>
+              {s.locOff30?.count > 0 && (
+                <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 font-bold text-rose-700">
+                  📍 طفى موقعه وهو «متاح» {s.locOff30.count} مرة بآخر 30 يوم (آخر مرة {ago(s.locOff30.last)})
+                </p>
+              )}
               {s.cancelled30 > 0 && (
                 <p className="mt-2 text-navy/55">
                   انلغى من طلباته {s.cancelled30} طلب بآخر 30 يوم

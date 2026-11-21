@@ -469,6 +469,18 @@ const MIGRATIONS = [
   ALTER TABLE orders ADD COLUMN near_notified_at TEXT;
   INSERT OR IGNORE INTO settings (key, value) VALUES ('near_alert_m', '400');
   `,
+  `
+  -- عامل التوصيل "متاح" وموقعه مطفي: بعد كم دقيقة بيصير غير متاح تلقائياً (0 = أبداً)، وسجل لهالمرات
+  ALTER TABLE couriers ADD COLUMN online_at TEXT;
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('loc_off_min', '5');
+  CREATE TABLE courier_incidents (
+    id INTEGER PRIMARY KEY,
+    courier_id INTEGER NOT NULL REFERENCES couriers(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    at TEXT NOT NULL
+  );
+  CREATE INDEX idx_courier_incidents ON courier_incidents(courier_id, at);
+  `,
 ]
 
 db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)')

@@ -1845,6 +1845,17 @@ function DispatchSettings() {
           </div>
         </div>
         <label className="col-span-2 block">
+          <span className="text-xs font-bold">إذا عامل التوصيل "متاح" وموقعه مطفي، بعد كم دقيقة بيصير "غير متاح" تلقائياً؟ (0 = أبداً)</span>
+          <span className="mt-0.5 block text-[11px] text-navy/60">إذا معه طلب ما بينطفى، بس بيوصلك إنت والمشرف تنبيه.</span>
+          <input
+            inputMode="numeric"
+            dir="ltr"
+            value={v.locOffMin ?? 5}
+            onChange={(e) => setV({ ...v, locOffMin: e.target.value.replace(/\D/g, '') })}
+            className="mt-1 w-full rounded-2xl border border-navy/10 bg-navy-50 px-4 py-3 text-end font-en font-bold outline-none focus:border-brand focus:bg-white"
+          />
+        </label>
+        <label className="col-span-2 block">
           <span className="text-xs font-bold">إشعار للزبون "عامل التوصيل قرّب يوصل" لما يصير على بعد (متر، 0 = بدون)</span>
           <span className="mt-0.5 block text-[11px] text-navy/60">بضاحية قدسيا 400 متر تقريباً دقيقة أو دقيقتين بالموتور.</span>
           <input
@@ -1877,6 +1888,7 @@ function DispatchSettings() {
             remindBuyingMin: Number(v.remindBuyingMin ?? 30),
             remindWayMin: Number(v.remindWayMin ?? 25),
             nearAlertM: Number(v.nearAlertM ?? 400),
+            locOffMin: Number(v.locOffMin ?? 5),
           })
         }
         disabled={busy}

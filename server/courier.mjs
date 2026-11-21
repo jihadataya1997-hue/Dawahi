@@ -144,7 +144,7 @@ export async function courierRoute(req, res, url) {
   // متاح / غير متاح لاستقبال الطلبات
   if (m === 'POST' && pathname === '/api/courier/online') {
     const { online } = await readJson(req)
-    db.prepare('UPDATE couriers SET online = ?, missed_offers = 0 WHERE id = ?').run(online ? 1 : 0, me.id)
+    db.prepare('UPDATE couriers SET online = ?, missed_offers = 0, online_at = ? WHERE id = ?').run(online ? 1 : 0, now(), me.id)
     log('info', 'courier availability', { courierId: me.id, online: !!online })
     if (online) nudge()
     return send(res, 200, { online: !!online })

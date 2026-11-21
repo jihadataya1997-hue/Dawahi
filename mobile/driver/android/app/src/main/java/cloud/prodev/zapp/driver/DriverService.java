@@ -210,6 +210,50 @@ public class DriverService extends Service {
     }
 
     /** إذا الإذن انعطى بعد ما اشتغلت الخدمة، أو الـGPS انفتح بعدين، أو ما إجا موقع من دقيقتين: منعيد التسجيل */
+    private boolean gpsWarned = false;
+
+    /** الموقع مطفي بالموبايل كله؟ تنبيه ثابت بيفتح إعدادات الموقع مباشرة، وبيختفي لحاله لما ينفتح */
+    private void checkGpsOff() {
+        LocationManager lm = locationManager != null ? locationManager : (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (lm == null) return;
+        boolean off;
+        try {
+            off = !androidx.core.location.LocationManagerCompat.isLocationEnabled(lm);
+        } catch (Exception e) {
+            return;
+        }
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        if (!off) {
+            if (gpsWarned) {
+                nm.cancel(1005);
+                gpsWarned = false;
+                main.post(this::startLocation);
+            }
+            return;
+        }
+        if (gpsWarned) return;
+        gpsWarned = true;
+        Intent i = new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent pi = PendingIntent.getActivity(this, 1005, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        String text = "شغّل الموقع (GPS) لتوصلك الطلبات ويشوفك الزبون عالخريطة. إذا ضل مطفي رح تصير «غير متاح» تلقائياً.";
+        Notification n = new NotificationCompat.Builder(this, CH_SUP)
+            .setSmallIcon(R.drawable.ic_stat_zapp)
+            .setColor(0xFFE11D48)
+            .setContentTitle("📍 الموقع مطفي بموبايلك")
+            .setContentText(text)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOngoing(true)
+            .setContentIntent(pi)
+            .addAction(0, "شغّل الموقع", pi)
+            .build();
+        try {
+            nm.notify(1005, n);
+        } catch (Exception ignored) {}
+    }
+
     private void ensureLocation() {
         Location l = lastLocation;
         boolean stale = l == null || System.currentTimeMillis() - l.getTime() > 120_000;
@@ -228,6 +272,7 @@ public class DriverService extends Service {
             pollOffers(base, token);
             failures = 0;
             // كل دقيقة: إذا صار "غير متاح" (من التطبيق أو تلقائياً بعد تجاهل عروض) منوقف الخدمة
+            if (ticks % 2 == 0) checkGpsOff();
             if (ticks % 8 == 0) ensureLocation();
             if (++ticks % 15 == 1) {
                 JSONObject me = new JSONObject(request("GET", base + "/api/courier/me", token, null)).optJSONObject("courier");
@@ -566,6 +611,10 @@ public class DriverService extends Service {
 
     @Override
     public void onDestroy() {
+        try {
+            NotificationManager nmx = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nmx != null) nmx.cancel(1005);
+        } catch (Exception ignored) {}
         running = false;
         instance = null;
         if (exec != null) exec.shutdownNow();

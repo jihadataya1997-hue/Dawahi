@@ -1,6 +1,6 @@
 // وضع المشرف داخل تطبيق السائقين: يشوف السائقين والطلبات، يحوّل الطلبات، ويعمل السائق متاح/غير متاح
 // (إلغاء الطلبات بيضل للإدارة بس)
-import { db } from './db.mjs'
+import { db, getSettings } from './db.mjs'
 import { HttpError, bad, now, readJson, send, log, toOrder, ratingOf } from './lib.mjs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -148,7 +148,7 @@ export async function supervisorRoute(req, res, url, me) {
   if (mm && m === 'POST') {
     const id = Number(mm[1])
     const { online } = await readJson(req)
-    const r = db.prepare('UPDATE couriers SET online = ?, missed_offers = 0 WHERE id = ? AND active = 1').run(online ? 1 : 0, id)
+    const r = db.prepare('UPDATE couriers SET online = ?, missed_offers = 0, online_at = ? WHERE id = ? AND active = 1').run(online ? 1 : 0, now(), id)
     if (!r.changes) throw new HttpError(404, 'NOT_FOUND', 'Courier not found')
     log('info', 'courier availability by supervisor', { courierId: id, supervisorId: me.id, online: !!online })
     if (online) nudge()
@@ -284,7 +284,61 @@ setInterval(() => {
   } catch (err) {
     log('error', 'stale check failed', { err: err.message })
   }
+  try {
+    checkLocationOff()
+  } catch (err) {
+    log('error', 'location-off check failed', { err: err.message })
+  }
 }, 60_000).unref()
+
+/**
+ * عامل التوصيل "متاح" وموبايله ما بعت موقع من كذا دقيقة (طفى الموقع، أو سكّر التطبيق، أو ما في نت):
+ * - إذا ما معه طلب: بيصير "غير متاح" تلقائياً (ما بتروح عليه الطلبات)، وبيوصله تنبيه
+ * - إذا معه طلب: منبّه المشرفين والإدارة مرة وحدة، ومنبّهه يشغّل الموقع
+ * وكل مرة بتنسجّل بملفه.
+ */
+const locAlerted = new Map() // courierId -> loc_at اللي نبّهنا عليه
+function checkLocationOff() {
+  const limit = Number(getSettings().loc_off_min ?? 5)
+  if (!limit) return
+  const cut = Date.now() - limit * 60_000
+  const rows = db.prepare('SELECT id, name, loc_at, online_at FROM couriers WHERE active = 1 AND online = 1').all()
+  for (const c of rows) {
+    const last = Math.max(c.loc_at ? Date.parse(c.loc_at) : 0, c.online_at ? Date.parse(c.online_at) : 0)
+    if (last > cut) {
+      locAlerted.delete(c.id)
+      continue
+    }
+    if (locAlerted.get(c.id) === (c.loc_at || 'none')) continue
+    locAlerted.set(c.id, c.loc_at || 'none')
+    const open = db.prepare(`SELECT id FROM orders WHERE courier_id = ? AND status IN ('assigned','buying','on_the_way') ORDER BY id`).all(c.id)
+    db.prepare('INSERT INTO courier_incidents (courier_id, kind, at) VALUES (?, ?, ?)').run(c.id, 'loc_off', now())
+    const mins = last ? Math.round((Date.now() - last) / 60_000) : limit
+    if (!open.length) {
+      db.prepare('UPDATE couriers SET online = 0, missed_offers = 0 WHERE id = ?').run(c.id)
+      const title = '📍 موقعك مطفي، فصرت «غير متاح»'
+      const body = 'شغّل الموقع (GPS) بموبايلك وافتح التطبيق، وبعدين اكبس «متاح» لترجع توصلك الطلبات.'
+      queueCourierMessage(c.id, title, body, `locoff-${Date.now()}`)
+      notify('courier', c.id, { title, body, url: '/driver', tag: 'loc-off' })
+      log('info', 'courier auto-offline: no location', { courierId: c.id, mins })
+    } else {
+      const title = '📍 شغّل الموقع'
+      const body = `معك طلب ${num(open[0].id)} وموقعك مطفي. شغّل الموقع (GPS) لحتى الزبون يشوفك عالخريطة.`
+      queueCourierMessage(c.id, title, body, `locoff-${Date.now()}`)
+      notify('courier', c.id, { title, body, url: '/driver', tag: 'loc-off' })
+    }
+    const msg = {
+      title: `📍 موقع ${c.name} مطفي`,
+      body: open.length
+        ? `معه ${open.map((o) => num(o.id)).join('، ')} وما بعت موقع من ${mins} دقيقة.`
+        : `ما بعت موقع من ${mins} دقيقة، فصار «غير متاح» تلقائياً.`,
+      url: '/driver',
+      tag: `locoff-${c.id}`,
+    }
+    for (const sup of db.prepare('SELECT id FROM couriers WHERE is_supervisor = 1 AND active = 1 AND id != ?').all(c.id)) notify('courier', sup.id, msg)
+    notify('admin', 0, { ...msg, url: '/admin' })
+  }
+}
 
 const DAY_MS = 86400e3
 export function courierFile(id) {
@@ -313,6 +367,7 @@ export function courierFile(id) {
   const cancelled = db.prepare(`SELECT COUNT(*) AS n FROM orders WHERE courier_id = ? AND status = 'cancelled' AND updated_at >= ?`).get(id, since(30)).n
   const open = db.prepare(`SELECT COUNT(*) AS n FROM orders WHERE courier_id = ? AND status IN ('assigned','buying','on_the_way')`).get(id).n
   const first = db.prepare(`SELECT MIN(updated_at) AS at FROM orders WHERE courier_id = ? AND status = 'delivered'`).get(id).at
+  const locOff = db.prepare(`SELECT COUNT(*) AS n, MAX(at) AS last FROM courier_incidents WHERE courier_id = ? AND kind = 'loc_off' AND at >= ?`).get(id, since(30))
 
   // آخر الطلبات اللي اشتغلها
   const orders = db
@@ -392,6 +447,7 @@ export function courierFile(id) {
       cancelled30: cancelled,
       offers30: { ...o30, acceptRate: o30.total ? Math.round((o30.accepted / o30.total) * 100) : null },
       rating: { avg: rating.avg, count: rating.n },
+      locOff30: { count: locOff.n, last: locOff.last },
     },
     orders,
     offers: offerList,
